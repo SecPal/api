@@ -10,13 +10,12 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\Api\V1\DomainLookupResource;
 use App\Models\Customer;
-use App\Models\Employee;
+use App\Models\CustomerEstablishment;
 use App\Models\Establishment;
 use App\Models\LegalEntity;
 use App\Models\Site;
 use App\Models\User;
 use App\Services\DomainAccessService;
-use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
@@ -26,8 +25,6 @@ final class DomainLookupController extends Controller
 
     public function legalEntities(Request $request): AnonymousResourceCollection
     {
-        $this->authorizeDomainWriteLookup($this->user($request));
-
         return DomainLookupResource::collection(
             $this->domainAccess->writableLegalEntities($this->user($request), $request->integer('tenant_id'))
         );
@@ -35,8 +32,6 @@ final class DomainLookupController extends Controller
 
     public function establishments(Request $request, LegalEntity $legalEntity): AnonymousResourceCollection
     {
-        $this->authorizeDomainWriteLookup($this->user($request));
-
         return DomainLookupResource::collection($this->domainAccess->writableEstablishments(
             $this->user($request),
             $request->integer('tenant_id'),
@@ -44,10 +39,21 @@ final class DomainLookupController extends Controller
         ));
     }
 
+    public function customerCandidates(Request $request, Establishment $establishment): AnonymousResourceCollection
+    {
+        $this->authorize('create', CustomerEstablishment::class);
+
+        return DomainLookupResource::collection($this->domainAccess->customerLinkCandidatesForEstablishment(
+            $this->user($request),
+            $request->integer('tenant_id'),
+            $establishment->id,
+        ));
+    }
+
     public function customers(Request $request, Establishment $establishment): AnonymousResourceCollection
     {
         $user = $this->user($request);
-        if (! $user->can('create', Site::class)) {
+        if (! $this->canCreateOrReassignSites($user)) {
             $this->authorize('create', Customer::class);
             $this->authorize('viewAny', Customer::class);
         }
@@ -67,14 +73,9 @@ final class DomainLookupController extends Controller
         return $user;
     }
 
-    private function authorizeDomainWriteLookup(User $user): void
+    private function canCreateOrReassignSites(User $user): bool
     {
-        if ($user->can('create', Customer::class)
-            || $user->can('create', Employee::class)
-            || $user->can('create', Site::class)) {
-            return;
-        }
-
-        throw new AuthorizationException;
+        return $user->can('create', Site::class)
+            || ($user->can('sites.update') && ! $user->organizationalScopes()->exists());
     }
 }

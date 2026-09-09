@@ -155,6 +155,20 @@ final class DomainAccessRepository
             );
     }
 
+    /** @return Builder<Customer> */
+    public function customerLinkCandidatesForEstablishmentQuery(
+        int $tenantId,
+        string $legalEntityId,
+        string $establishmentId,
+    ): Builder {
+        return $this->activeCustomersQuery($tenantId)
+            ->where('legal_entity_id', $legalEntityId)
+            ->whereDoesntHave(
+                'customerEstablishments',
+                fn (Builder $query): Builder => $query->where('establishment_id', $establishmentId),
+            );
+    }
+
     /** @return Builder<Establishment> */
     public function writableEmployeeEstablishmentsQuery(User $user, int $tenantId): Builder
     {

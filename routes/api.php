@@ -245,6 +245,7 @@ Route::prefix('v1')->group(function () {
                 Route::get('/lookups/legal-entities', [DomainLookupController::class, 'legalEntities']);
                 Route::get('/lookups/legal-entities/{legal_entity}/establishments', [DomainLookupController::class, 'establishments']);
                 Route::get('/lookups/establishments/{establishment}/customers', [DomainLookupController::class, 'customers']);
+                Route::get('/lookups/establishments/{establishment}/customer-candidates', [DomainLookupController::class, 'customerCandidates']);
 
                 Route::get('/customers', [CustomerController::class, 'index']);
                 Route::post('/customers', [CustomerController::class, 'store']);
