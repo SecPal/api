@@ -74,6 +74,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- added the canonical tenant-safe legal-hold persistence foundation with closed
+  active/released lifecycle constraints, immutable actor and Activity identity
+  evidence, duplicate-safe historical attachment and detachment records, and
+  PostgreSQL-enforced cross-tenant boundaries (fixes `api#449`)
 - added the canonical tenant-safe work-instruction persistence foundation with
   closed lifecycle and German/English locale constraints, tenant-owned localized
   templates, structurally system-owned standard blocks, composite tenant foreign

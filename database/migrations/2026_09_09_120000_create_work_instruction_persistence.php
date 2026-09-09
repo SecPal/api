@@ -18,9 +18,14 @@ return new class extends Migration
             throw new RuntimeException('The work instruction persistence model requires PostgreSQL.');
         }
 
-        Schema::table('users', function (Blueprint $table): void {
-            $table->unique(['tenant_id', 'id'], 'users_tenant_id_id_unique');
-        });
+        if (! DB::table('pg_constraint')
+            ->whereRaw("conrelid = 'users'::regclass")
+            ->where('conname', 'users_tenant_id_id_unique')
+            ->exists()) {
+            Schema::table('users', function (Blueprint $table): void {
+                $table->unique(['tenant_id', 'id'], 'users_tenant_id_id_unique');
+            });
+        }
         Schema::table('employees', function (Blueprint $table): void {
             $table->unique(['tenant_id', 'id'], 'employees_tenant_id_id_unique');
         });
@@ -271,8 +276,10 @@ return new class extends Migration
         Schema::table('employees', function (Blueprint $table): void {
             $table->dropUnique('employees_tenant_id_id_unique');
         });
-        Schema::table('users', function (Blueprint $table): void {
-            $table->dropUnique('users_tenant_id_id_unique');
-        });
+        if (! Schema::hasTable('legal_holds')) {
+            Schema::table('users', function (Blueprint $table): void {
+                $table->dropUnique('users_tenant_id_id_unique');
+            });
+        }
     }
 };

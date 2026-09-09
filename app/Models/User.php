@@ -123,6 +123,30 @@ class User extends Authenticatable implements MustVerifyEmailContract, TwoFactor
         return $this->hasMany(WorkInstructionAcknowledgment::class, 'acknowledged_by_user_id');
     }
 
+    /** @return HasMany<LegalHold, $this> */
+    public function createdLegalHolds(): HasMany
+    {
+        return $this->hasMany(LegalHold::class, 'created_by_user_id');
+    }
+
+    /** @return HasMany<LegalHold, $this> */
+    public function releasedLegalHolds(): HasMany
+    {
+        return $this->hasMany(LegalHold::class, 'released_by_user_id');
+    }
+
+    /** @return HasMany<LegalHoldActivityAttachment, $this> */
+    public function legalHoldAttachments(): HasMany
+    {
+        return $this->hasMany(LegalHoldActivityAttachment::class, 'attached_by_user_id');
+    }
+
+    /** @return HasMany<LegalHoldActivityAttachment, $this> */
+    public function legalHoldDetachments(): HasMany
+    {
+        return $this->hasMany(LegalHoldActivityAttachment::class, 'detached_by_user_id');
+    }
+
     /**
      * @return HasMany<PasskeyCredential, $this>
      */
