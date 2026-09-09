@@ -25,6 +25,7 @@ identifiers are illustrative, not a sequence of requests against one Hold.
 
 Legal Hold capabilities are tenant-scoped. Assign them through SecPal's
 existing permission-management model; no named role automatically has them.
+All Legal Hold routes also require an authenticated actor with a verified email.
 
 | Operation            | Capability            |
 | -------------------- | --------------------- |
@@ -109,8 +110,8 @@ Authorization: Bearer <token>
     }
   ],
   "links": {
-    "first": "https://api.secpal.dev/v1/legal-holds?page=1",
-    "last": "https://api.secpal.dev/v1/legal-holds?page=1",
+    "first": "https://api.secpal.dev/v1/legal-holds?page=1&per_page=15",
+    "last": "https://api.secpal.dev/v1/legal-holds?page=1&per_page=15",
     "prev": null,
     "next": null
   },
@@ -168,7 +169,10 @@ content.
 
 `POST /v1/legal-holds/{legalHold}/attachments` accepts exactly one positive
 integer `activity_id`. It links one Activity visible to the caller in the
-active tenant; it does not duplicate the Activity payload. A duplicate active
+active tenant; it does not duplicate the Activity payload. The actor also needs
+`activity_log.read` and visibility to the selected Activity under the existing
+Activity access policy. An unavailable or non-visible positive ID receives the
+same neutral `404` response as another unavailable target. A duplicate active
 attachment is a `409`, and a released Hold cannot receive attachments.
 
 ```http
@@ -280,24 +284,26 @@ archive and orphaned-genesis behavior applies.
 
 ## Audit and failure atomicity
 
-Create, attach, detach, release, and authorized failed lifecycle mutations
-produce privacy-minimized lifecycle audit evidence. A successful mutation and
-its required success-audit evidence commit atomically. If required audit
-persistence fails, the mutation rolls back and the client does not receive a
-success response. This audit evidence is not an endpoint for exposing internal
-audit-event metadata, and it is not best-effort security telemetry.
+Create, attach, detach, release, and authorized failed lifecycle mutations that
+reach the lifecycle service produce privacy-minimized lifecycle audit evidence.
+Request-validation failures rejected before service execution do not create that
+lifecycle evidence. A successful mutation and its required success-audit
+evidence commit atomically. If required audit persistence fails, the mutation
+rolls back and the client does not receive a success response. This audit
+evidence is not an endpoint for exposing internal audit-event metadata, and it
+is not best-effort security telemetry.
 
 ## Error handling
 
-| Status | Meaning                                                                                                                                                                  |
-| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `401`  | Authentication is required.                                                                                                                                              |
-| `403`  | The authenticated actor lacks the required Legal Hold capability.                                                                                                        |
-| `404`  | The valid identifier is unavailable, nonexistent, or tenant-inaccessible; this neutral response does not reveal foreign-tenant existence.                                |
-| `409`  | A valid request conflicts with current state: duplicate case reference, duplicate active attachment, Hold not active, or attachment already detached.                    |
-| `422`  | Validation failed: malformed UUID, missing field, blank or overlength bounded string, invalid positive Activity ID, unsupported extra body field, or invalid pagination. |
-| `429`  | Normal API rate limiting.                                                                                                                                                |
-| `500`  | Neutral infrastructure or server failure. A required audit persistence failure rolls back the Legal Hold mutation and is never a successful request.                     |
+| Status | Meaning                                                                                                                                                                           |
+| ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `401`  | Authentication is required.                                                                                                                                                       |
+| `403`  | The authenticated actor lacks the required Legal Hold capability or has not completed required email verification.                                                                |
+| `404`  | The valid identifier is unavailable, nonexistent, or tenant-inaccessible; this neutral response does not reveal foreign-tenant existence.                                         |
+| `409`  | A valid request conflicts with current state: duplicate case reference, duplicate active attachment, Hold not active, or attachment already detached.                             |
+| `422`  | Validation failed: malformed UUID, missing field, blank or overlength bounded string, malformed or non-positive Activity ID, unsupported extra body field, or invalid pagination. |
+| `429`  | Normal API rate limiting.                                                                                                                                                         |
+| `500`  | Neutral infrastructure or server failure. A required audit persistence failure rolls back the Legal Hold mutation and is never a successful request.                              |
 
 Do not rely on SQL errors, stack traces, or internal exception names as API
 behavior.
