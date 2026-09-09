@@ -18,6 +18,7 @@ use App\Exceptions\LegalHoldAuditFailureException;
 use App\Exceptions\LegalHoldCaseReferenceConflictException;
 use App\Exceptions\LegalHoldNestedTransactionException;
 use App\Exceptions\LegalHoldNotActiveException;
+use App\Exceptions\LegalHoldTargetNotFoundException;
 use App\Models\Activity;
 use App\Models\LegalHold;
 use App\Models\LegalHoldActivityAttachment;
@@ -26,6 +27,7 @@ use App\Repositories\LegalHoldRepository;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\QueryException;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use InvalidArgumentException;
@@ -42,7 +44,7 @@ final readonly class LegalHoldService
 
     public function create(User $actor, string $caseReference, string $justification): LegalHold
     {
-        $tenantId = $this->authorizeActor($actor);
+        $tenantId = $this->authorizeActor($actor, 'create');
         $this->requireTopLevelTransaction();
         $context = new LegalHoldAuditContext($actor, $tenantId, LegalHoldAuditOperation::Create);
 
@@ -64,6 +66,8 @@ final readonly class LegalHoldService
                 $context->resolveHold($legalHold);
                 $this->recordSuccess($context);
 
+                $legalHold->setRelation('attachments', $legalHold->newCollection());
+
                 return $legalHold;
             });
         } catch (Throwable $exception) {
@@ -71,32 +75,48 @@ final readonly class LegalHoldService
         }
     }
 
+    /** @return LengthAwarePaginator<int, LegalHold> */
+    public function list(User $actor, int $page = 1, int $perPage = 15): LengthAwarePaginator
+    {
+        return $this->legalHolds->paginate(
+            $this->authorizeActor($actor, 'viewAny'),
+            $page,
+            $perPage,
+        );
+    }
+
     public function inspect(User $actor, string $legalHoldId): LegalHold
     {
-        $legalHold = $this->legalHolds->inspect($this->authorizeActor($actor), $legalHoldId);
-
-        foreach ($legalHold->attachments as $attachment) {
-            $this->authorizeActivity($actor, $attachment->activity);
+        try {
+            $legalHold = $this->legalHolds->inspect(
+                $this->authorizeActor($actor, 'viewAny'),
+                $legalHoldId,
+            );
+        } catch (ModelNotFoundException $exception) {
+            throw new LegalHoldTargetNotFoundException(previous: $exception);
         }
+
+        Gate::forUser($actor)->authorize('view', $legalHold);
 
         return $legalHold;
     }
 
     public function attach(User $actor, string $legalHoldId, int $activityId): LegalHoldActivityAttachment
     {
-        $tenantId = $this->authorizeActor($actor);
+        $tenantId = $this->authorizeActor($actor, 'attach');
         $this->requireTopLevelTransaction();
         $context = new LegalHoldAuditContext($actor, $tenantId, LegalHoldAuditOperation::Attach);
 
         try {
             return DB::transaction(function () use ($actor, $tenantId, $legalHoldId, $activityId, $context): LegalHoldActivityAttachment {
                 Activity::acquireHashChainLock($tenantId);
-                $activity = $this->legalHolds->lockActivity($tenantId, $activityId);
-                $context->resolveActivity($activity);
                 $legalHold = $this->legalHolds->lock($tenantId, $legalHoldId);
                 $context->resolveHold($legalHold);
+                Gate::forUser($actor)->authorize('attach', $legalHold);
                 $this->requireActive($legalHold);
-                Gate::forUser($actor)->authorize('view', $activity);
+                $activity = $this->legalHolds->lockActivity($tenantId, $activityId);
+                $context->resolveActivity($activity);
+                $this->authorizeVisibleActivity($actor, $activity);
                 $attachedAt = now();
 
                 $attachment = $this->legalHolds->attach([
@@ -114,7 +134,10 @@ final readonly class LegalHoldService
                 return $attachment;
             });
         } catch (Throwable $exception) {
-            $this->handleFailure($context, $this->mapAttachFailure($exception));
+            $this->handleFailure(
+                $context,
+                $this->mapUnavailableFailure($this->mapAttachFailure($exception)),
+            );
         }
     }
 
@@ -124,7 +147,7 @@ final readonly class LegalHoldService
         string $attachmentId,
         string $justification,
     ): LegalHoldActivityAttachment {
-        $tenantId = $this->authorizeActor($actor);
+        $tenantId = $this->authorizeActor($actor, 'detach');
         $this->requireTopLevelTransaction();
         $context = new LegalHoldAuditContext($actor, $tenantId, LegalHoldAuditOperation::Detach);
 
@@ -135,10 +158,10 @@ final readonly class LegalHoldService
                 Activity::acquireHashChainLock($tenantId);
                 $legalHold = $this->legalHolds->lock($tenantId, $legalHoldId);
                 $context->resolveHold($legalHold);
+                Gate::forUser($actor)->authorize('detach', $legalHold);
                 $this->requireActive($legalHold);
                 $attachment = $this->legalHolds->lockAttachment($tenantId, $legalHold->id, $attachmentId);
                 $context->resolveAttachment($attachment);
-                $this->authorizeActivity($actor, $attachment->activity);
 
                 if ($attachment->detached_at !== null) {
                     throw new LegalHoldAttachmentAlreadyDetachedException;
@@ -156,13 +179,13 @@ final readonly class LegalHoldService
                 return $attachment;
             });
         } catch (Throwable $exception) {
-            $this->handleFailure($context, $exception);
+            $this->handleFailure($context, $this->mapUnavailableFailure($exception));
         }
     }
 
     public function release(User $actor, string $legalHoldId, string $justification): LegalHold
     {
-        $tenantId = $this->authorizeActor($actor);
+        $tenantId = $this->authorizeActor($actor, 'release');
         $this->requireTopLevelTransaction();
         $context = new LegalHoldAuditContext($actor, $tenantId, LegalHoldAuditOperation::Release);
 
@@ -173,6 +196,7 @@ final readonly class LegalHoldService
                 Activity::acquireHashChainLock($tenantId);
                 $legalHold = $this->legalHolds->lock($tenantId, $legalHoldId);
                 $context->resolveHold($legalHold);
+                Gate::forUser($actor)->authorize('release', $legalHold);
                 $this->requireActive($legalHold);
                 $releasedAt = now();
 
@@ -184,17 +208,19 @@ final readonly class LegalHoldService
                     'release_justification' => $justification,
                 ]);
                 $this->recordSuccess($context);
+                $legalHold->load('attachments');
 
                 return $legalHold;
             });
         } catch (Throwable $exception) {
-            $this->handleFailure($context, $exception);
+            $this->handleFailure($context, $this->mapUnavailableFailure($exception));
         }
     }
 
     /** @throws AuthorizationException */
-    private function authorizeActor(User $actor): int
+    private function authorizeActor(User $actor, string $ability): int
     {
+        Gate::forUser($actor)->authorize($ability, LegalHold::class);
         $tenantId = $this->permissions->getPermissionsTeamId();
 
         if (! is_int($tenantId)
@@ -202,8 +228,6 @@ final readonly class LegalHoldService
             || $actor->tenant_id !== $tenantId) {
             throw new AuthorizationException;
         }
-
-        Gate::forUser($actor)->authorize('viewAny', Activity::class);
 
         return $tenantId;
     }
@@ -222,10 +246,12 @@ final readonly class LegalHoldService
         }
     }
 
-    private function authorizeActivity(User $actor, ?Activity $activity): void
+    private function authorizeVisibleActivity(User $actor, Activity $activity): void
     {
-        if ($activity !== null) {
+        try {
             Gate::forUser($actor)->authorize('view', $activity);
+        } catch (AuthorizationException $exception) {
+            throw new LegalHoldTargetNotFoundException(previous: $exception);
         }
     }
 
@@ -296,6 +322,7 @@ final readonly class LegalHoldService
             $failure instanceof LegalHoldNotActiveException => LegalHoldAuditReasonCategory::HoldNotActive,
             $failure instanceof DuplicateActiveLegalHoldAttachmentException => LegalHoldAuditReasonCategory::DuplicateActiveAttachment,
             $failure instanceof LegalHoldAttachmentAlreadyDetachedException => LegalHoldAuditReasonCategory::AttachmentAlreadyDetached,
+            $failure instanceof LegalHoldTargetNotFoundException => LegalHoldAuditReasonCategory::TargetUnavailable,
             $failure instanceof ModelNotFoundException => LegalHoldAuditReasonCategory::TargetUnavailable,
             $failure instanceof QueryException => LegalHoldAuditReasonCategory::PersistenceFailure,
             $context->operation === LegalHoldAuditOperation::Create
@@ -320,5 +347,18 @@ final readonly class LegalHoldService
         }
 
         return DuplicateActiveLegalHoldAttachmentException::fromQueryException($failure) ?? $failure;
+    }
+
+    private function mapUnavailableFailure(Throwable $failure): Throwable
+    {
+        if ($failure instanceof LegalHoldTargetNotFoundException) {
+            return $failure;
+        }
+
+        if ($failure instanceof ModelNotFoundException) {
+            return new LegalHoldTargetNotFoundException(previous: $failure);
+        }
+
+        return $failure;
     }
 }

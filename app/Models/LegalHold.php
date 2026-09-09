@@ -28,6 +28,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property string|null $released_by_user_id
  * @property string|null $released_by_identity_id
  * @property string|null $release_justification
+ * @property \Illuminate\Support\Carbon $created_at
  * @property-read TenantKey $tenant
  * @property-read User|null $createdBy
  * @property-read User|null $releasedBy
@@ -86,6 +87,8 @@ class LegalHold extends Model
     /** @return HasMany<LegalHoldActivityAttachment, $this> */
     public function attachments(): HasMany
     {
-        return $this->hasMany(LegalHoldActivityAttachment::class);
+        return $this->hasMany(LegalHoldActivityAttachment::class)
+            ->orderBy('attached_at')
+            ->orderBy('id');
     }
 }

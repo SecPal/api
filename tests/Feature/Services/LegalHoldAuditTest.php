@@ -13,6 +13,7 @@ use App\Exceptions\LegalHoldAuditFailureException;
 use App\Exceptions\LegalHoldCaseReferenceConflictException;
 use App\Exceptions\LegalHoldNestedTransactionException;
 use App\Exceptions\LegalHoldNotActiveException;
+use App\Exceptions\LegalHoldTargetNotFoundException;
 use App\Models\Activity;
 use App\Models\LegalHold;
 use App\Models\LegalHoldActivityAttachment;
@@ -49,6 +50,9 @@ afterEach(function (): void {
 function legalHoldAuditActor(TenantKey $tenant): User
 {
     $actor = User::factory()->create(['tenant_id' => $tenant->id]);
+    foreach (['read', 'create', 'attach', 'detach', 'release'] as $ability) {
+        givePermissionWithTenant($actor, $tenant->id, "legal_holds.{$ability}");
+    }
     givePermissionWithTenant($actor, $tenant->id, 'activity_log.read');
     app(PermissionRegistrar::class)->setPermissionsTeamId($tenant->id);
 
@@ -237,7 +241,7 @@ test('expected domain and persistence failures use only closed reason categories
         $hold->id,
         (string) Str::uuid(),
         'Unavailable target.',
-    ))->toThrow(Illuminate\Database\Eloquent\ModelNotFoundException::class);
+    ))->toThrow(LegalHoldTargetNotFoundException::class);
 
     $attachment = LegalHoldActivityAttachment::factory()
         ->detached()
@@ -490,7 +494,7 @@ test('unauthorized actors are not audited and unresolved foreign targets use neu
         $actor,
         $foreignHold->id,
         'Must not disclose the target.',
-    ))->toThrow(Illuminate\Database\Eloquent\ModelNotFoundException::class);
+    ))->toThrow(LegalHoldTargetNotFoundException::class);
 
     $audit = Activity::query()->where('event', 'legal_hold.release.failed')->sole();
 

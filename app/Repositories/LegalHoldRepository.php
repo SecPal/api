@@ -10,10 +10,22 @@ namespace App\Repositories;
 use App\Models\Activity;
 use App\Models\LegalHold;
 use App\Models\LegalHoldActivityAttachment;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 
 class LegalHoldRepository
 {
+    /** @return LengthAwarePaginator<int, LegalHold> */
+    public function paginate(int $tenantId, int $page, int $perPage): LengthAwarePaginator
+    {
+        return LegalHold::query()
+            ->where('tenant_id', $tenantId)
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
+            ->paginate($perPage, ['*'], 'page', $page)
+            ->appends(['per_page' => $perPage]);
+    }
+
     /** @param array<string, mixed> $attributes */
     public function create(array $attributes): LegalHold
     {
@@ -25,7 +37,7 @@ class LegalHoldRepository
         return LegalHold::query()
             ->where('tenant_id', $tenantId)
             ->whereKey($legalHoldId)
-            ->with('attachments.activity')
+            ->with('attachments')
             ->firstOrFail();
     }
 
@@ -97,7 +109,6 @@ class LegalHoldRepository
             ->where('tenant_id', $tenantId)
             ->where('legal_hold_id', $legalHoldId)
             ->whereKey($attachmentId)
-            ->with('activity')
             ->lockForUpdate()
             ->firstOrFail();
     }

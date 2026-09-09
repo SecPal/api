@@ -78,6 +78,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- added the Contracts-defined Legal Hold HTTP API with tenant-isolated
+  `legal_holds.*` permissions, closed validation, privacy-minimized resources,
+  and service-owned lifecycle, retention, and transactional audit guarantees
+  (fixes `api#455`)
 - added synchronous Activity-backed Legal Hold lifecycle audits with atomic
   mutation evidence, privacy-minimized versioned metadata, closed failure
   categories, serialized forensic hash ordering, and explicit

@@ -150,6 +150,13 @@ class RolesAndPermissionsSeeder extends Seeder
                 'read_all', // Access to global logs (no organizational unit)
                 'read_system', // View activities from privileged or system actors (Issue #440)
             ],
+            'legal_holds' => [
+                'read',
+                'create',
+                'attach',
+                'detach',
+                'release',
+            ],
             'onboarding' => [
                 'read',
                 'write',

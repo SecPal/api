@@ -95,6 +95,61 @@ return Application::configure(basePath: dirname(__DIR__))
             return response()->json(['message' => __('Unauthenticated.')], 401);
         });
 
+        $exceptions->render(function (App\Exceptions\LegalHoldTargetNotFoundException $e, Request $request) use ($shouldRenderApiJson) {
+            if (! $shouldRenderApiJson($request)) {
+                return null;
+            }
+
+            return response()->json([
+                'message' => 'Resource not found',
+                'code' => 'NOT_FOUND',
+            ], 404);
+        });
+
+        $exceptions->render(function (App\Exceptions\LegalHoldCaseReferenceConflictException $e, Request $request) use ($shouldRenderApiJson) {
+            if (! $shouldRenderApiJson($request)) {
+                return null;
+            }
+
+            return response()->json([
+                'message' => 'A Legal Hold with this case reference already exists.',
+                'code' => 'CONFLICT',
+            ], 409);
+        });
+
+        $exceptions->render(function (App\Exceptions\LegalHoldNotActiveException $e, Request $request) use ($shouldRenderApiJson) {
+            if (! $shouldRenderApiJson($request)) {
+                return null;
+            }
+
+            return response()->json([
+                'message' => 'The Legal Hold is not active.',
+                'code' => 'CONFLICT',
+            ], 409);
+        });
+
+        $exceptions->render(function (App\Exceptions\DuplicateActiveLegalHoldAttachmentException $e, Request $request) use ($shouldRenderApiJson) {
+            if (! $shouldRenderApiJson($request)) {
+                return null;
+            }
+
+            return response()->json([
+                'message' => 'The Activity is already actively attached to this Legal Hold.',
+                'code' => 'CONFLICT',
+            ], 409);
+        });
+
+        $exceptions->render(function (App\Exceptions\LegalHoldAttachmentAlreadyDetachedException $e, Request $request) use ($shouldRenderApiJson) {
+            if (! $shouldRenderApiJson($request)) {
+                return null;
+            }
+
+            return response()->json([
+                'message' => 'The attachment is already detached.',
+                'code' => 'CONFLICT',
+            ], 409);
+        });
+
         $exceptions->render(function (ModelNotFoundException $e, Request $request) use ($shouldRenderApiJson) {
             if (! $shouldRenderApiJson($request)) {
                 return null;
@@ -151,6 +206,13 @@ return Application::configure(basePath: dirname(__DIR__))
             $status = method_exists($e, 'getStatusCode')
                 ? $e->getStatusCode()
                 : 500;
+
+            if ($status >= 500 && $request->is('v1/legal-holds', 'v1/legal-holds/*')) {
+                return response()->json([
+                    'message' => 'An internal error occurred',
+                    'code' => 'INTERNAL_ERROR',
+                ], $status);
+            }
 
             return response()->json([
                 'message' => $status >= 500
