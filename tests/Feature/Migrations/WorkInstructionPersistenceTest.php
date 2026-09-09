@@ -115,6 +115,25 @@ test('declares the tenant lifecycle localization and acknowledgment boundaries i
     ]);
 });
 
+test('indexes lifecycle and acknowledgment actor foreign keys', function (): void {
+    $indexes = DB::table('pg_indexes')
+        ->where('schemaname', DB::raw('current_schema()'))
+        ->whereIn('indexname', [
+            'work_instructions_tenant_publisher_index',
+            'work_instructions_tenant_archiver_index',
+            'wi_acknowledgments_tenant_actor_index',
+        ])
+        ->orderBy('indexname')
+        ->pluck('indexname')
+        ->all();
+
+    expect($indexes)->toBe([
+        'wi_acknowledgments_tenant_actor_index',
+        'work_instructions_tenant_archiver_index',
+        'work_instructions_tenant_publisher_index',
+    ]);
+});
+
 test('scopes immutable instruction numbers to one tenant', function (): void {
     $tenant = TenantKey::factory()->create();
     DB::table('work_instructions')->insert(workInstructionRow($tenant, ['instruction_number' => 'WI-2026-0042']));
@@ -337,6 +356,15 @@ test('models and factories expose tenant-safe aggregate relationships', function
         ->and($acknowledgment->employee->workInstructionAcknowledgments->contains($acknowledgment))->toBeTrue()
         ->and($acknowledgment->acknowledgedBy->workInstructionAcknowledgments->contains($acknowledgment))->toBeTrue();
 });
+
+test('making lifecycle factory states has no database side effects', function (string $state): void {
+    $tenant = TenantKey::factory()->create();
+    $userCount = User::query()->count();
+
+    WorkInstruction::factory()->{$state}()->make(['tenant_id' => $tenant->id]);
+
+    expect(User::query()->count())->toBe($userCount);
+})->with(['published', 'archived']);
 
 test('the migration rolls back and reapplies without orphaned schema objects', function (): void {
     $migration = require database_path('migrations/2026_09_09_120000_create_work_instruction_persistence.php');

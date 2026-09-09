@@ -22,7 +22,7 @@ class WorkInstructionFactory extends Factory
 
     public function configure(): static
     {
-        return $this->afterMaking(function (WorkInstruction $instruction): void {
+        return $this->afterCreating(function (WorkInstruction $instruction): void {
             if ($instruction->status === WorkInstructionStatus::Published
                 && $instruction->published_by_user_id === null) {
                 $instruction->published_by_user_id = User::factory()->create([
@@ -37,6 +37,10 @@ class WorkInstructionFactory extends Factory
                 $instruction->archived_by_user_id ??= User::factory()->create([
                     'tenant_id' => $instruction->tenant_id,
                 ])->id;
+            }
+
+            if ($instruction->isDirty()) {
+                $instruction->save();
             }
         });
     }

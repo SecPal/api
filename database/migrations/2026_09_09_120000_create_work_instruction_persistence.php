@@ -43,6 +43,8 @@ return new class extends Migration
             $table->unique(['tenant_id', 'instruction_number'], 'work_instructions_tenant_number_unique');
             $table->index(['tenant_id', 'status'], 'work_instructions_tenant_status_index');
             $table->index(['tenant_id', 'locale'], 'work_instructions_tenant_locale_index');
+            $table->index(['tenant_id', 'published_by_user_id'], 'work_instructions_tenant_publisher_index');
+            $table->index(['tenant_id', 'archived_by_user_id'], 'work_instructions_tenant_archiver_index');
         });
 
         DB::statement(<<<'SQL'
@@ -151,6 +153,7 @@ return new class extends Migration
                 'wi_acknowledgments_identity_unique'
             );
             $table->index(['tenant_id', 'employee_id'], 'wi_acknowledgments_tenant_employee_index');
+            $table->index(['tenant_id', 'acknowledged_by_user_id'], 'wi_acknowledgments_tenant_actor_index');
         });
         DB::statement(<<<'SQL'
             ALTER TABLE work_instruction_acknowledgments
