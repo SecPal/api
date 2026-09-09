@@ -74,6 +74,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- added the canonical tenant-safe work-instruction persistence foundation with
+  closed lifecycle and German/English locale constraints, tenant-owned localized
+  templates, structurally system-owned standard blocks, composite tenant foreign
+  keys, and durable duplicate-safe employee acknowledgments (fixes `api#1436`)
 - added a closed versioned application security-event stream for authentication,
   MFA, passkey, bearer-token, password-reset, and rate-limit decisions, with
   keyed actor pseudonyms, trusted client addresses, deferred local-only output,
