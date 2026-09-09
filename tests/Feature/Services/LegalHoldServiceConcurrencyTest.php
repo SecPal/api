@@ -9,6 +9,7 @@ use App\Enums\LegalHoldStatus;
 use App\Exceptions\DuplicateActiveLegalHoldAttachmentException;
 use App\Exceptions\LegalHoldNotActiveException;
 use App\Models\Activity;
+use App\Models\ActivityArchive;
 use App\Models\LegalHold;
 use App\Models\LegalHoldActivityAttachment;
 use App\Models\TenantKey;
@@ -280,4 +281,145 @@ test('concurrent releases commit exactly one lifecycle transition', function ():
     expect($results->where('status', 'success'))->toHaveCount(1)
         ->and($results->where('exception', LegalHoldNotActiveException::class))->toHaveCount(1)
         ->and($hold->fresh()?->status)->toBe(LegalHoldStatus::Released);
+});
+
+test('concurrent retention and attachment either preserve held evidence or reject the late attachment', function (): void {
+    $tenant = TenantKey::factory()->create();
+    $actor = legalHoldConcurrencyActor($tenant);
+    $hold = LegalHold::factory()->create(['tenant_id' => $tenant->id]);
+    $activity = Activity::factory()->create([
+        'tenant_id' => $tenant->id,
+        'created_at' => now()->subYears(4)->startOfYear(),
+    ]);
+
+    $results = runConcurrentLegalHoldOperations(
+        $actor,
+        2,
+        function (int $worker, User $currentActor, LegalHoldService $service) use ($hold, $activity, $tenant): void {
+            if ($worker === 1) {
+                $service->attach($currentActor, $hold->id, $activity->id);
+
+                return;
+            }
+
+            if (Artisan::call('activity:apply-retention', ['--tenant' => $tenant->id]) !== 0) {
+                throw new RuntimeException('Retention command failed.');
+            }
+        },
+    );
+
+    $activeAttachment = LegalHoldActivityAttachment::query()
+        ->where('activity_identity_id', $activity->id)
+        ->whereNull('detached_at')
+        ->first();
+
+    expect($results->where('status', 'success')->count())->toBeGreaterThanOrEqual(1);
+
+    if ($activeAttachment !== null) {
+        expect($activity->fresh())->not->toBeNull()
+            ->and(ActivityArchive::query()->whereKey($activity->id)->exists())->toBeFalse();
+    } else {
+        expect($activity->fresh())->toBeNull()
+            ->and(ActivityArchive::query()->whereKey($activity->id)->count())->toBe(1);
+    }
+});
+
+test('concurrent detachment and retention preserve ordering and later eligibility', function (): void {
+    $tenant = TenantKey::factory()->create();
+    $actor = legalHoldConcurrencyActor($tenant);
+    $hold = LegalHold::factory()->create(['tenant_id' => $tenant->id]);
+    $activity = Activity::factory()->create([
+        'tenant_id' => $tenant->id,
+        'created_at' => now()->subYears(4)->startOfYear(),
+    ]);
+    $attachment = app(LegalHoldService::class)->attach($actor, $hold->id, $activity->id);
+
+    $results = runConcurrentLegalHoldOperations(
+        $actor,
+        2,
+        function (int $worker, User $currentActor, LegalHoldService $service) use ($hold, $attachment, $tenant): void {
+            if ($worker === 1) {
+                $service->detach($currentActor, $hold->id, $attachment->id, 'Concurrent scope change.');
+
+                return;
+            }
+
+            if (Artisan::call('activity:apply-retention', ['--tenant' => $tenant->id]) !== 0) {
+                throw new RuntimeException('Retention command failed.');
+            }
+        },
+    );
+
+    expect($results->where('status', 'success'))->toHaveCount(2)
+        ->and($attachment->fresh()?->detached_at)->not->toBeNull();
+
+    expect(Artisan::call('activity:apply-retention', ['--tenant' => $tenant->id]))->toBe(0)
+        ->and($activity->fresh())->toBeNull()
+        ->and(ActivityArchive::query()->whereKey($activity->id)->count())->toBe(1);
+});
+
+test('concurrent release and retention preserve ordering and later eligibility', function (): void {
+    $tenant = TenantKey::factory()->create();
+    $actor = legalHoldConcurrencyActor($tenant);
+    $hold = LegalHold::factory()->create(['tenant_id' => $tenant->id]);
+    $activity = Activity::factory()->create([
+        'tenant_id' => $tenant->id,
+        'created_at' => now()->subYears(4)->startOfYear(),
+    ]);
+    app(LegalHoldService::class)->attach($actor, $hold->id, $activity->id);
+
+    $results = runConcurrentLegalHoldOperations(
+        $actor,
+        2,
+        function (int $worker, User $currentActor, LegalHoldService $service) use ($hold, $tenant): void {
+            if ($worker === 1) {
+                $service->release($currentActor, $hold->id, 'Concurrent proceeding closure.');
+
+                return;
+            }
+
+            if (Artisan::call('activity:apply-retention', ['--tenant' => $tenant->id]) !== 0) {
+                throw new RuntimeException('Retention command failed.');
+            }
+        },
+    );
+
+    expect($results->where('status', 'success'))->toHaveCount(2)
+        ->and($hold->fresh()?->status)->toBe(LegalHoldStatus::Released);
+
+    expect(Artisan::call('activity:apply-retention', ['--tenant' => $tenant->id]))->toBe(0)
+        ->and($activity->fresh())->toBeNull()
+        ->and(ActivityArchive::query()->whereKey($activity->id)->count())->toBe(1);
+});
+
+test('concurrent retention workers archive and orphan each activity once', function (): void {
+    $tenant = TenantKey::factory()->create();
+    $actor = legalHoldConcurrencyActor($tenant);
+    $activity = Activity::factory()->create([
+        'tenant_id' => $tenant->id,
+        'created_at' => now()->subYears(4)->startOfYear(),
+    ])->refresh();
+    $successor = Activity::factory()->create([
+        'tenant_id' => $tenant->id,
+        'created_at' => now(),
+    ])->refresh();
+
+    $results = runConcurrentLegalHoldOperations(
+        $actor,
+        2,
+        function (int $worker, User $currentActor, LegalHoldService $service) use ($tenant): void {
+            if (Artisan::call('activity:apply-retention', ['--tenant' => $tenant->id]) !== 0) {
+                throw new RuntimeException('Retention command failed.');
+            }
+        },
+    );
+
+    $successor->refresh();
+
+    expect($results->where('status', 'success'))->toHaveCount(2)
+        ->and($activity->fresh())->toBeNull()
+        ->and(ActivityArchive::query()->whereKey($activity->id)->count())->toBe(1)
+        ->and($successor->is_orphaned_genesis)->toBeTrue()
+        ->and($successor->previous_hash)->toBeNull()
+        ->and($successor->verifyChain())->toBeTrue();
 });

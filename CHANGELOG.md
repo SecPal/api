@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- integrated active Legal Hold membership with Activity retention through a
+  tenant-authoritative PostgreSQL predicate, deletion backstop, locked bounded
+  processing, truthful held-skip statistics, and hash-chain-safe mixed batches
+  (fixes `api#453`)
 - completed domain lookup coverage for customer, site, and employee create and
   relationship-reassignment workflows, and added the distinct tenant-safe
   customer-establishment link-candidate lookup (fixes `api#1336`)

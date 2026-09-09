@@ -93,6 +93,22 @@ test('creates the canonical PostgreSQL legal hold persistence schema and constra
             ->where('schemaname', DB::raw('current_schema()'))
             ->where('indexname', 'legal_hold_attachments_active_identity_unique')
             ->exists())->toBeTrue()
+        ->and(DB::table('pg_indexes')
+            ->where('schemaname', DB::raw('current_schema()'))
+            ->where('indexname', 'legal_hold_attachments_active_activity_identity_index')
+            ->exists())->toBeTrue()
+        ->and((bool) DB::scalar(<<<'SQL'
+            SELECT EXISTS (
+                SELECT 1
+                FROM pg_trigger
+                WHERE tgname = 'activity_log_prevent_actively_held_delete'
+                    AND NOT tgisinternal
+            )
+            SQL))->toBeTrue()
+        ->and(DB::table('pg_proc')
+            ->whereRaw('pronamespace = current_schema()::regnamespace')
+            ->where('proname', 'activity_is_actively_held')
+            ->value('provolatile'))->toBe('s')
         ->and($creatorForeignKey)->toContain(
             'FOREIGN KEY (tenant_id, created_by_user_id) REFERENCES users(tenant_id, id)'
         );
@@ -417,4 +433,32 @@ test('the migration rolls back and reapplies cleanly', function (): void {
 
     expect(Schema::hasTable('legal_holds'))->toBeTrue()
         ->and(Schema::hasTable('legal_hold_activity_attachments'))->toBeTrue();
+});
+
+test('the activity retention protection migration rolls back and reapplies cleanly', function (): void {
+    $migration = require database_path('migrations/2026_09_09_140000_protect_held_activity_from_deletion.php');
+    $migration->down();
+
+    expect(DB::table('pg_proc')
+        ->whereRaw('pronamespace = current_schema()::regnamespace')
+        ->whereIn('proname', [
+            'activity_is_actively_held',
+            'prevent_actively_held_activity_deletion',
+        ])
+        ->exists())->toBeFalse()
+        ->and(DB::table('pg_indexes')
+            ->where('schemaname', DB::raw('current_schema()'))
+            ->where('indexname', 'legal_hold_attachments_active_activity_identity_index')
+            ->exists())->toBeFalse();
+
+    $migration->up();
+
+    expect(DB::table('pg_proc')
+        ->whereRaw('pronamespace = current_schema()::regnamespace')
+        ->where('proname', 'activity_is_actively_held')
+        ->exists())->toBeTrue()
+        ->and(DB::table('pg_indexes')
+            ->where('schemaname', DB::raw('current_schema()'))
+            ->where('indexname', 'legal_hold_attachments_active_activity_identity_index')
+            ->exists())->toBeTrue();
 });
