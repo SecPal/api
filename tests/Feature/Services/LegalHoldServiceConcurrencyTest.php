@@ -72,6 +72,9 @@ afterEach(function (): void {
 function legalHoldConcurrencyActor(TenantKey $tenant): User
 {
     $actor = User::factory()->create(['tenant_id' => $tenant->id]);
+    foreach (['read', 'create', 'attach', 'detach', 'release'] as $ability) {
+        givePermissionWithTenant($actor, $tenant->id, "legal_holds.{$ability}");
+    }
     givePermissionWithTenant($actor, $tenant->id, 'activity_log.read');
     app(PermissionRegistrar::class)->setPermissionsTeamId($tenant->id);
 

@@ -10,6 +10,7 @@ use App\Exceptions\DuplicateActiveLegalHoldAttachmentException;
 use App\Exceptions\LegalHoldAttachmentAlreadyDetachedException;
 use App\Exceptions\LegalHoldCaseReferenceConflictException;
 use App\Exceptions\LegalHoldNotActiveException;
+use App\Exceptions\LegalHoldTargetNotFoundException;
 use App\Models\Activity;
 use App\Models\LegalHold;
 use App\Models\LegalHoldActivityAttachment;
@@ -18,7 +19,6 @@ use App\Models\User;
 use App\Repositories\LegalHoldRepository;
 use App\Services\LegalHoldService;
 use Illuminate\Auth\Access\AuthorizationException;
-use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\Artisan;
 use Mockery\MockInterface;
 use Spatie\Permission\PermissionRegistrar;
@@ -46,6 +46,9 @@ function legalHoldActor(TenantKey $tenant, bool $authorized = true): User
     app(PermissionRegistrar::class)->setPermissionsTeamId($tenant->id);
 
     if ($authorized) {
+        foreach (['read', 'create', 'attach', 'detach', 'release'] as $ability) {
+            givePermissionWithTenant($actor, $tenant->id, "legal_holds.{$ability}");
+        }
         givePermissionWithTenant($actor, $tenant->id, 'activity_log.read');
         app(PermissionRegistrar::class)->setPermissionsTeamId($tenant->id);
     }
@@ -111,7 +114,7 @@ test('inspection returns active and detached attachment history', function (): v
         ->and($inspected->attachments->whereNull('detached_at'))->toHaveCount(1);
 });
 
-test('activity scope prevents inspection and detachment of inaccessible hold evidence', function (string $operation): void {
+test('inspection and detachment do not require historical activity visibility', function (): void {
     $tenant = TenantKey::factory()->create();
     $actor = legalHoldActor($tenant);
     $hold = LegalHold::factory()->create(['tenant_id' => $tenant->id]);
@@ -129,14 +132,13 @@ test('activity scope prevents inspection and detachment of inaccessible hold evi
     ]);
     $service = app(LegalHoldService::class);
 
-    $call = $operation === 'inspect'
-        ? fn () => $service->inspect($actor, $hold->id)
-        : fn () => $service->detach($actor, $hold->id, $attachment->id, 'Must remain unchanged.');
+    $inspected = $service->inspect($actor, $hold->id);
+    $detached = $service->detach($actor, $hold->id, $attachment->id, 'No longer required.');
 
-    expect($call)->toThrow(AuthorizationException::class)
-        ->and($attachment->fresh()?->detached_at)->toBeNull()
-        ->and($attachment->fresh()?->detachment_justification)->toBeNull();
-})->with(['inspect', 'detach']);
+    expect($inspected->attachments)->toHaveCount(1)
+        ->and($detached->detached_at)->not->toBeNull()
+        ->and($detached->detachment_justification)->toBe('No longer required.');
+});
 
 test('inspection preserves attachment history after its live activity relation is gone', function (): void {
     $tenant = TenantKey::factory()->create();
@@ -179,7 +181,7 @@ test('foreign tenant legal holds cannot be inspected or mutated', function (stri
         'release' => fn () => $service->release($actor, $foreignHold->id, 'Attempted foreign release.'),
     };
 
-    expect($call)->toThrow(ModelNotFoundException::class)
+    expect($call)->toThrow(LegalHoldTargetNotFoundException::class)
         ->and($foreignHold->fresh()?->status)->toBe(LegalHoldStatus::Active)
         ->and(LegalHoldActivityAttachment::query()->count())->toBe(0);
 })->with(['inspect', 'attach', 'release']);
@@ -209,7 +211,7 @@ test('foreign and inaccessible activities cannot be attached', function (string 
 
     if ($failure === 'foreign tenant') {
         $activity = Activity::factory()->create(['tenant_id' => $foreignTenant->id]);
-        $expected = ModelNotFoundException::class;
+        $expected = LegalHoldTargetNotFoundException::class;
     } else {
         $activity = Activity::factory()->create([
             'tenant_id' => $tenant->id,
@@ -217,7 +219,7 @@ test('foreign and inaccessible activities cannot be attached', function (string 
                 'tenant_id' => $tenant->id,
             ])->id,
         ]);
-        $expected = AuthorizationException::class;
+        $expected = LegalHoldTargetNotFoundException::class;
     }
 
     expect(fn () => app(LegalHoldService::class)->attach($actor, $hold->id, $activity->id))
@@ -347,7 +349,7 @@ test('foreign tenant attachment cannot be detached through a local hold', functi
         $hold->id,
         $foreignAttachment->id,
         'Attempted foreign detachment.',
-    ))->toThrow(ModelNotFoundException::class)
+    ))->toThrow(LegalHoldTargetNotFoundException::class)
         ->and($foreignAttachment->fresh()?->detached_at)->toBeNull();
 });
 

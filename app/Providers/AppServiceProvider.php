@@ -16,6 +16,7 @@ use App\Models\CustomerEstablishment;
 use App\Models\Employee;
 use App\Models\EmployeeDocument;
 use App\Models\EmployeeQualification;
+use App\Models\LegalHold;
 use App\Models\OnboardingFormSubmission;
 use App\Models\OnboardingFormTemplate;
 use App\Models\OrganizationalUnit;
@@ -32,6 +33,7 @@ use App\Policies\CustomerPolicy;
 use App\Policies\EmployeeDocumentPolicy;
 use App\Policies\EmployeePolicy;
 use App\Policies\EmployeeQualificationPolicy;
+use App\Policies\LegalHoldPolicy;
 use App\Policies\OnboardingFormSubmissionPolicy;
 use App\Policies\OnboardingFormTemplatePolicy;
 use App\Policies\OrganizationalUnitPolicy;
@@ -306,6 +308,7 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(EmployeeDocument::class, EmployeeDocumentPolicy::class);
         Gate::policy(Qualification::class, QualificationPolicy::class);
         Gate::policy(EmployeeQualification::class, EmployeeQualificationPolicy::class);
+        Gate::policy(LegalHold::class, LegalHoldPolicy::class);
         Gate::policy(OnboardingFormTemplate::class, OnboardingFormTemplatePolicy::class);
         Gate::policy(OnboardingFormSubmission::class, OnboardingFormSubmissionPolicy::class);
 

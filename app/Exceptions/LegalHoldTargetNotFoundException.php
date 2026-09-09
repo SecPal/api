@@ -1,0 +1,19 @@
+<?php
+
+// SPDX-FileCopyrightText: 2026 SecPal Contributors
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+declare(strict_types=1);
+
+namespace App\Exceptions;
+
+use RuntimeException;
+use Throwable;
+
+final class LegalHoldTargetNotFoundException extends RuntimeException
+{
+    public function __construct(?Throwable $previous = null)
+    {
+        parent::__construct('Legal Hold target unavailable.', previous: $previous);
+    }
+}

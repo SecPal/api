@@ -27,6 +27,8 @@ use Symfony\Component\HttpFoundation\Response;
  */
 class InjectTenantId
 {
+    public const ORIGINAL_BODY_KEYS_ATTRIBUTE = 'secpal_original_body_keys';
+
     /**
      * Handle an incoming request.
      *
@@ -38,6 +40,13 @@ class InjectTenantId
      */
     public function handle(Request $request, Closure $next): Response
     {
+        if (! $request->attributes->has(self::ORIGINAL_BODY_KEYS_ATTRIBUTE)) {
+            $request->attributes->set(
+                self::ORIGINAL_BODY_KEYS_ATTRIBUTE,
+                array_keys($request->request->all()),
+            );
+        }
+
         // SECURITY FIX: Remove any client-provided tenant_id to prevent spoofing
         $request->request->remove('tenant_id');
         $request->query->remove('tenant_id');

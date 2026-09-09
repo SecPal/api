@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\V1\DomainLookupController;
 use App\Http\Controllers\Api\V1\EmployeeController;
 use App\Http\Controllers\Api\V1\EmployeeDocumentController;
 use App\Http\Controllers\Api\V1\EmployeeQualificationController;
+use App\Http\Controllers\Api\V1\LegalHoldController;
 use App\Http\Controllers\Api\V1\OnboardingController;
 use App\Http\Controllers\Api\V1\OrganizationalScopeController;
 use App\Http\Controllers\Api\V1\OrganizationalUnitController;
@@ -193,6 +194,21 @@ Route::prefix('v1')->group(function () {
             Route::get('/users/{user}/permissions/direct', [UserPermissionController::class, 'direct']);
             Route::delete('/users/{user}/mfa', [AuthController::class, 'resetUserMfa'])
                 ->middleware(['permission:users.reset_mfa', 'throttle:mfa-user-reset']);
+
+            Route::middleware('tenant.inject')->group(function (): void {
+                Route::get('/legal-holds', [LegalHoldController::class, 'index'])
+                    ->middleware('permission:legal_holds.read');
+                Route::post('/legal-holds', [LegalHoldController::class, 'store'])
+                    ->middleware('permission:legal_holds.create');
+                Route::get('/legal-holds/{legalHold}', [LegalHoldController::class, 'show'])
+                    ->middleware('permission:legal_holds.read');
+                Route::post('/legal-holds/{legalHold}/attachments', [LegalHoldController::class, 'attach'])
+                    ->middleware('permission:legal_holds.attach');
+                Route::post('/legal-holds/{legalHold}/attachments/{attachment}/detach', [LegalHoldController::class, 'detach'])
+                    ->middleware('permission:legal_holds.detach');
+                Route::post('/legal-holds/{legalHold}/release', [LegalHoldController::class, 'release'])
+                    ->middleware('permission:legal_holds.release');
+            });
 
             // Tenant-scoped Person endpoints
             Route::prefix('tenants/{tenant}')->middleware('tenant')->group(function () {
