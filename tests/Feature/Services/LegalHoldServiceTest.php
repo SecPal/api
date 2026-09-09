@@ -148,6 +148,12 @@ test('inspection preserves attachment history after its live activity relation i
         'activity_id' => $activity->id,
         'activity_identity_id' => $activity->id,
     ]);
+    app(LegalHoldService::class)->detach(
+        $actor,
+        $hold->id,
+        $attachment->id,
+        'The activity is no longer within the case scope.',
+    );
     $activity->delete();
 
     $inspected = app(LegalHoldService::class)->inspect($actor, $hold->id);

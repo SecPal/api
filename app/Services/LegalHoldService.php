@@ -67,9 +67,9 @@ final readonly class LegalHoldService
 
         try {
             return DB::transaction(function () use ($actor, $tenantId, $legalHoldId, $activityId): LegalHoldActivityAttachment {
+                $activity = $this->legalHolds->lockActivity($tenantId, $activityId);
                 $legalHold = $this->legalHolds->lock($tenantId, $legalHoldId);
                 $this->requireActive($legalHold);
-                $activity = $this->legalHolds->findActivity($tenantId, $activityId);
                 Gate::forUser($actor)->authorize('view', $activity);
                 $attachedAt = now();
 

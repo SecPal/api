@@ -10,6 +10,7 @@ namespace App\Repositories;
 use App\Models\Activity;
 use App\Models\LegalHold;
 use App\Models\LegalHoldActivityAttachment;
+use Illuminate\Support\Facades\DB;
 
 class LegalHoldRepository
 {
@@ -37,12 +38,54 @@ class LegalHoldRepository
             ->firstOrFail();
     }
 
-    public function findActivity(int $tenantId, int $activityId): Activity
+    public function lockActivity(int $tenantId, int $activityId): Activity
     {
         return Activity::query()
             ->where('tenant_id', $tenantId)
             ->whereKey($activityId)
+            ->lockForUpdate()
             ->firstOrFail();
+    }
+
+    public function activityIsActivelyHeld(int $tenantId, int $activityIdentityId): bool
+    {
+        $held = DB::scalar(
+            'SELECT activity_is_actively_held(?, ?)::int',
+            [$tenantId, $activityIdentityId],
+        );
+
+        if (! is_int($held) && ! is_string($held)) {
+            throw new \RuntimeException('Unable to establish activity Legal Hold status.');
+        }
+
+        return (int) $held === 1;
+    }
+
+    /**
+     * @param  list<int>  $activityIdentityIds
+     * @return list<int>
+     */
+    public function activelyHeldActivityIdentityIds(int $tenantId, array $activityIdentityIds): array
+    {
+        if ($activityIdentityIds === []) {
+            return [];
+        }
+
+        $heldActivityIds = Activity::query()
+            ->where('tenant_id', $tenantId)
+            ->whereIntegerInRaw('id', $activityIdentityIds)
+            ->whereRaw('activity_is_actively_held(activity_log.tenant_id, activity_log.id)')
+            ->pluck('id')
+            ->map(static function (mixed $id): int {
+                if (! is_int($id) && ! is_string($id)) {
+                    throw new \RuntimeException('Invalid held Activity identity returned by the database.');
+                }
+
+                return (int) $id;
+            })
+            ->all();
+
+        return array_values($heldActivityIds);
     }
 
     public function lockAttachment(
