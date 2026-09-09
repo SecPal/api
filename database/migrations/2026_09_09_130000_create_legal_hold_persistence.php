@@ -34,7 +34,8 @@ return new class extends Migration
             $table->uuid('released_by_user_id')->nullable();
             $table->uuid('released_by_identity_id')->nullable();
             $table->string('release_justification', 2000)->nullable();
-            $table->timestampsTz();
+            $table->timestampTz('created_at')->useCurrent();
+            $table->timestampTz('updated_at')->useCurrent();
 
             $table->unique(['tenant_id', 'id'], 'legal_holds_tenant_id_id_unique');
             $table->unique(['tenant_id', 'case_reference'], 'legal_holds_tenant_case_reference_unique');
@@ -91,6 +92,25 @@ return new class extends Migration
                 FROM users
                 WHERE id = actor_id AND tenant_id = owner_tenant_id
                 FOR KEY SHARE;
+
+                RETURN FOUND;
+            END;
+            $$;
+
+            CREATE OR REPLACE FUNCTION enforce_legal_hold_is_active(
+                hold_id uuid,
+                owner_tenant_id bigint
+            )
+            RETURNS boolean
+            LANGUAGE plpgsql
+            AS $$
+            BEGIN
+                PERFORM 1
+                FROM legal_holds
+                WHERE id = hold_id
+                    AND tenant_id = owner_tenant_id
+                    AND status = 'active'
+                FOR UPDATE;
 
                 RETURN FOUND;
             END;
@@ -261,6 +281,14 @@ return new class extends Migration
             AS $$
             BEGIN
                 IF TG_OP = 'INSERT' THEN
+                    IF NOT enforce_legal_hold_is_active(
+                        NEW.legal_hold_id,
+                        NEW.tenant_id
+                    ) THEN
+                        RAISE EXCEPTION 'attachments require an active legal hold'
+                            USING ERRCODE = '23514';
+                    END IF;
+
                     IF NEW.activity_id IS NULL
                         OR NEW.activity_identity_id IS DISTINCT FROM NEW.activity_id THEN
                         RAISE EXCEPTION 'attachment activity identity must match a current activity'
@@ -347,6 +375,10 @@ return new class extends Migration
                             NEW.detached_by_user_id,
                             NEW.tenant_id
                         )
+                        OR NOT enforce_legal_hold_is_active(
+                            NEW.legal_hold_id,
+                            NEW.tenant_id
+                        )
                     ) THEN
                     RAISE EXCEPTION 'detachment actor identity must match a current user'
                         USING ERRCODE = '23514';
@@ -383,6 +415,16 @@ return new class extends Migration
             CREATE TRIGGER legal_hold_attachments_prevent_direct_delete
             BEFORE DELETE ON legal_hold_activity_attachments
             FOR EACH ROW
+            EXECUTE FUNCTION enforce_legal_hold_evidence_deletion();
+
+            CREATE TRIGGER legal_holds_prevent_truncate
+            BEFORE TRUNCATE ON legal_holds
+            FOR EACH STATEMENT
+            EXECUTE FUNCTION enforce_legal_hold_evidence_deletion();
+
+            CREATE TRIGGER legal_hold_attachments_prevent_truncate
+            BEFORE TRUNCATE ON legal_hold_activity_attachments
+            FOR EACH STATEMENT
             EXECUTE FUNCTION enforce_legal_hold_evidence_deletion();
 
             CREATE OR REPLACE FUNCTION enforce_legal_hold_actor_tenant()
@@ -427,6 +469,7 @@ return new class extends Migration
         DB::statement('DROP FUNCTION IF EXISTS enforce_legal_hold_history()');
         DB::statement('DROP FUNCTION IF EXISTS enforce_legal_hold_evidence_deletion()');
         DB::statement('DROP FUNCTION IF EXISTS enforce_legal_hold_actor_tenant()');
+        DB::statement('DROP FUNCTION IF EXISTS enforce_legal_hold_is_active(uuid, bigint)');
         DB::statement('DROP FUNCTION IF EXISTS enforce_legal_hold_actor_reference(uuid, bigint)');
 
         Schema::table('activity_log', function (Blueprint $table): void {

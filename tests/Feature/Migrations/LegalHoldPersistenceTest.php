@@ -108,6 +108,17 @@ test('scopes stable case references to a tenant', function (): void {
     DB::table('legal_holds')->insert(legalHoldRow($tenantA, $creatorA, ['case_reference' => 'CASE-449']));
 })->throws(QueryException::class);
 
+test('defaults required case creation timestamps at the database boundary', function (): void {
+    $tenant = TenantKey::factory()->create();
+    $creator = User::factory()->create(['tenant_id' => $tenant->id]);
+    $row = legalHoldRow($tenant, $creator);
+    unset($row['created_at'], $row['updated_at']);
+
+    DB::table('legal_holds')->insert($row);
+
+    expect(DB::table('legal_holds')->where('id', $row['id'])->value('created_at'))->not->toBeNull();
+});
+
 test('rejects invalid and contradictory legal hold lifecycle state', function (array $overrides): void {
     $tenant = TenantKey::factory()->create();
     $creator = User::factory()->create(['tenant_id' => $tenant->id]);
@@ -235,6 +246,37 @@ test('released holds retain all attachment history', function (): void {
         ->and($hold->attachments->pluck('id')->all())->toContain($attached->id, $detached->id);
 });
 
+test('released holds reject new attachment and detachment history', function (string $operation): void {
+    $attachment = LegalHoldActivityAttachment::factory()->create();
+    $hold = $attachment->legalHold;
+    $releaser = User::factory()->create(['tenant_id' => $hold->tenant_id]);
+
+    $hold->update([
+        'status' => LegalHoldStatus::Released,
+        'released_at' => now(),
+        'released_by_user_id' => $releaser->id,
+        'released_by_identity_id' => $releaser->id,
+        'release_justification' => 'The proceeding has concluded.',
+    ]);
+
+    if ($operation === 'attach') {
+        LegalHoldActivityAttachment::factory()->create([
+            'tenant_id' => $hold->tenant_id,
+            'legal_hold_id' => $hold->id,
+        ]);
+
+        return;
+    }
+
+    $detacher = User::factory()->create(['tenant_id' => $hold->tenant_id]);
+    $attachment->update([
+        'detached_at' => now(),
+        'detached_by_user_id' => $detacher->id,
+        'detached_by_identity_id' => $detacher->id,
+        'detachment_justification' => 'Evidence is no longer within the case scope.',
+    ]);
+})->with(['attach', 'detach'])->throws(QueryException::class);
+
 test('released lifecycle and detached activity identities remain immutable history', function (): void {
     $attachment = LegalHoldActivityAttachment::factory()->detached()->create();
     $activityIdentity = $attachment->activity_identity_id;
@@ -303,6 +345,15 @@ test('bulk model queries cannot bypass attachment history deletion protection', 
 
     LegalHoldActivityAttachment::query()->whereKey($attachment->id)->delete();
 })->throws(QueryException::class);
+
+test('truncate cannot bypass evidence deletion protection', function (string $statement): void {
+    LegalHoldActivityAttachment::factory()->create();
+
+    DB::statement($statement);
+})->with([
+    'attachments' => 'TRUNCATE legal_hold_activity_attachments',
+    'holds with attachments' => 'TRUNCATE legal_holds, legal_hold_activity_attachments',
+])->throws(QueryException::class);
 
 test('tenant erasure follows the repository cascade contract', function (): void {
     $attachment = LegalHoldActivityAttachment::factory()->detached()->create();
