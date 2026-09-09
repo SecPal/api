@@ -102,12 +102,13 @@ test('list is tenant isolated, deterministically ordered, paginated, and summary
 
     $expected = LegalHold::query()->where('tenant_id', $this->tenant->id)
         ->orderByDesc('created_at')->orderByDesc('id')->limit(15)->pluck('id')->all();
-    $response = $this->withToken($this->token)->getJson('/v1/legal-holds');
+    $response = $this->withToken($this->token)->getJson('/v1/legal-holds?per_page=15');
 
     $response->assertOk()->assertJsonCount(15, 'data')
         ->assertJsonPath('meta.current_page', 1)->assertJsonPath('meta.per_page', 15)
         ->assertJsonPath('meta.total', 17);
     expect(collect($response->json('data'))->pluck('id')->all())->toBe($expected)
+        ->and((string) $response->json('links.next'))->toContain('per_page=15')
         ->and(array_keys($response->json('data.0')))->toBe([
             'id', 'case_reference', 'status', 'created_at', 'released_at',
         ]);
@@ -391,6 +392,9 @@ test('required audit failure is neutral and rolls back the mutation', function (
     });
     $this->withToken($this->token)->postJson('/v1/legal-holds', [
         'case_reference' => 'CASE-AUDIT-FAILURE', 'justification' => 'Must roll back.',
-    ])->assertInternalServerError()->assertExactJson(['message' => 'Internal server error.']);
+    ])->assertInternalServerError()->assertExactJson([
+        'message' => 'An internal error occurred',
+        'code' => 'INTERNAL_ERROR',
+    ]);
     expect(LegalHold::query()->where('case_reference', 'CASE-AUDIT-FAILURE')->exists())->toBeFalse();
 });

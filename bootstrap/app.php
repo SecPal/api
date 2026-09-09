@@ -207,6 +207,13 @@ return Application::configure(basePath: dirname(__DIR__))
                 ? $e->getStatusCode()
                 : 500;
 
+            if ($status >= 500 && $request->is('v1/legal-holds', 'v1/legal-holds/*')) {
+                return response()->json([
+                    'message' => 'An internal error occurred',
+                    'code' => 'INTERNAL_ERROR',
+                ], $status);
+            }
+
             return response()->json([
                 'message' => $status >= 500
                     ? __('Internal server error.')

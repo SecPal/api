@@ -22,7 +22,8 @@ class LegalHoldRepository
             ->where('tenant_id', $tenantId)
             ->orderByDesc('created_at')
             ->orderByDesc('id')
-            ->paginate($perPage, ['*'], 'page', $page);
+            ->paginate($perPage, ['*'], 'page', $page)
+            ->appends(['per_page' => $perPage]);
     }
 
     /** @param array<string, mixed> $attributes */
