@@ -330,17 +330,22 @@ return new class extends Migration
                         RAISE EXCEPTION 'detachment evidence is immutable'
                             USING ERRCODE = '23514';
                     END IF;
-                ELSIF NEW.detached_at IS NOT NULL
-                    AND (
+                ELSIF NEW.detached_at IS NOT NULL THEN
+                    IF (
                         NEW.detached_by_user_id IS NULL
                         OR NEW.detached_by_identity_id IS DISTINCT FROM NEW.detached_by_user_id
-                        OR NOT enforce_legal_hold_is_active(
-                            NEW.legal_hold_id,
-                            NEW.tenant_id
-                        )
                     ) THEN
-                    RAISE EXCEPTION 'detachment actor identity must match a current user'
-                        USING ERRCODE = '23514';
+                        RAISE EXCEPTION 'detachment actor identity must match a current user'
+                            USING ERRCODE = '23514';
+                    END IF;
+
+                    IF NOT enforce_legal_hold_is_active(
+                        NEW.legal_hold_id,
+                        NEW.tenant_id
+                    ) THEN
+                        RAISE EXCEPTION 'detachments require an active legal hold'
+                            USING ERRCODE = '23514';
+                    END IF;
                 END IF;
 
                 RETURN NEW;
@@ -390,17 +395,13 @@ return new class extends Migration
 
     public function down(): void
     {
-        DB::statement('DROP TRIGGER IF EXISTS users_enforce_legal_hold_actor_tenant ON users');
-
         Schema::dropIfExists('legal_hold_activity_attachments');
         Schema::dropIfExists('legal_holds');
 
         DB::statement('DROP FUNCTION IF EXISTS enforce_legal_hold_attachment_history()');
         DB::statement('DROP FUNCTION IF EXISTS enforce_legal_hold_history()');
         DB::statement('DROP FUNCTION IF EXISTS enforce_legal_hold_evidence_deletion()');
-        DB::statement('DROP FUNCTION IF EXISTS enforce_legal_hold_actor_tenant()');
         DB::statement('DROP FUNCTION IF EXISTS enforce_legal_hold_is_active(uuid, bigint)');
-        DB::statement('DROP FUNCTION IF EXISTS enforce_legal_hold_actor_reference(uuid, bigint)');
 
         Schema::table('activity_log', function (Blueprint $table): void {
             $table->dropUnique('activity_log_tenant_id_id_unique');

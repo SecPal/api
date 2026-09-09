@@ -250,7 +250,7 @@ test('released holds retain all attachment history', function (): void {
         ->and($hold->attachments->pluck('id')->all())->toContain($attached->id, $detached->id);
 });
 
-test('released holds reject new attachment and detachment history', function (string $operation): void {
+test('released holds reject new attachment and detachment history', function (string $operation, string $message): void {
     $attachment = LegalHoldActivityAttachment::factory()->create();
     $hold = $attachment->legalHold;
     $releaser = User::factory()->create(['tenant_id' => $hold->tenant_id]);
@@ -263,23 +263,28 @@ test('released holds reject new attachment and detachment history', function (st
         'release_justification' => 'The proceeding has concluded.',
     ]);
 
-    if ($operation === 'attach') {
-        LegalHoldActivityAttachment::factory()->create([
-            'tenant_id' => $hold->tenant_id,
-            'legal_hold_id' => $hold->id,
+    expect(function () use ($operation, $hold, $attachment): void {
+        if ($operation === 'attach') {
+            LegalHoldActivityAttachment::factory()->create([
+                'tenant_id' => $hold->tenant_id,
+                'legal_hold_id' => $hold->id,
+            ]);
+
+            return;
+        }
+
+        $detacher = User::factory()->create(['tenant_id' => $hold->tenant_id]);
+        $attachment->update([
+            'detached_at' => now(),
+            'detached_by_user_id' => $detacher->id,
+            'detached_by_identity_id' => $detacher->id,
+            'detachment_justification' => 'Evidence is no longer within the case scope.',
         ]);
-
-        return;
-    }
-
-    $detacher = User::factory()->create(['tenant_id' => $hold->tenant_id]);
-    $attachment->update([
-        'detached_at' => now(),
-        'detached_by_user_id' => $detacher->id,
-        'detached_by_identity_id' => $detacher->id,
-        'detachment_justification' => 'Evidence is no longer within the case scope.',
-    ]);
-})->with(['attach', 'detach'])->throws(QueryException::class);
+    })->toThrow(QueryException::class, $message);
+})->with([
+    'attach' => ['attach', 'attachments require an active legal hold'],
+    'detach' => ['detach', 'detachments require an active legal hold'],
+]);
 
 test('released lifecycle and detached activity identities remain immutable history', function (): void {
     $attachment = LegalHoldActivityAttachment::factory()->detached()->create();
@@ -400,7 +405,12 @@ test('the migration rolls back and reapplies cleanly', function (): void {
         ->and(Schema::hasTable('legal_holds'))->toBeFalse()
         ->and(DB::table('pg_proc')
             ->whereRaw('pronamespace = current_schema()::regnamespace')
-            ->where('proname', 'like', 'enforce_legal_hold_%')
+            ->whereIn('proname', [
+                'enforce_legal_hold_attachment_history',
+                'enforce_legal_hold_evidence_deletion',
+                'enforce_legal_hold_history',
+                'enforce_legal_hold_is_active',
+            ])
             ->exists())->toBeFalse();
 
     $migration->up();
