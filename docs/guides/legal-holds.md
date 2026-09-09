@@ -18,6 +18,9 @@ All examples use synthetic data and the API host `https://api.secpal.dev`. Send
 an authenticated request with `Authorization: Bearer <token>`; never copy a
 real token into documentation, tickets, or logs.
 
+Each request/response example is an independent state snapshot. Reused synthetic
+identifiers are illustrative, not a sequence of requests against one Hold.
+
 ## Authorization and tenant boundaries
 
 Legal Hold capabilities are tenant-scoped. Assign them through SecPal's
@@ -260,18 +263,20 @@ Content-Type: application/json
 
 ## Retention and hash-chain interaction
 
-An Activity is protected from normal retention deletion only while it has an
-active attachment on an active Hold. A detached attachment does not protect it.
-A released Hold does not protect it after the release commits. Detachment and
-release restore normal retention eligibility; neither triggers immediate
-deletion. Retention processing remains separate.
+An Activity is protected from normal retention deletion while it has any active
+attachment on an active Hold. A detached attachment does not protect it. A
+released Hold does not protect it after the release commits. Detachment and
+release restore normal retention eligibility only when no other active Hold
+still protects the Activity; neither triggers immediate deletion. Retention
+processing remains separate.
 
 Activities remain in SecPal's existing tamper-evident Activity logging
 architecture. Legal Holds neither copy nor replace Activity evidence, and held
 Activities remain part of the Activity hash-chain. Retention does not falsely
 mark a successor orphaned merely because an expired predecessor remains held.
-If normal retention actually deletes a predecessor, the existing archive and
-orphaned-genesis behavior applies.
+If normal retention deletes an expired predecessor, an actively held successor
+remains linked and is not marked orphaned genesis. Otherwise, the existing
+archive and orphaned-genesis behavior applies.
 
 ## Audit and failure atomicity
 
