@@ -30,6 +30,7 @@ class LegalHoldAuditRecorder
             ->tap(function ($activity) use ($context): void {
                 /** @var Activity $activity */
                 $activity->tenant_id = $context->tenantId;
+                $activity->suppressRequestOrganizationalUnitCapture();
             })
             ->log($this->description($outcome));
 

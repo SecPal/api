@@ -106,10 +106,33 @@ class Activity extends SpatieActivity
      */
     protected $table = 'activity_log';
 
+    private bool $captureRequestOrganizationalUnit = true;
+
     /** @return HasMany<LegalHoldActivityAttachment, $this> */
     public function legalHoldAttachments(): HasMany
     {
         return $this->hasMany(LegalHoldActivityAttachment::class, 'activity_id');
+    }
+
+    public function suppressRequestOrganizationalUnitCapture(): void
+    {
+        $this->captureRequestOrganizationalUnit = false;
+        $this->organizational_unit_id = null;
+    }
+
+    public static function acquireHashChainLock(int $tenantId): void
+    {
+        if ($tenantId < 1) {
+            throw new \InvalidArgumentException('Activity hash-chain lock requires a tenant.');
+        }
+
+        $connection = (new self)->getConnection();
+
+        if ($connection->transactionLevel() < 1) {
+            throw new \LogicException('Activity hash-chain lock requires an active transaction.');
+        }
+
+        $connection->select('SELECT pg_advisory_xact_lock(?)', [$tenantId]);
     }
 
     /**
@@ -327,7 +350,9 @@ class Activity extends SpatieActivity
             }
 
             // Auto-inject organizational_unit_id from request context
-            if (! $activity->organizational_unit_id && request()->has('organizational_unit_id')) {
+            if ($activity->captureRequestOrganizationalUnit
+                && ! $activity->organizational_unit_id
+                && request()->has('organizational_unit_id')) {
                 /** @var mixed $orgUnitId */
                 $orgUnitId = request()->input('organizational_unit_id');
                 if (is_string($orgUnitId)) {
@@ -349,6 +374,10 @@ class Activity extends SpatieActivity
 
             if (! $activity->user_agent && request()->userAgent()) {
                 $activity->user_agent = request()->userAgent();
+            }
+
+            if ($activity->tenant_id !== null) {
+                self::acquireHashChainLock($activity->tenant_id);
             }
 
             // NOTE: Hash chain building moved to 'created' hook (Issue #408)
@@ -403,6 +432,22 @@ class Activity extends SpatieActivity
             // multiple jobs for the same tenant wait for each other.
             \App\Jobs\ProcessActivityHashChain::dispatchSync($activity->tenant_id, $activityData);
         });
+    }
+
+    /**
+     * Keep insertion and synchronous hash processing in the same lock-owning transaction.
+     *
+     * @param  Builder<static>  $query
+     */
+    protected function performInsert(Builder $query): bool
+    {
+        $connection = $this->getConnection();
+
+        if ($connection->transactionLevel() > 0) {
+            return parent::performInsert($query);
+        }
+
+        return $connection->transaction(fn (): bool => parent::performInsert($query));
     }
 
     private function captureCauserEmployeeContext(): void

@@ -16,6 +16,7 @@ use App\Exceptions\DuplicateActiveLegalHoldAttachmentException;
 use App\Exceptions\LegalHoldAttachmentAlreadyDetachedException;
 use App\Exceptions\LegalHoldAuditFailureException;
 use App\Exceptions\LegalHoldCaseReferenceConflictException;
+use App\Exceptions\LegalHoldNestedTransactionException;
 use App\Exceptions\LegalHoldNotActiveException;
 use App\Models\Activity;
 use App\Models\LegalHold;
@@ -42,6 +43,7 @@ final readonly class LegalHoldService
     public function create(User $actor, string $caseReference, string $justification): LegalHold
     {
         $tenantId = $this->authorizeActor($actor);
+        $this->requireTopLevelTransaction();
         $context = new LegalHoldAuditContext($actor, $tenantId, LegalHoldAuditOperation::Create);
 
         try {
@@ -50,6 +52,7 @@ final readonly class LegalHoldService
             $justification = $this->bounded($justification, 2000, 'justification');
 
             return DB::transaction(function () use ($actor, $tenantId, $caseReference, $justification, $context): LegalHold {
+                Activity::acquireHashChainLock($tenantId);
                 $legalHold = $this->legalHolds->create([
                     'tenant_id' => $tenantId,
                     'case_reference' => $caseReference,
@@ -82,10 +85,12 @@ final readonly class LegalHoldService
     public function attach(User $actor, string $legalHoldId, int $activityId): LegalHoldActivityAttachment
     {
         $tenantId = $this->authorizeActor($actor);
+        $this->requireTopLevelTransaction();
         $context = new LegalHoldAuditContext($actor, $tenantId, LegalHoldAuditOperation::Attach);
 
         try {
             return DB::transaction(function () use ($actor, $tenantId, $legalHoldId, $activityId, $context): LegalHoldActivityAttachment {
+                Activity::acquireHashChainLock($tenantId);
                 $activity = $this->legalHolds->lockActivity($tenantId, $activityId);
                 $context->resolveActivity($activity);
                 $legalHold = $this->legalHolds->lock($tenantId, $legalHoldId);
@@ -120,12 +125,14 @@ final readonly class LegalHoldService
         string $justification,
     ): LegalHoldActivityAttachment {
         $tenantId = $this->authorizeActor($actor);
+        $this->requireTopLevelTransaction();
         $context = new LegalHoldAuditContext($actor, $tenantId, LegalHoldAuditOperation::Detach);
 
         try {
             $justification = $this->bounded($justification, 2000, 'detachment justification');
 
             return DB::transaction(function () use ($actor, $tenantId, $legalHoldId, $attachmentId, $justification, $context): LegalHoldActivityAttachment {
+                Activity::acquireHashChainLock($tenantId);
                 $legalHold = $this->legalHolds->lock($tenantId, $legalHoldId);
                 $context->resolveHold($legalHold);
                 $this->requireActive($legalHold);
@@ -156,12 +163,14 @@ final readonly class LegalHoldService
     public function release(User $actor, string $legalHoldId, string $justification): LegalHold
     {
         $tenantId = $this->authorizeActor($actor);
+        $this->requireTopLevelTransaction();
         $context = new LegalHoldAuditContext($actor, $tenantId, LegalHoldAuditOperation::Release);
 
         try {
             $justification = $this->bounded($justification, 2000, 'release justification');
 
             return DB::transaction(function () use ($actor, $tenantId, $legalHoldId, $justification, $context): LegalHold {
+                Activity::acquireHashChainLock($tenantId);
                 $legalHold = $this->legalHolds->lock($tenantId, $legalHoldId);
                 $context->resolveHold($legalHold);
                 $this->requireActive($legalHold);
@@ -203,6 +212,13 @@ final readonly class LegalHoldService
     {
         if ($legalHold->status !== LegalHoldStatus::Active) {
             throw new LegalHoldNotActiveException;
+        }
+    }
+
+    private function requireTopLevelTransaction(): void
+    {
+        if (DB::connection()->transactionLevel() > 0) {
+            throw new LegalHoldNestedTransactionException;
         }
     }
 
@@ -281,6 +297,7 @@ final readonly class LegalHoldService
             $failure instanceof DuplicateActiveLegalHoldAttachmentException => LegalHoldAuditReasonCategory::DuplicateActiveAttachment,
             $failure instanceof LegalHoldAttachmentAlreadyDetachedException => LegalHoldAuditReasonCategory::AttachmentAlreadyDetached,
             $failure instanceof ModelNotFoundException => LegalHoldAuditReasonCategory::TargetUnavailable,
+            $failure instanceof QueryException => LegalHoldAuditReasonCategory::PersistenceFailure,
             $context->operation === LegalHoldAuditOperation::Create
                 || $context->hasResolvedHold() => LegalHoldAuditReasonCategory::PersistenceFailure,
             default => null,

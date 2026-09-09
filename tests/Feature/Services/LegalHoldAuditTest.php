@@ -11,6 +11,7 @@ use App\Enums\LegalHoldStatus;
 use App\Exceptions\DuplicateActiveLegalHoldAttachmentException;
 use App\Exceptions\LegalHoldAuditFailureException;
 use App\Exceptions\LegalHoldCaseReferenceConflictException;
+use App\Exceptions\LegalHoldNestedTransactionException;
 use App\Exceptions\LegalHoldNotActiveException;
 use App\Models\Activity;
 use App\Models\LegalHold;
@@ -21,16 +22,16 @@ use App\Repositories\LegalHoldRepository;
 use App\Services\LegalHoldAuditRecorder;
 use App\Services\LegalHoldService;
 use Illuminate\Auth\Access\AuthorizationException;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Spatie\Permission\PermissionRegistrar;
 
-uses(RefreshDatabase::class)->group('serial');
+uses()->group('serial');
 
 beforeEach(function (): void {
+    Artisan::call('migrate:fresh', ['--force' => true]);
     incrementTestKekCounter();
     TenantKey::setKekPath(getTestKekPath());
     TenantKey::generateKek();
@@ -39,6 +40,8 @@ beforeEach(function (): void {
 
 afterEach(function (): void {
     app(PermissionRegistrar::class)->setPermissionsTeamId(null);
+    Artisan::call('migrate:fresh', ['--force' => true]);
+    DB::unprepared('DROP FUNCTION IF EXISTS fail_legal_hold_audit_hash()');
     cleanupTestKekFile();
     TenantKey::setKekPath(null);
 });
@@ -396,6 +399,72 @@ test('failed mutation audit failure stays rolled back and surfaces causal eviden
     }
 
     expect(LegalHoldActivityAttachment::query()->count())->toBe(0)
+        ->and(Activity::query()->where('event', 'like', 'legal_hold.%')->exists())->toBeFalse();
+});
+
+test('request organizational unit input cannot scope or break lifecycle audits', function (): void {
+    $tenant = TenantKey::factory()->create();
+    $actor = legalHoldAuditActor($tenant);
+    app()->instance('request', Request::create(
+        '/legal-holds',
+        'POST',
+        ['organizational_unit_id' => (string) Str::uuid()],
+    ));
+
+    $hold = app(LegalHoldService::class)->create(
+        $actor,
+        'CASE-UNTRUSTED-OU',
+        'The request must not control audit scope.',
+    );
+    $audit = Activity::query()->where('event', 'legal_hold.create.succeeded')->sole();
+
+    expect($hold->case_reference)->toBe('CASE-UNTRUSTED-OU')
+        ->and($audit->organizational_unit_id)->toBeNull();
+});
+
+test('pre-resolution database failures record neutral persistence evidence', function (): void {
+    $tenant = TenantKey::factory()->create();
+    $actor = legalHoldAuditActor($tenant);
+    $repository = Mockery::mock(LegalHoldRepository::class)->makePartial();
+    $failure = new Illuminate\Database\QueryException(
+        'pgsql',
+        'select * from legal_holds',
+        [],
+        new PDOException('PRE-RESOLUTION-DRIVER-SECRET'),
+    );
+    $repository->shouldReceive('lock')->once()->andThrow($failure);
+    app()->instance(LegalHoldRepository::class, $repository);
+
+    expect(fn () => app(LegalHoldService::class)->release(
+        $actor,
+        (string) Str::uuid(),
+        'Unavailable before resolution.',
+    ))->toThrow(Illuminate\Database\QueryException::class);
+
+    $audit = Activity::query()->where('event', 'legal_hold.release.failed')->sole();
+
+    expect($audit->properties->all())->toBe([
+        'schema_version' => 1,
+        'operation' => 'release',
+        'outcome' => 'failed',
+        'case_reference' => null,
+        'reason_category' => 'persistence_failure',
+    ])->and(json_encode(
+        DB::table('activity_log')->where('id', $audit->id)->first(),
+        JSON_THROW_ON_ERROR,
+    ))->not->toContain('PRE-RESOLUTION-DRIVER-SECRET');
+});
+
+test('lifecycle mutations reject caller-owned transactions before mutation', function (): void {
+    $tenant = TenantKey::factory()->create();
+    $actor = legalHoldAuditActor($tenant);
+
+    expect(fn () => DB::transaction(fn () => app(LegalHoldService::class)->create(
+        $actor,
+        'CASE-NESTED-TRANSACTION',
+        'Must never depend on a caller transaction.',
+    )))->toThrow(LegalHoldNestedTransactionException::class)
+        ->and(LegalHold::query()->where('case_reference', 'CASE-NESTED-TRANSACTION')->exists())->toBeFalse()
         ->and(Activity::query()->where('event', 'like', 'legal_hold.%')->exists())->toBeFalse();
 });
 

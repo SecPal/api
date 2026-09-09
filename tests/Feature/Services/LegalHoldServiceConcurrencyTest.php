@@ -319,6 +319,138 @@ test('concurrent releases commit exactly one lifecycle transition', function ():
         ->and($failureAudit->properties->get('reason_category'))->toBe('hold_not_active');
 });
 
+test('attachment auditing cannot deadlock with concurrent Activity hashing', function (): void {
+    $tenant = TenantKey::factory()->create();
+    $actor = legalHoldConcurrencyActor($tenant);
+    $hold = LegalHold::factory()->create(['tenant_id' => $tenant->id]);
+    $evidence = Activity::factory()->create(['tenant_id' => $tenant->id]);
+
+    DB::unprepared(<<<SQL
+        CREATE FUNCTION delay_legal_hold_attachment_454()
+        RETURNS trigger
+        LANGUAGE plpgsql
+        AS $$
+        BEGIN
+            IF NEW.legal_hold_id = '{$hold->id}'::uuid THEN
+                PERFORM pg_sleep(2);
+            END IF;
+
+            RETURN NEW;
+        END;
+        $$;
+
+        CREATE TRIGGER delay_legal_hold_attachment_454
+        AFTER INSERT ON legal_hold_activity_attachments
+        FOR EACH ROW
+        EXECUTE FUNCTION delay_legal_hold_attachment_454();
+        SQL);
+
+    try {
+        $results = runConcurrentLegalHoldOperations(
+            $actor,
+            2,
+            function (int $worker, User $currentActor, LegalHoldService $service) use ($hold, $evidence, $tenant): void {
+                if ($worker === 1) {
+                    $service->attach($currentActor, $hold->id, $evidence->id);
+
+                    return;
+                }
+
+                usleep(200_000);
+                Activity::create([
+                    'tenant_id' => $tenant->id,
+                    'log_name' => 'security',
+                    'description' => 'Concurrent forensic evidence',
+                    'event' => 'concurrent.forensic.evidence',
+                ]);
+            },
+        );
+    } finally {
+        DB::unprepared(<<<'SQL'
+            DROP TRIGGER IF EXISTS delay_legal_hold_attachment_454
+                ON legal_hold_activity_attachments;
+            DROP FUNCTION IF EXISTS delay_legal_hold_attachment_454();
+            SQL);
+    }
+
+    $activities = Activity::query()
+        ->where('tenant_id', $tenant->id)
+        ->orderBy('created_at')
+        ->orderBy('id')
+        ->get();
+
+    expect($results->where('status', 'success'))->toHaveCount(2)
+        ->and(Activity::query()->where('event', 'legal_hold.attach.succeeded')->count())->toBe(1)
+        ->and($activities->every(fn (Activity $activity): bool => $activity->verifyChain()))->toBeTrue();
+});
+
+test('concurrent lifecycle audits preserve canonical Activity hash order', function (): void {
+    $tenant = TenantKey::factory()->create();
+    $actor = legalHoldConcurrencyActor($tenant);
+    $slowHold = LegalHold::factory()->create([
+        'tenant_id' => $tenant->id,
+        'case_reference' => 'CASE-SLOW-AUDIT-454',
+    ]);
+    $fastHold = LegalHold::factory()->create([
+        'tenant_id' => $tenant->id,
+        'case_reference' => 'CASE-FAST-AUDIT-454',
+    ]);
+
+    DB::unprepared(<<<'SQL'
+        CREATE FUNCTION delay_legal_hold_audit_454()
+        RETURNS trigger
+        LANGUAGE plpgsql
+        AS $$
+        BEGIN
+            IF NEW.event = 'legal_hold.release.succeeded'
+                AND NEW.properties->>'case_reference' = 'CASE-SLOW-AUDIT-454' THEN
+                PERFORM pg_sleep(2);
+            END IF;
+
+            RETURN NEW;
+        END;
+        $$;
+
+        CREATE TRIGGER delay_legal_hold_audit_454
+        AFTER INSERT ON activity_log
+        FOR EACH ROW
+        EXECUTE FUNCTION delay_legal_hold_audit_454();
+        SQL);
+
+    try {
+        $results = runConcurrentLegalHoldOperations(
+            $actor,
+            2,
+            function (int $worker, User $currentActor, LegalHoldService $service) use ($slowHold, $fastHold): void {
+                if ($worker === 1) {
+                    $service->release($currentActor, $slowHold->id, 'Slow concurrent release.');
+
+                    return;
+                }
+
+                usleep(200_000);
+                $service->release($currentActor, $fastHold->id, 'Fast concurrent release.');
+            },
+        );
+    } finally {
+        DB::unprepared(<<<'SQL'
+            DROP TRIGGER IF EXISTS delay_legal_hold_audit_454 ON activity_log;
+            DROP FUNCTION IF EXISTS delay_legal_hold_audit_454();
+            SQL);
+    }
+
+    $audits = Activity::query()
+        ->where('event', 'legal_hold.release.succeeded')
+        ->orderBy('created_at')
+        ->orderBy('id')
+        ->get();
+
+    expect($results->where('status', 'success'))->toHaveCount(2)
+        ->and($audits)->toHaveCount(2)
+        ->and($audits[1]->previous_hash)->toBe($audits[0]->event_hash)
+        ->and($audits->every(fn (Activity $activity): bool => $activity->verifyChain()))->toBeTrue();
+});
+
 test('concurrent retention and attachment either preserve held evidence or reject the late attachment', function (): void {
     $tenant = TenantKey::factory()->create();
     $actor = legalHoldConcurrencyActor($tenant);

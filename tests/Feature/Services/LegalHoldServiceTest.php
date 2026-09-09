@@ -19,14 +19,14 @@ use App\Repositories\LegalHoldRepository;
 use App\Services\LegalHoldService;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
 use Mockery\MockInterface;
 use Spatie\Permission\PermissionRegistrar;
 
-uses(RefreshDatabase::class)->group('serial');
+uses()->group('serial');
 
 beforeEach(function (): void {
+    Artisan::call('migrate:fresh', ['--force' => true]);
     incrementTestKekCounter();
     TenantKey::setKekPath(getTestKekPath());
     TenantKey::generateKek();
@@ -35,6 +35,7 @@ beforeEach(function (): void {
 
 afterEach(function (): void {
     app(PermissionRegistrar::class)->setPermissionsTeamId(null);
+    Artisan::call('migrate:fresh', ['--force' => true]);
     cleanupTestKekFile();
     TenantKey::setKekPath(null);
 });

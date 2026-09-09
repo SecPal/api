@@ -80,7 +80,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - added synchronous Activity-backed Legal Hold lifecycle audits with atomic
   mutation evidence, privacy-minimized versioned metadata, closed failure
-  categories, and explicit rollback/fail-closed audit semantics (fixes `api#454`)
+  categories, serialized forensic hash ordering, and explicit
+  rollback/fail-closed transaction semantics (fixes `api#454`)
 - added the tenant-authoritative transactional Legal Hold lifecycle service for case creation and inspection, Activity attachment/detachment with immutable actor evidence, and justified release, including row-locked race safety, stable lifecycle conflicts, and rollback evidence (fixes `api#451`)
 
 - added the canonical tenant-safe legal-hold persistence foundation with closed
