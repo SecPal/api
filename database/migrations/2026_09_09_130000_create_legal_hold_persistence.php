@@ -79,6 +79,23 @@ return new class extends Migration
             SQL);
 
         DB::unprepared(<<<'SQL'
+            CREATE OR REPLACE FUNCTION enforce_legal_hold_actor_reference(
+                actor_id uuid,
+                owner_tenant_id bigint
+            )
+            RETURNS boolean
+            LANGUAGE plpgsql
+            AS $$
+            BEGIN
+                PERFORM 1
+                FROM users
+                WHERE id = actor_id AND tenant_id = owner_tenant_id
+                FOR KEY SHARE;
+
+                RETURN FOUND;
+            END;
+            $$;
+
             CREATE OR REPLACE FUNCTION enforce_legal_hold_history()
             RETURNS trigger
             LANGUAGE plpgsql
@@ -87,11 +104,9 @@ return new class extends Migration
                 IF TG_OP = 'INSERT' THEN
                     IF NEW.created_by_user_id IS NULL
                         OR NEW.created_by_identity_id IS DISTINCT FROM NEW.created_by_user_id
-                        OR NOT EXISTS (
-                            SELECT 1
-                            FROM users
-                            WHERE id = NEW.created_by_user_id
-                                AND tenant_id = NEW.tenant_id
+                        OR NOT enforce_legal_hold_actor_reference(
+                            NEW.created_by_user_id,
+                            NEW.tenant_id
                         ) THEN
                         RAISE EXCEPTION 'legal hold creator identity must match a current user'
                             USING ERRCODE = '23514';
@@ -101,11 +116,9 @@ return new class extends Migration
                         AND (
                             NEW.released_by_user_id IS NULL
                             OR NEW.released_by_identity_id IS DISTINCT FROM NEW.released_by_user_id
-                            OR NOT EXISTS (
-                                SELECT 1
-                                FROM users
-                                WHERE id = NEW.released_by_user_id
-                                    AND tenant_id = NEW.tenant_id
+                            OR NOT enforce_legal_hold_actor_reference(
+                                NEW.released_by_user_id,
+                                NEW.tenant_id
                             )
                         ) THEN
                         RAISE EXCEPTION 'legal hold release identity must match a current user'
@@ -155,11 +168,9 @@ return new class extends Migration
                     AND (
                         NEW.released_by_user_id IS NULL
                         OR NEW.released_by_identity_id IS DISTINCT FROM NEW.released_by_user_id
-                        OR NOT EXISTS (
-                            SELECT 1
-                            FROM users
-                            WHERE id = NEW.released_by_user_id
-                                AND tenant_id = NEW.tenant_id
+                        OR NOT enforce_legal_hold_actor_reference(
+                            NEW.released_by_user_id,
+                            NEW.tenant_id
                         )
                     ) THEN
                     RAISE EXCEPTION 'legal hold release identity must match a current user'
@@ -258,11 +269,9 @@ return new class extends Migration
 
                     IF NEW.attached_by_user_id IS NULL
                         OR NEW.attached_by_identity_id IS DISTINCT FROM NEW.attached_by_user_id
-                        OR NOT EXISTS (
-                            SELECT 1
-                            FROM users
-                            WHERE id = NEW.attached_by_user_id
-                                AND tenant_id = NEW.tenant_id
+                        OR NOT enforce_legal_hold_actor_reference(
+                            NEW.attached_by_user_id,
+                            NEW.tenant_id
                         ) THEN
                         RAISE EXCEPTION 'attachment actor identity must match a current user'
                             USING ERRCODE = '23514';
@@ -272,11 +281,9 @@ return new class extends Migration
                         AND (
                             NEW.detached_by_user_id IS NULL
                             OR NEW.detached_by_identity_id IS DISTINCT FROM NEW.detached_by_user_id
-                            OR NOT EXISTS (
-                                SELECT 1
-                                FROM users
-                                WHERE id = NEW.detached_by_user_id
-                                    AND tenant_id = NEW.tenant_id
+                            OR NOT enforce_legal_hold_actor_reference(
+                                NEW.detached_by_user_id,
+                                NEW.tenant_id
                             )
                         ) THEN
                         RAISE EXCEPTION 'detachment actor identity must match a current user'
@@ -336,11 +343,9 @@ return new class extends Migration
                     AND (
                         NEW.detached_by_user_id IS NULL
                         OR NEW.detached_by_identity_id IS DISTINCT FROM NEW.detached_by_user_id
-                        OR NOT EXISTS (
-                            SELECT 1
-                            FROM users
-                            WHERE id = NEW.detached_by_user_id
-                                AND tenant_id = NEW.tenant_id
+                        OR NOT enforce_legal_hold_actor_reference(
+                            NEW.detached_by_user_id,
+                            NEW.tenant_id
                         )
                     ) THEN
                     RAISE EXCEPTION 'detachment actor identity must match a current user'
@@ -422,6 +427,7 @@ return new class extends Migration
         DB::statement('DROP FUNCTION IF EXISTS enforce_legal_hold_history()');
         DB::statement('DROP FUNCTION IF EXISTS enforce_legal_hold_evidence_deletion()');
         DB::statement('DROP FUNCTION IF EXISTS enforce_legal_hold_actor_tenant()');
+        DB::statement('DROP FUNCTION IF EXISTS enforce_legal_hold_actor_reference(uuid, bigint)');
 
         Schema::table('activity_log', function (Blueprint $table): void {
             $table->dropUnique('activity_log_tenant_id_id_unique');

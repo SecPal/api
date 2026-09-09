@@ -59,13 +59,19 @@ class LegalHoldFactory extends Factory
 
     public function released(): static
     {
-        return $this->state(fn (): array => [
-            'status' => LegalHoldStatus::Released,
-            'released_at' => now(),
-            'released_by_user_id' => null,
-            'released_by_identity_id' => null,
-            'release_justification' => fake()->sentence(),
-        ])->afterMaking(function (LegalHold $hold): void {
+        return $this->state(function (): array {
+            $releasedAt = now();
+
+            return [
+                'status' => LegalHoldStatus::Released,
+                'released_at' => $releasedAt,
+                'released_by_user_id' => null,
+                'released_by_identity_id' => null,
+                'release_justification' => fake()->sentence(),
+                'created_at' => $releasedAt,
+                'updated_at' => $releasedAt,
+            ];
+        })->afterMaking(function (LegalHold $hold): void {
             $releaser = User::factory()->create(['tenant_id' => $hold->tenant_id]);
             $hold->released_by_user_id = $releaser->id;
             $hold->released_by_identity_id = $releaser->id;

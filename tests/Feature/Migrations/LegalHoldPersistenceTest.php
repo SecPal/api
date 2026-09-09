@@ -86,7 +86,12 @@ test('creates the canonical PostgreSQL legal hold persistence schema and constra
         ->and(DB::table('pg_indexes')
             ->where('schemaname', DB::raw('current_schema()'))
             ->where('indexname', 'legal_hold_attachments_active_identity_unique')
-            ->exists())->toBeTrue();
+            ->exists())->toBeTrue()
+        ->and((string) DB::scalar(<<<'SQL'
+            SELECT pg_get_functiondef(
+                'enforce_legal_hold_actor_reference(uuid, bigint)'::regprocedure
+            )
+            SQL))->toContain('FOR KEY SHARE');
 });
 
 test('scopes stable case references to a tenant', function (): void {
@@ -328,6 +333,7 @@ test('models relationships and factories remain tenant consistent', function ():
 
     expect($released->status)->toBe(LegalHoldStatus::Released)
         ->and($released->released_at)->not->toBeNull()
+        ->and($released->created_at?->equalTo($released->released_at))->toBeTrue()
         ->and($released->released_by_identity_id)->not->toBeNull();
 });
 
