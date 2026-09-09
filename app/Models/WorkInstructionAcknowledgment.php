@@ -17,7 +17,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property string $id
  * @property int $tenant_id
  * @property string $work_instruction_id
- * @property string $employee_id
+ * @property string|null $employee_id
+ * @property string $employee_identity_id
  * @property string|null $acknowledged_by_user_id
  * @property \Illuminate\Support\Carbon $acknowledged_at
  * @property-read TenantKey $tenant
@@ -38,6 +39,7 @@ class WorkInstructionAcknowledgment extends Model
         'tenant_id',
         'work_instruction_id',
         'employee_id',
+        'employee_identity_id',
         'acknowledged_by_user_id',
         'acknowledged_at',
     ];

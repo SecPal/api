@@ -81,7 +81,7 @@ test('creates the canonical PostgreSQL work instruction persistence tables', fun
             'created_at', 'updated_at',
         ]))->toBeTrue()
         ->and(Schema::hasColumns('work_instruction_acknowledgments', [
-            'id', 'tenant_id', 'work_instruction_id', 'employee_id',
+            'id', 'tenant_id', 'work_instruction_id', 'employee_id', 'employee_identity_id',
             'acknowledged_by_user_id', 'acknowledged_at', 'created_at', 'updated_at',
         ]))->toBeTrue();
 });
@@ -149,6 +149,14 @@ test('allows the same instruction number in independent tenants', function (): v
 
     expect(DB::table('work_instructions')->where('instruction_number', 'WI-2026-0042')->count())->toBe(2);
 });
+
+test('prevents instruction numbers from changing after creation', function (): void {
+    $instruction = WorkInstruction::factory()->create(['instruction_number' => 'WI-2026-0042']);
+
+    DB::table('work_instructions')
+        ->where('id', $instruction->id)
+        ->update(['instruction_number' => 'WI-2026-0043']);
+})->throws(QueryException::class);
 
 test('rejects lifecycle values outside the authoritative vocabulary', function (): void {
     $tenant = TenantKey::factory()->create();
@@ -243,6 +251,40 @@ test('prevents duplicate acknowledgment identities at the database boundary', fu
         'tenant_id' => $acknowledgment->tenant_id,
         'work_instruction_id' => $acknowledgment->work_instruction_id,
         'employee_id' => $acknowledgment->employee_id,
+    ]);
+})->throws(QueryException::class);
+
+test('rejects acknowledgments unless the instruction is published', function (): void {
+    $instruction = WorkInstruction::factory()->draft()->create();
+    $employee = Employee::factory()->create(['tenant_id' => $instruction->tenant_id]);
+
+    DB::table('work_instruction_acknowledgments')->insert([
+        'id' => Str::uuid()->toString(),
+        'tenant_id' => $instruction->tenant_id,
+        'work_instruction_id' => $instruction->id,
+        'employee_id' => $employee->id,
+        'employee_identity_id' => $employee->id,
+        'acknowledged_by_user_id' => null,
+        'acknowledged_at' => now(),
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+})->throws(QueryException::class);
+
+test('rejects acknowledgment timestamps before publication', function (): void {
+    $instruction = WorkInstruction::factory()->published()->create();
+    $employee = Employee::factory()->create(['tenant_id' => $instruction->tenant_id]);
+
+    DB::table('work_instruction_acknowledgments')->insert([
+        'id' => Str::uuid()->toString(),
+        'tenant_id' => $instruction->tenant_id,
+        'work_instruction_id' => $instruction->id,
+        'employee_id' => $employee->id,
+        'employee_identity_id' => $employee->id,
+        'acknowledged_by_user_id' => null,
+        'acknowledged_at' => $instruction->published_at?->subSecond(),
+        'created_at' => now(),
+        'updated_at' => now(),
     ]);
 })->throws(QueryException::class);
 
@@ -375,12 +417,18 @@ test('the migration rolls back and reapplies without orphaned schema objects', f
         ->where('conname', 'like', 'wi_%')
         ->pluck('conname')
         ->all();
+    $functionNames = DB::table('pg_proc')
+        ->whereRaw('pronamespace = current_schema()::regnamespace')
+        ->where('proname', 'like', 'enforce_work_instruction_%')
+        ->pluck('proname')
+        ->all();
 
     expect(Schema::hasTable('work_instructions'))->toBeFalse()
         ->and(Schema::hasTable('work_instruction_templates'))->toBeFalse()
         ->and(Schema::hasTable('work_instruction_standard_blocks'))->toBeFalse()
         ->and(Schema::hasTable('work_instruction_acknowledgments'))->toBeFalse()
-        ->and($constraintNames)->toBe([]);
+        ->and($constraintNames)->toBe([])
+        ->and($functionNames)->toBe([]);
 
     $migration->up();
 

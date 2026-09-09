@@ -68,6 +68,26 @@ return new class extends Migration
             REFERENCES users (tenant_id, id)
             ON DELETE SET NULL (archived_by_user_id)
             SQL);
+        DB::unprepared(<<<'SQL'
+            CREATE OR REPLACE FUNCTION enforce_work_instruction_number_immutability()
+            RETURNS trigger
+            LANGUAGE plpgsql
+            AS $$
+            BEGIN
+                IF NEW.instruction_number IS DISTINCT FROM OLD.instruction_number THEN
+                    RAISE EXCEPTION 'work instruction numbers are immutable'
+                        USING ERRCODE = '23514';
+                END IF;
+
+                RETURN NEW;
+            END;
+            $$;
+
+            CREATE TRIGGER work_instructions_number_immutable
+            BEFORE UPDATE OF instruction_number ON work_instructions
+            FOR EACH ROW
+            EXECUTE FUNCTION enforce_work_instruction_number_immutability();
+            SQL);
 
         Schema::create('work_instruction_templates', function (Blueprint $table): void {
             $table->uuid('id')->primary();
@@ -134,7 +154,8 @@ return new class extends Migration
             $table->uuid('id')->primary();
             $table->unsignedBigInteger('tenant_id');
             $table->uuid('work_instruction_id');
-            $table->uuid('employee_id');
+            $table->uuid('employee_id')->nullable();
+            $table->uuid('employee_identity_id');
             $table->uuid('acknowledged_by_user_id')->nullable();
             $table->timestampTz('acknowledged_at');
             $table->timestampsTz();
@@ -144,12 +165,8 @@ return new class extends Migration
                 ['tenant_id', 'work_instruction_id'],
                 'wi_acknowledgments_tenant_instruction_foreign'
             )->references(['tenant_id', 'id'])->on('work_instructions')->restrictOnDelete();
-            $table->foreign(
-                ['tenant_id', 'employee_id'],
-                'wi_acknowledgments_tenant_employee_foreign'
-            )->references(['tenant_id', 'id'])->on('employees')->restrictOnDelete();
             $table->unique(
-                ['tenant_id', 'work_instruction_id', 'employee_id'],
+                ['tenant_id', 'work_instruction_id', 'employee_identity_id'],
                 'wi_acknowledgments_identity_unique'
             );
             $table->index(['tenant_id', 'employee_id'], 'wi_acknowledgments_tenant_employee_index');
@@ -157,10 +174,84 @@ return new class extends Migration
         });
         DB::statement(<<<'SQL'
             ALTER TABLE work_instruction_acknowledgments
+            ADD CONSTRAINT wi_acknowledgments_tenant_employee_foreign
+            FOREIGN KEY (tenant_id, employee_id)
+            REFERENCES employees (tenant_id, id)
+            ON DELETE SET NULL (employee_id),
             ADD CONSTRAINT wi_acknowledgments_tenant_actor_foreign
             FOREIGN KEY (tenant_id, acknowledged_by_user_id)
             REFERENCES users (tenant_id, id)
             ON DELETE SET NULL (acknowledged_by_user_id)
+            SQL);
+        DB::unprepared(<<<'SQL'
+            CREATE OR REPLACE FUNCTION enforce_work_instruction_acknowledgment_employee_identity()
+            RETURNS trigger
+            LANGUAGE plpgsql
+            AS $$
+            BEGIN
+                IF TG_OP = 'INSERT' THEN
+                    IF NEW.employee_id IS NULL
+                        OR NEW.employee_identity_id IS DISTINCT FROM NEW.employee_id THEN
+                        RAISE EXCEPTION 'acknowledgment employee identity must match an employee record'
+                            USING ERRCODE = '23514';
+                    END IF;
+                ELSIF NEW.employee_identity_id IS DISTINCT FROM OLD.employee_identity_id THEN
+                    RAISE EXCEPTION 'acknowledgment employee identity is immutable'
+                        USING ERRCODE = '23514';
+                ELSIF NEW.employee_id IS DISTINCT FROM OLD.employee_id
+                    AND NOT (
+                        OLD.employee_id IS NOT NULL
+                        AND NEW.employee_id IS NULL
+                        AND pg_trigger_depth() > 1
+                    ) THEN
+                    RAISE EXCEPTION 'acknowledgment employee relation is immutable'
+                        USING ERRCODE = '23514';
+                END IF;
+
+                RETURN NEW;
+            END;
+            $$;
+
+            CREATE TRIGGER wi_acknowledgments_employee_identity_immutable
+            BEFORE INSERT OR UPDATE OF employee_id, employee_identity_id
+            ON work_instruction_acknowledgments
+            FOR EACH ROW
+            EXECUTE FUNCTION enforce_work_instruction_acknowledgment_employee_identity();
+
+            CREATE OR REPLACE FUNCTION enforce_work_instruction_acknowledgment_publication()
+            RETURNS trigger
+            LANGUAGE plpgsql
+            AS $$
+            DECLARE
+                instruction_published_at timestamptz;
+            BEGIN
+                SELECT published_at
+                INTO instruction_published_at
+                FROM work_instructions
+                WHERE tenant_id = NEW.tenant_id
+                    AND id = NEW.work_instruction_id
+                    AND status = 'published'
+                FOR SHARE;
+
+                IF NOT FOUND THEN
+                    RAISE EXCEPTION 'only published work instructions may be acknowledged'
+                        USING ERRCODE = '23514';
+                END IF;
+
+                IF NEW.acknowledged_at < instruction_published_at THEN
+                    RAISE EXCEPTION 'acknowledgment cannot predate publication'
+                        USING ERRCODE = '23514';
+                END IF;
+
+                RETURN NEW;
+            END;
+            $$;
+
+            CREATE TRIGGER wi_acknowledgments_require_publication
+            BEFORE INSERT OR UPDATE OF tenant_id, work_instruction_id, acknowledged_at
+            ON work_instruction_acknowledgments
+            FOR EACH ROW
+            EXECUTE FUNCTION enforce_work_instruction_acknowledgment_publication();
             SQL);
     }
 
@@ -172,6 +263,10 @@ return new class extends Migration
         Schema::dropIfExists('work_instruction_template_translations');
         Schema::dropIfExists('work_instruction_templates');
         Schema::dropIfExists('work_instructions');
+
+        DB::statement('DROP FUNCTION IF EXISTS enforce_work_instruction_acknowledgment_publication()');
+        DB::statement('DROP FUNCTION IF EXISTS enforce_work_instruction_acknowledgment_employee_identity()');
+        DB::statement('DROP FUNCTION IF EXISTS enforce_work_instruction_number_immutability()');
 
         Schema::table('employees', function (Blueprint $table): void {
             $table->dropUnique('employees_tenant_id_id_unique');

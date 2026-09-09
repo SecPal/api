@@ -31,6 +31,15 @@ class WorkInstructionAcknowledgmentFactory extends Factory
             'employee_id' => fn (array $attributes): string => Employee::factory()
                 ->create(['tenant_id' => $attributes['tenant_id']])
                 ->id,
+            'employee_identity_id' => function (array $attributes): string {
+                $employeeId = $attributes['employee_id'] ?? null;
+
+                if (! is_string($employeeId)) {
+                    throw new \LogicException('Acknowledgment factories require an employee identity.');
+                }
+
+                return $employeeId;
+            },
             'acknowledged_by_user_id' => fn (array $attributes): string => User::factory()
                 ->create(['tenant_id' => $attributes['tenant_id']])
                 ->id,
