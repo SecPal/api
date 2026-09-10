@@ -38,6 +38,7 @@ return new class extends Migration
                 'contracts_tenant_customer_foreign'
             )->references(['tenant_id', 'id'])->on('customers')->restrictOnDelete();
             $table->index(['tenant_id', 'customer_id'], 'contracts_tenant_customer_index');
+            $table->index('customer_id', 'contracts_customer_index');
             $table->index(['tenant_id', 'status'], 'contracts_tenant_status_index');
         });
 
@@ -52,7 +53,7 @@ return new class extends Migration
             ADD CONSTRAINT contracts_billing_unit_check
             CHECK (billing_unit IN ('hour', 'day', 'unit', 'flat')),
             ADD CONSTRAINT contracts_unit_price_check
-            CHECK (unit_price >= 0),
+            CHECK (unit_price <> 'NaN'::numeric AND unit_price >= 0),
             ADD CONSTRAINT contracts_currency_code_check
             CHECK (currency_code COLLATE "C" ~ '^[A-Z]{3}$'),
             ADD CONSTRAINT contracts_lifecycle_check
@@ -84,6 +85,7 @@ return new class extends Migration
                 'service_bookings_tenant_contract_foreign'
             )->references(['tenant_id', 'id'])->on('contracts')->restrictOnDelete();
             $table->index(['tenant_id', 'contract_id'], 'service_bookings_tenant_contract_index');
+            $table->index('contract_id', 'service_bookings_contract_index');
             $table->index(
                 ['tenant_id', 'service_date', 'status', 'invoice_state'],
                 'service_bookings_tenant_date_status_invoice_index'
@@ -93,11 +95,11 @@ return new class extends Migration
         DB::statement(<<<'SQL'
             ALTER TABLE service_bookings
             ADD CONSTRAINT service_bookings_quantity_check
-            CHECK (quantity > 0),
+            CHECK (quantity <> 'NaN'::numeric AND quantity > 0),
             ADD CONSTRAINT service_bookings_billing_unit_check
             CHECK (billing_unit IN ('hour', 'day', 'unit', 'flat')),
             ADD CONSTRAINT service_bookings_unit_price_check
-            CHECK (unit_price >= 0),
+            CHECK (unit_price <> 'NaN'::numeric AND unit_price >= 0),
             ADD CONSTRAINT service_bookings_currency_code_check
             CHECK (currency_code COLLATE "C" ~ '^[A-Z]{3}$'),
             ADD CONSTRAINT service_bookings_invoice_state_check
@@ -128,6 +130,12 @@ return new class extends Migration
                         USING ERRCODE = '23514';
                 END IF;
 
+                PERFORM 1
+                FROM contracts
+                WHERE tenant_id = OLD.tenant_id
+                    AND id = OLD.id
+                FOR UPDATE;
+
                 IF (NEW.customer_id IS DISTINCT FROM OLD.customer_id
                     OR NEW.currency_code IS DISTINCT FROM OLD.currency_code)
                     AND EXISTS (
@@ -156,6 +164,15 @@ return new class extends Migration
             DECLARE
                 contract_currency varchar(3);
             BEGIN
+                IF TG_OP = 'DELETE' THEN
+                    IF OLD.invoice_state = 'invoiced' AND pg_trigger_depth() = 1 THEN
+                        RAISE EXCEPTION 'invoiced service booking evidence cannot be deleted'
+                            USING ERRCODE = '23514';
+                    END IF;
+
+                    RETURN OLD;
+                END IF;
+
                 IF TG_OP = 'UPDATE' AND (
                     NEW.id IS DISTINCT FROM OLD.id
                     OR NEW.tenant_id IS DISTINCT FROM OLD.tenant_id
@@ -169,7 +186,7 @@ return new class extends Migration
                 FROM contracts
                 WHERE tenant_id = NEW.tenant_id
                     AND id = NEW.contract_id
-                FOR UPDATE;
+                FOR SHARE;
 
                 IF NOT FOUND THEN
                     RAISE EXCEPTION 'service booking contract does not exist in its tenant'
@@ -200,7 +217,7 @@ return new class extends Migration
             $$;
 
             CREATE TRIGGER service_bookings_history_guard
-            BEFORE INSERT OR UPDATE ON service_bookings
+            BEFORE INSERT OR UPDATE OR DELETE ON service_bookings
             FOR EACH ROW
             EXECUTE FUNCTION enforce_service_booking_history();
             SQL);
@@ -222,7 +239,10 @@ return new class extends Migration
         DB::statement(<<<'SQL'
             ALTER TABLE internal_cost_centers
             ADD CONSTRAINT internal_cost_centers_code_check
-            CHECK (char_length(btrim(code)) BETWEEN 1 AND 64),
+            CHECK (
+                char_length(code) BETWEEN 1 AND 64
+                AND code !~ '^[[:space:]]|[[:space:]]$'
+            ),
             ADD CONSTRAINT internal_cost_centers_name_check
             CHECK (char_length(btrim(name)) BETWEEN 1 AND 255),
             ADD CONSTRAINT internal_cost_centers_status_check
@@ -281,10 +301,12 @@ return new class extends Migration
                 ['tenant_id', 'service_booking_id'],
                 'cost_center_allocations_tenant_booking_index'
             );
+            $table->index('service_booking_id', 'cost_center_allocations_booking_index');
             $table->index(
                 ['tenant_id', 'internal_cost_center_id'],
                 'cost_center_allocations_tenant_center_index'
             );
+            $table->index('internal_cost_center_id', 'cost_center_allocations_center_index');
         });
 
         DB::statement(<<<'SQL'
@@ -338,6 +360,7 @@ return new class extends Migration
             BEGIN
                 IF TG_OP = 'UPDATE'
                     AND NEW.tenant_id IS NOT DISTINCT FROM OLD.tenant_id
+                    AND NEW.service_booking_id IS NOT DISTINCT FROM OLD.service_booking_id
                     AND NEW.internal_cost_center_id IS NOT DISTINCT FROM OLD.internal_cost_center_id THEN
                     RETURN NEW;
                 END IF;
@@ -364,7 +387,7 @@ return new class extends Migration
             $$;
 
             CREATE TRIGGER cost_center_allocations_active_center
-            BEFORE INSERT OR UPDATE OF tenant_id, internal_cost_center_id
+            BEFORE INSERT OR UPDATE OF tenant_id, service_booking_id, internal_cost_center_id
             ON cost_center_allocations
             FOR EACH ROW
             EXECUTE FUNCTION enforce_active_cost_center_allocation();

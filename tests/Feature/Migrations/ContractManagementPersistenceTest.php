@@ -128,19 +128,23 @@ test('declares tenant-safe foreign keys and downstream access indexes', function
         ->whereRaw('schemaname = current_schema()')
         ->whereIn('indexname', [
             'contracts_tenant_customer_index',
+            'contracts_customer_index',
             'contracts_tenant_status_index',
             'service_bookings_tenant_contract_index',
+            'service_bookings_contract_index',
             'service_bookings_tenant_date_status_invoice_index',
             'internal_cost_centers_tenant_status_index',
             'cost_center_allocations_tenant_booking_index',
+            'cost_center_allocations_booking_index',
             'cost_center_allocations_tenant_center_index',
+            'cost_center_allocations_center_index',
         ])
         ->orderBy('indexname')
         ->pluck('indexname')
         ->all();
 
     expect($constraints)->toHaveCount(5)
-        ->and($indexes)->toHaveCount(7);
+        ->and($indexes)->toHaveCount(11);
 });
 
 test('rejects cross-tenant contract customer associations', function (): void {
@@ -152,6 +156,17 @@ test('rejects cross-tenant contract customer associations', function (): void {
     ]));
 })->throws(QueryException::class);
 
+test('retains authoritative customer traversal after customer retirement', function (): void {
+    $contract = Contract::factory()->create();
+    $customer = $contract->customer;
+
+    $customer->delete();
+
+    expect($contract->refresh()->customer)->not->toBeNull()
+        ->and($contract->customer->is($customer))->toBeTrue()
+        ->and($contract->customer->trashed())->toBeTrue();
+});
+
 test('enforces contract type date lifecycle price and currency invariants', function (array $overrides): void {
     $customer = Customer::factory()->create();
     DB::table('contracts')->insert(contractPersistenceRow($customer, $overrides));
@@ -162,6 +177,7 @@ test('enforces contract type date lifecycle price and currency invariants', func
     'active with retirement time' => [['retired_at' => now()]],
     'retired without retirement time' => [['status' => 'retired']],
     'negative unit price' => [['unit_price' => '-0.0001']],
+    'non-finite unit price' => [['unit_price' => 'NaN']],
     'lowercase currency' => [['currency_code' => 'eur']],
     'non-ASCII currency' => [['currency_code' => 'EU1']],
 ])->throws(QueryException::class);
@@ -211,7 +227,9 @@ test('enforces booking quantity price vocabulary currency and lifecycle invarian
 })->with([
     'zero quantity' => [['quantity' => '0.0000']],
     'negative quantity' => [['quantity' => '-1.0000']],
+    'non-finite quantity' => [['quantity' => 'NaN']],
     'negative unit price' => [['unit_price' => '-0.0001']],
+    'non-finite unit price' => [['unit_price' => 'NaN']],
     'unknown billing unit' => [['billing_unit' => 'shift']],
     'different currency' => [['currency_code' => 'USD']],
     'unbilled with invoice time' => [['invoiced_at' => now()]],
@@ -274,6 +292,12 @@ test('allows consistent retirement metadata on invoiced booking evidence', funct
         ->and($booking->fresh()?->retired_at)->not->toBeNull();
 });
 
+test('prevents direct deletion of invoiced booking evidence', function (): void {
+    $booking = ServiceBooking::factory()->invoiced()->create();
+
+    DB::table('service_bookings')->where('id', $booking->id)->delete();
+})->throws(QueryException::class);
+
 test('scopes cost center codes to tenants and retains inactive centers', function (): void {
     $center = InternalCostCenter::factory()->create(['code' => 'OPS-42']);
     $otherTenant = TenantKey::factory()->create();
@@ -300,6 +324,8 @@ test('rejects blank codes and contradictory cost center lifecycle data', functio
     InternalCostCenter::factory()->create($overrides);
 })->with([
     'blank code' => [['code' => '   ']],
+    'tab-only code' => [['code' => "\t\t"]],
+    'padded code' => [['code' => ' OPS-42 ']],
     'active with timestamp' => [['inactive_at' => now()]],
     'inactive without timestamp' => [['status' => 'inactive']],
 ])->throws(QueryException::class);
@@ -348,6 +374,25 @@ test('rejects allocation reassignment to an inactive cost center', function (): 
     ]);
 
     $allocation->update(['internal_cost_center_id' => $inactiveCenter->id]);
+})->throws(QueryException::class);
+
+test('rejects moving an existing inactive-center allocation to another booking', function (): void {
+    $booking = ServiceBooking::factory()->create();
+    $otherBooking = ServiceBooking::factory()->forContract($booking->contract)->create();
+    $center = InternalCostCenter::factory()->create(['tenant_id' => $booking->tenant_id]);
+    $allocation = CostCenterAllocation::factory()->create([
+        'tenant_id' => $booking->tenant_id,
+        'service_booking_id' => $booking->id,
+        'internal_cost_center_id' => $center->id,
+    ]);
+    $center->update([
+        'status' => InternalCostCenterStatus::Inactive,
+        'inactive_at' => now(),
+    ]);
+
+    DB::table('cost_center_allocations')->where('id', $allocation->id)->update([
+        'service_booking_id' => $otherBooking->id,
+    ]);
 })->throws(QueryException::class);
 
 test('enforces allocation basis-point bounds', function (int $share): void {
@@ -546,6 +591,22 @@ test('aggregate relationships support bounded eager loading without hidden per-r
         ->and($queryCount)->toBe(5);
 });
 
+test('tenant erasure removes the complete contract management graph in dependency order', function (): void {
+    $allocation = CostCenterAllocation::factory()->create();
+    $tenant = $allocation->tenant;
+    $contractId = $allocation->serviceBooking->contract_id;
+    $bookingId = $allocation->service_booking_id;
+    $centerId = $allocation->internal_cost_center_id;
+    $allocationId = $allocation->id;
+
+    $tenant->delete();
+
+    expect(Contract::query()->whereKey($contractId)->exists())->toBeFalse()
+        ->and(ServiceBooking::query()->whereKey($bookingId)->exists())->toBeFalse()
+        ->and(InternalCostCenter::query()->whereKey($centerId)->exists())->toBeFalse()
+        ->and(CostCenterAllocation::query()->whereKey($allocationId)->exists())->toBeFalse();
+});
+
 test('the migration rolls back and reapplies without orphaned trigger functions', function (): void {
     $migration = require database_path('migrations/2026_09_10_120000_create_contract_management_persistence.php');
     $migration->down();
@@ -555,6 +616,7 @@ test('the migration rolls back and reapplies without orphaned trigger functions'
         ->whereIn('proname', [
             'enforce_contract_history',
             'enforce_service_booking_history',
+            'enforce_internal_cost_center_identity',
             'lock_cost_center_allocation_owners',
             'enforce_active_cost_center_allocation',
             'enforce_complete_cost_center_allocation',
