@@ -287,6 +287,7 @@ class Activity extends SpatieActivity
         'invoice_generated' => 8,
         'payment_processed' => 8,
         'contract_change' => 8,
+        'service_booking_change' => 8,
 
         // 10 Years: HGB §257 - Jahresabschlüsse
         'annual_closing' => 10,
