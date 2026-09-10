@@ -81,6 +81,12 @@ class RolesAndPermissionsSeeder extends Seeder
                 'update',
                 'delete',
             ],
+            'contracts' => [
+                'read',
+                'create',
+                'update',
+                'retire',
+            ],
             'sites' => [
                 'read',
                 'create',

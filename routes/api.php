@@ -6,6 +6,7 @@
 use App\Http\Controllers\Api\V1\ActivityLogController;
 use App\Http\Controllers\Api\V1\AddressController;
 use App\Http\Controllers\Api\V1\BootstrapController;
+use App\Http\Controllers\Api\V1\ContractController;
 use App\Http\Controllers\Api\V1\CostCenterController;
 use App\Http\Controllers\Api\V1\CustomerAssignmentController;
 use App\Http\Controllers\Api\V1\CustomerController;
@@ -196,6 +197,17 @@ Route::prefix('v1')->group(function () {
                 ->middleware(['permission:users.reset_mfa', 'throttle:mfa-user-reset']);
 
             Route::middleware('tenant.inject')->group(function (): void {
+                Route::get('/contracts', [ContractController::class, 'index'])
+                    ->middleware('permission:contracts.read');
+                Route::post('/contracts', [ContractController::class, 'store'])
+                    ->middleware('permission:contracts.create');
+                Route::get('/contracts/{contract}', [ContractController::class, 'show'])
+                    ->middleware('permission:contracts.read');
+                Route::patch('/contracts/{contract}', [ContractController::class, 'update'])
+                    ->middleware('permission:contracts.update');
+                Route::post('/contracts/{contract}/retire', [ContractController::class, 'retire'])
+                    ->middleware('permission:contracts.retire');
+
                 Route::get('/legal-holds', [LegalHoldController::class, 'index'])
                     ->middleware('permission:legal_holds.read');
                 Route::post('/legal-holds', [LegalHoldController::class, 'store'])

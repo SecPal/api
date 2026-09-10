@@ -78,6 +78,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- added the accepted five-operation Contract CRUD HTTP API with tenant-isolated
+  authorization, Customer Need-to-Know association checks, atomic financial
+  audit evidence, terminal retirement, and parity with `SecPal/contracts`
+  (fixes `api#381`)
 - added the tenant-safe contract-management persistence foundation for customer
   contracts, exact historical service-booking totals, internal cost centers,
   and optional transaction-complete basis-point allocation splits (fixes

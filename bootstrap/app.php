@@ -106,6 +106,50 @@ return Application::configure(basePath: dirname(__DIR__))
             ], 404);
         });
 
+        $exceptions->render(function (App\Exceptions\ContractTargetNotFoundException $e, Request $request) use ($shouldRenderApiJson) {
+            if (! $shouldRenderApiJson($request)) {
+                return null;
+            }
+
+            return response()->json([
+                'message' => 'Resource not found',
+                'code' => 'NOT_FOUND',
+            ], 404);
+        });
+
+        $exceptions->render(function (App\Exceptions\ContractRetiredException $e, Request $request) use ($shouldRenderApiJson) {
+            if (! $shouldRenderApiJson($request)) {
+                return null;
+            }
+
+            return response()->json([
+                'message' => 'The Contract is retired.',
+                'code' => 'CONFLICT',
+            ], 409);
+        });
+
+        $exceptions->render(function (App\Exceptions\ContractCustomerHistoryConflictException $e, Request $request) use ($shouldRenderApiJson) {
+            if (! $shouldRenderApiJson($request)) {
+                return null;
+            }
+
+            return response()->json([
+                'message' => 'The Contract customer cannot change after service booking history exists.',
+                'code' => 'CONFLICT',
+            ], 409);
+        });
+
+        $exceptions->render(function (App\Exceptions\ContractCurrencyHistoryConflictException $e, Request $request) use ($shouldRenderApiJson) {
+            if (! $shouldRenderApiJson($request)) {
+                return null;
+            }
+
+            return response()->json([
+                'message' => 'The Contract currency cannot change after service booking history exists.',
+                'code' => 'CONFLICT',
+            ], 409);
+        });
+
         $exceptions->render(function (App\Exceptions\LegalHoldCaseReferenceConflictException $e, Request $request) use ($shouldRenderApiJson) {
             if (! $shouldRenderApiJson($request)) {
                 return null;
