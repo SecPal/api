@@ -23,6 +23,7 @@ use App\Http\Controllers\Api\V1\PushDeviceRegistrationController;
 use App\Http\Controllers\Api\V1\QualificationController;
 use App\Http\Controllers\Api\V1\ReleaseController;
 use App\Http\Controllers\Api\V1\RoleManagementController;
+use App\Http\Controllers\Api\V1\ServiceBookingController;
 use App\Http\Controllers\Api\V1\SiteAssignmentController;
 use App\Http\Controllers\Api\V1\SiteController;
 use App\Http\Controllers\Api\V1\SourceController;
@@ -207,6 +208,17 @@ Route::prefix('v1')->group(function () {
                     ->middleware('permission:contracts.update');
                 Route::post('/contracts/{contract}/retire', [ContractController::class, 'retire'])
                     ->middleware('permission:contracts.retire');
+
+                Route::get('/service-bookings', [ServiceBookingController::class, 'index'])
+                    ->middleware('permission:service_bookings.read');
+                Route::post('/service-bookings', [ServiceBookingController::class, 'store'])
+                    ->middleware('permission:service_bookings.create');
+                Route::get('/service-bookings/{serviceBooking}', [ServiceBookingController::class, 'show'])
+                    ->middleware('permission:service_bookings.read');
+                Route::patch('/service-bookings/{serviceBooking}', [ServiceBookingController::class, 'update'])
+                    ->middleware('permission:service_bookings.update');
+                Route::post('/service-bookings/{serviceBooking}/retire', [ServiceBookingController::class, 'retire'])
+                    ->middleware('permission:service_bookings.retire');
 
                 Route::get('/legal-holds', [LegalHoldController::class, 'index'])
                     ->middleware('permission:legal_holds.read');

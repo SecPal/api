@@ -87,6 +87,12 @@ class RolesAndPermissionsSeeder extends Seeder
                 'update',
                 'retire',
             ],
+            'service_bookings' => [
+                'read',
+                'create',
+                'update',
+                'retire',
+            ],
             'sites' => [
                 'read',
                 'create',

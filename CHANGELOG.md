@@ -78,6 +78,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- added the Contracts-defined tenant-isolated Service Booking CRUD API with
+  exact financial snapshots, PostgreSQL-derived totals, invoiced immutability,
+  terminal retirement, and atomic attributable audit evidence (fixes `api#382`)
+
 - added the accepted five-operation Contract CRUD HTTP API with tenant-isolated
   authorization, Customer Need-to-Know association checks, atomic financial
   audit evidence, terminal retirement, and parity with `SecPal/contracts`

@@ -33,6 +33,7 @@ test('returns 8 years for financial logs', function (): void {
     expect(Activity::getRetentionYearsForLogType('invoice_generated'))->toBe(8);
     expect(Activity::getRetentionYearsForLogType('payment_processed'))->toBe(8);
     expect(Activity::getRetentionYearsForLogType('contract_change'))->toBe(8);
+    expect(Activity::getRetentionYearsForLogType('service_booking_change'))->toBe(8);
 });
 
 test('returns 10 years for archival logs', function (): void {
@@ -98,5 +99,6 @@ test('get all retention years returns array', function (): void {
         ->toHaveKey('shift_management')
         ->toHaveKey('security')
         ->toHaveKey('invoice_generated')
+        ->toHaveKey('service_booking_change')
         ->toHaveKey('annual_closing');
 });

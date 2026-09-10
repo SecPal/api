@@ -32,12 +32,28 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property \Illuminate\Support\Carbon|null $invoiced_at
  * @property ServiceBookingStatus $status
  * @property \Illuminate\Support\Carbon|null $retired_at
+ * @property \Illuminate\Support\Carbon $created_at
+ * @property \Illuminate\Support\Carbon $updated_at
  * @property-read TenantKey $tenant
  * @property-read Contract $contract
  * @property-read \Illuminate\Database\Eloquent\Collection<int, CostCenterAllocation> $costCenterAllocations
  */
 class ServiceBooking extends Model
 {
+    /** @var list<string> */
+    public const MUTABLE_BUSINESS_FIELDS = [
+        'service_date',
+        'quantity',
+        'billing_unit',
+        'unit_price',
+    ];
+
+    /** @var list<string> */
+    public const CREATE_FIELDS = [
+        'contract_id',
+        ...self::MUTABLE_BUSINESS_FIELDS,
+    ];
+
     /** @use HasFactory<\Database\Factories\ServiceBookingFactory> */
     use EnforcesTenantRouteBinding, HasFactory, HasUuids {
         EnforcesTenantRouteBinding::resolveRouteBindingQuery insteadof HasUuids;
