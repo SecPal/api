@@ -150,6 +150,30 @@ class TenantKey extends Model
         return $this->hasMany(LegalHold::class, 'tenant_id');
     }
 
+    /** @return \Illuminate\Database\Eloquent\Relations\HasMany<Contract, $this> */
+    public function contracts(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(Contract::class, 'tenant_id');
+    }
+
+    /** @return \Illuminate\Database\Eloquent\Relations\HasMany<ServiceBooking, $this> */
+    public function serviceBookings(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(ServiceBooking::class, 'tenant_id');
+    }
+
+    /** @return \Illuminate\Database\Eloquent\Relations\HasMany<InternalCostCenter, $this> */
+    public function internalCostCenters(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(InternalCostCenter::class, 'tenant_id');
+    }
+
+    /** @return \Illuminate\Database\Eloquent\Relations\HasMany<CostCenterAllocation, $this> */
+    public function costCenterAllocations(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(CostCenterAllocation::class, 'tenant_id');
+    }
+
     /**
      * Path to the KEK file (can be overridden for testing).
      */

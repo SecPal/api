@@ -78,6 +78,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- added the tenant-safe contract-management persistence foundation for customer
+  contracts, exact historical service-booking totals, internal cost centers,
+  and optional transaction-complete basis-point allocation splits (fixes
+  `api#376`)
 - added the Contracts-defined Legal Hold HTTP API with tenant-isolated
   `legal_holds.*` permissions, closed validation, privacy-minimized resources,
   and service-owned lifecycle, retention, and transactional audit guarantees
