@@ -49,6 +49,7 @@ use Spatie\Activitylog\Support\LogOptions;
  * @property-read \Illuminate\Database\Eloquent\Collection<int, Site> $sites Sites belonging to this customer
  * @property-read \Illuminate\Database\Eloquent\Collection<int, Model> $assignments User assignments to this customer
  * @property-read \Illuminate\Database\Eloquent\Collection<int, User> $assignedUsers Users assigned to this customer
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, Contract> $contracts Billing contracts for this customer
  *
  * @see SecPal/.github#210 Customer & Site Management Epic
  * @see SecPal/api#310 Customer and Site Eloquent models
@@ -174,6 +175,16 @@ class Customer extends Model
     public function sites(): HasMany
     {
         return $this->hasMany(Site::class, 'customer_id');
+    }
+
+    /**
+     * Get the billing contracts belonging to this customer.
+     *
+     * @return HasMany<Contract, $this>
+     */
+    public function contracts(): HasMany
+    {
+        return $this->hasMany(Contract::class);
     }
 
     /**
