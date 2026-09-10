@@ -30,12 +30,25 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property string $unit_price
  * @property string $currency_code
  * @property \Illuminate\Support\Carbon|null $retired_at
+ * @property \Illuminate\Support\Carbon $created_at
+ * @property \Illuminate\Support\Carbon $updated_at
  * @property-read TenantKey $tenant
  * @property-read Customer $customer
  * @property-read \Illuminate\Database\Eloquent\Collection<int, ServiceBooking> $serviceBookings
  */
 class Contract extends Model
 {
+    /** @var list<string> */
+    public const MUTABLE_BUSINESS_FIELDS = [
+        'customer_id',
+        'type',
+        'starts_on',
+        'ends_on',
+        'billing_unit',
+        'unit_price',
+        'currency_code',
+    ];
+
     /** @use HasFactory<\Database\Factories\ContractFactory> */
     use EnforcesTenantRouteBinding, HasFactory, HasUuids {
         EnforcesTenantRouteBinding::resolveRouteBindingQuery insteadof HasUuids;

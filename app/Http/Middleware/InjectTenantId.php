@@ -29,6 +29,8 @@ class InjectTenantId
 {
     public const ORIGINAL_BODY_KEYS_ATTRIBUTE = 'secpal_original_body_keys';
 
+    public const ORIGINAL_QUERY_KEYS_ATTRIBUTE = 'secpal_original_query_keys';
+
     /**
      * Handle an incoming request.
      *
@@ -44,6 +46,13 @@ class InjectTenantId
             $request->attributes->set(
                 self::ORIGINAL_BODY_KEYS_ATTRIBUTE,
                 array_keys($request->request->all()),
+            );
+        }
+
+        if (! $request->attributes->has(self::ORIGINAL_QUERY_KEYS_ATTRIBUTE)) {
+            $request->attributes->set(
+                self::ORIGINAL_QUERY_KEYS_ATTRIBUTE,
+                array_keys($request->query->all()),
             );
         }
 
