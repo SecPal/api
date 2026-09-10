@@ -21,7 +21,8 @@ uses(RefreshDatabase::class);
 
 test('the API exposes exactly the five accepted Service Booking operations', function (): void {
     $operations = collect(Route::getRoutes()->getRoutes())
-        ->filter(fn ($route): bool => str_starts_with($route->uri(), 'v1/service-bookings'))
+        ->filter(fn ($route): bool => str_starts_with($route->uri(), 'v1/service-bookings')
+            && ! str_contains($route->uri(), 'cost-center-allocations'))
         ->flatMap(fn ($route): array => collect($route->methods())
             ->reject(fn (string $method): bool => $method === 'HEAD')
             ->map(fn (string $method): string => $method.' '.$route->uri())
@@ -58,7 +59,8 @@ test('Service Booking implementation pins the accepted closed schemas and exact 
         ]);
 
     $routes = collect(Route::getRoutes()->getRoutes())
-        ->filter(fn ($route): bool => str_starts_with($route->uri(), 'v1/service-bookings'))
+        ->filter(fn ($route): bool => str_starts_with($route->uri(), 'v1/service-bookings')
+            && ! str_contains($route->uri(), 'cost-center-allocations'))
         ->mapWithKeys(fn ($route): array => [
             collect($route->methods())->first(fn (string $method): bool => $method !== 'HEAD').' '.$route->uri() => [
                 'action' => $route->getActionName(),

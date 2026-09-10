@@ -93,6 +93,16 @@ class RolesAndPermissionsSeeder extends Seeder
                 'update',
                 'retire',
             ],
+            'internal_cost_centers' => [
+                'read',
+                'create',
+                'update',
+                'deactivate',
+            ],
+            'cost_center_allocations' => [
+                'read',
+                'update',
+            ],
             'sites' => [
                 'read',
                 'create',

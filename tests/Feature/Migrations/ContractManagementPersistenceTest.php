@@ -325,10 +325,15 @@ test('rejects blank codes and contradictory cost center lifecycle data', functio
 })->with([
     'blank code' => [['code' => '   ']],
     'tab-only code' => [['code' => "\t\t"]],
-    'padded code' => [['code' => ' OPS-42 ']],
     'active with timestamp' => [['inactive_at' => now()]],
     'inactive without timestamp' => [['status' => 'inactive']],
 ])->throws(QueryException::class);
+
+test('preserves nonblank internal cost center codes exactly as supplied', function (): void {
+    $center = InternalCostCenter::factory()->create(['code' => ' OPS-42 ']);
+
+    expect($center->fresh()?->code)->toBe(' OPS-42 ');
+});
 
 test('keeps internal cost center codes stable while allowing display name changes', function (): void {
     $center = InternalCostCenter::factory()->create(['code' => 'STABLE-42']);

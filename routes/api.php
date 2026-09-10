@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\V1\ActivityLogController;
 use App\Http\Controllers\Api\V1\AddressController;
 use App\Http\Controllers\Api\V1\BootstrapController;
 use App\Http\Controllers\Api\V1\ContractController;
+use App\Http\Controllers\Api\V1\CostCenterAllocationController;
 use App\Http\Controllers\Api\V1\CostCenterController;
 use App\Http\Controllers\Api\V1\CustomerAssignmentController;
 use App\Http\Controllers\Api\V1\CustomerController;
@@ -15,6 +16,7 @@ use App\Http\Controllers\Api\V1\DomainLookupController;
 use App\Http\Controllers\Api\V1\EmployeeController;
 use App\Http\Controllers\Api\V1\EmployeeDocumentController;
 use App\Http\Controllers\Api\V1\EmployeeQualificationController;
+use App\Http\Controllers\Api\V1\InternalCostCenterController;
 use App\Http\Controllers\Api\V1\LegalHoldController;
 use App\Http\Controllers\Api\V1\OnboardingController;
 use App\Http\Controllers\Api\V1\OrganizationalScopeController;
@@ -219,6 +221,21 @@ Route::prefix('v1')->group(function () {
                     ->middleware('permission:service_bookings.update');
                 Route::post('/service-bookings/{serviceBooking}/retire', [ServiceBookingController::class, 'retire'])
                     ->middleware('permission:service_bookings.retire');
+                Route::get('/service-bookings/{serviceBooking}/cost-center-allocations', [CostCenterAllocationController::class, 'show'])
+                    ->middleware('permission:cost_center_allocations.read');
+                Route::put('/service-bookings/{serviceBooking}/cost-center-allocations', [CostCenterAllocationController::class, 'update'])
+                    ->middleware('permission:cost_center_allocations.update');
+
+                Route::get('/internal-cost-centers', [InternalCostCenterController::class, 'index'])
+                    ->middleware('permission:internal_cost_centers.read');
+                Route::post('/internal-cost-centers', [InternalCostCenterController::class, 'store'])
+                    ->middleware('permission:internal_cost_centers.create');
+                Route::get('/internal-cost-centers/{internalCostCenter}', [InternalCostCenterController::class, 'show'])
+                    ->middleware('permission:internal_cost_centers.read');
+                Route::patch('/internal-cost-centers/{internalCostCenter}', [InternalCostCenterController::class, 'update'])
+                    ->middleware('permission:internal_cost_centers.update');
+                Route::post('/internal-cost-centers/{internalCostCenter}/deactivate', [InternalCostCenterController::class, 'deactivate'])
+                    ->middleware('permission:internal_cost_centers.deactivate');
 
                 Route::get('/legal-holds', [LegalHoldController::class, 'index'])
                     ->middleware('permission:legal_holds.read');

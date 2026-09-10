@@ -28,6 +28,11 @@ return Application::configure(basePath: dirname(__DIR__))
         },
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->trimStrings(except: [
+            static fn (Request $request): bool => $request->is('v1/internal-cost-centers')
+                && $request->isMethod('post'),
+        ]);
+
         $middleware->alias([
             'tenant' => App\Http\Middleware\SetTenant::class,
             'tenant.inject' => App\Http\Middleware\InjectTenantId::class,
@@ -126,6 +131,50 @@ return Application::configure(basePath: dirname(__DIR__))
                 'message' => 'Resource not found',
                 'code' => 'NOT_FOUND',
             ], 404);
+        });
+
+        $exceptions->render(function (App\Exceptions\InternalCostCenterTargetNotFoundException|App\Exceptions\CostCenterAllocationTargetNotFoundException $e, Request $request) use ($shouldRenderApiJson) {
+            if (! $shouldRenderApiJson($request)) {
+                return null;
+            }
+
+            return response()->json([
+                'message' => 'Resource not found',
+                'code' => 'NOT_FOUND',
+            ], 404);
+        });
+
+        $exceptions->render(function (App\Exceptions\InternalCostCenterConflictException $e, Request $request) use ($shouldRenderApiJson) {
+            if (! $shouldRenderApiJson($request)) {
+                return null;
+            }
+
+            return response()->json([
+                'message' => $e->getMessage(),
+                'code' => 'CONFLICT',
+            ], 409);
+        });
+
+        $exceptions->render(function (App\Exceptions\CostCenterAllocationInactiveTargetException $e, Request $request) use ($shouldRenderApiJson) {
+            if (! $shouldRenderApiJson($request)) {
+                return null;
+            }
+
+            return response()->json([
+                'message' => 'An allocation target is inactive.',
+                'code' => 'CONFLICT',
+            ], 409);
+        });
+
+        $exceptions->render(function (App\Exceptions\CostCenterAllocationConflictException $e, Request $request) use ($shouldRenderApiJson) {
+            if (! $shouldRenderApiJson($request)) {
+                return null;
+            }
+
+            return response()->json([
+                'message' => 'The allocation replacement conflicted with a concurrent change.',
+                'code' => 'CONFLICT',
+            ], 409);
         });
 
         $exceptions->render(function (App\Exceptions\ServiceBookingRetiredException $e, Request $request) use ($shouldRenderApiJson) {

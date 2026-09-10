@@ -23,11 +23,19 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property string $name
  * @property InternalCostCenterStatus $status
  * @property \Illuminate\Support\Carbon|null $inactive_at
+ * @property \Illuminate\Support\Carbon $created_at
+ * @property \Illuminate\Support\Carbon $updated_at
  * @property-read TenantKey $tenant
  * @property-read \Illuminate\Database\Eloquent\Collection<int, CostCenterAllocation> $costCenterAllocations
  */
 class InternalCostCenter extends Model
 {
+    /** @var list<string> */
+    public const CREATE_FIELDS = ['code', 'name'];
+
+    /** @var list<string> */
+    public const MUTABLE_BUSINESS_FIELDS = ['name'];
+
     /** @use HasFactory<\Database\Factories\InternalCostCenterFactory> */
     use EnforcesTenantRouteBinding, HasFactory, HasUuids {
         EnforcesTenantRouteBinding::resolveRouteBindingQuery insteadof HasUuids;

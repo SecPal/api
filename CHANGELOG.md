@@ -78,6 +78,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- added the accepted Contracts-defined tenant-wide Internal Cost Center API and
+  atomic complete Service Booking allocation snapshots, kept distinct from the
+  existing Site CostCenter domain (fixes `api#383`)
 - added the Contracts-defined tenant-isolated Service Booking CRUD API with
   exact financial snapshots, PostgreSQL-derived totals, invoiced immutability,
   terminal retirement, and atomic attributable audit evidence (fixes `api#382`)
