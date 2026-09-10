@@ -67,9 +67,9 @@ final readonly class ContractService
         $tenantId = $this->authorizeActor($actor, 'create');
 
         return DB::transaction(function () use ($actor, $tenantId, $attributes): Contract {
-            Activity::acquireHashChainLock($tenantId);
             $customerId = $this->requiredString($attributes, 'customer_id');
             $this->visibleCustomer($actor, $tenantId, $customerId);
+            Activity::acquireHashChainLock($tenantId);
 
             $contract = $this->contracts->create(array_merge($attributes, [
                 'tenant_id' => $tenantId,
@@ -91,6 +91,14 @@ final readonly class ContractService
 
         try {
             return DB::transaction(function () use ($actor, $tenantId, $contractId, $attributes): Contract {
+                if (array_key_exists('customer_id', $attributes)) {
+                    $this->visibleCustomer(
+                        $actor,
+                        $tenantId,
+                        $this->requiredString($attributes, 'customer_id'),
+                    );
+                }
+
                 Activity::acquireHashChainLock($tenantId);
                 $contract = $this->contracts->lock($tenantId, $contractId);
                 Gate::forUser($actor)->authorize('update', $contract);
@@ -102,14 +110,6 @@ final readonly class ContractService
                     && $attributes['customer_id'] !== $contract->customer_id;
                 $currencyChanges = array_key_exists('currency_code', $attributes)
                     && $attributes['currency_code'] !== $contract->currency_code;
-
-                if ($customerChanges) {
-                    $this->visibleCustomer(
-                        $actor,
-                        $tenantId,
-                        $this->requiredString($attributes, 'customer_id'),
-                    );
-                }
 
                 if (($customerChanges || $currencyChanges) && $this->contracts->hasBookingHistory($contract)) {
                     throw $customerChanges

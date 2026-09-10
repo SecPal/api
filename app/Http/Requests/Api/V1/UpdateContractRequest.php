@@ -26,7 +26,7 @@ final class UpdateContractRequest extends ContractRequest
     /** @return array<string, mixed> */
     public function validationData(): array
     {
-        return $this->routeValidationData(['contract' => $this->route('contract')]);
+        return $this->mutationValidationData(['contract' => $this->route('contract')]);
     }
 
     /** @return list<callable(Validator): void> */
@@ -34,6 +34,7 @@ final class UpdateContractRequest extends ContractRequest
     {
         return [
             function (Validator $validator): void {
+                $this->rejectMutationQueryParameters($validator);
                 $originalBodyKeys = $this->attributes->get(
                     InjectTenantId::ORIGINAL_BODY_KEYS_ATTRIBUTE,
                     [],

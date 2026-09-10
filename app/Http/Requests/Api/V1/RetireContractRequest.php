@@ -7,6 +7,8 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Api\V1;
 
+use Illuminate\Validation\Validator;
+
 final class RetireContractRequest extends ContractRequest
 {
     /** @return array<string, array<int, mixed>> */
@@ -21,6 +23,16 @@ final class RetireContractRequest extends ContractRequest
     /** @return array<string, mixed> */
     public function validationData(): array
     {
-        return $this->routeValidationData(['contract' => $this->route('contract')]);
+        return $this->mutationValidationData(['contract' => $this->route('contract')]);
+    }
+
+    /** @return list<callable(Validator): void> */
+    public function after(): array
+    {
+        return [
+            function (Validator $validator): void {
+                $this->rejectMutationQueryParameters($validator);
+            },
+        ];
     }
 }

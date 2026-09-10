@@ -24,11 +24,19 @@ final class StoreContractRequest extends ContractRequest
         ]), self::BUSINESS_FIELDS);
     }
 
+    /** @return array<string, mixed> */
+    public function validationData(): array
+    {
+        return $this->mutationValidationData();
+    }
+
     /** @return list<callable(Validator): void> */
     public function after(): array
     {
         return [
             function (Validator $validator): void {
+                $this->rejectMutationQueryParameters($validator);
+
                 if ($validator->errors()->isNotEmpty()) {
                     return;
                 }

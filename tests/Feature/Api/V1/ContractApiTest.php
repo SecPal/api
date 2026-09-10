@@ -262,6 +262,31 @@ test('unit prices serialize as canonical exact decimal strings', function (strin
     'upper accepted value' => ['9999999999.9999', '9999999999.9999'],
 ]);
 
+test('Contract mutations reject query-sourced input', function (): void {
+    grantContractApiPermissions($this, 'contracts.create', 'contracts.update', 'contracts.retire');
+    $customer = visibleContractCustomer($this);
+    $queryPayload = http_build_query(validContractPayload($customer));
+
+    $this->withToken($this->token)->postJson('/v1/contracts?'.$queryPayload, [])
+        ->assertUnprocessable()->assertJsonValidationErrors('customer_id');
+    expect(Contract::query()->count())->toBe(0);
+
+    $contract = Contract::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'type' => 'temporary',
+        'unit_price' => '42.5000',
+    ]);
+    $this->withToken($this->token)->patchJson('/v1/contracts/'.$contract->id.'?unit_price=99.0000', [
+        'type' => 'permanent',
+    ])->assertUnprocessable()->assertJsonValidationErrors('unit_price');
+    expect($contract->fresh()?->type->value)->toBe('temporary')
+        ->and($contract->fresh()?->unit_price)->toBe('42.5000');
+
+    $this->withToken($this->token)->postJson('/v1/contracts/'.$contract->id.'/retire?reason=caller-owned')
+        ->assertUnprocessable()->assertJsonValidationErrors('reason');
+    expect($contract->fresh()?->status->value)->toBe('active');
+});
+
 test('inspect is tenant safe and distinguishes malformed UUID input', function (string $kind): void {
     grantContractApiPermissions($this, 'contracts.read');
     $id = 'not-a-uuid';

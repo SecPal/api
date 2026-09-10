@@ -14,6 +14,7 @@ use App\Models\Customer;
 use App\Models\TenantKey;
 use App\Models\User;
 use App\Services\ContractService;
+use App\Services\CustomerService;
 use Illuminate\Foundation\Testing\RefreshDatabaseState;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
@@ -72,7 +73,7 @@ afterEach(function (): void {
 function contractConcurrencyActor(TenantKey $tenant): User
 {
     $actor = User::factory()->create(['tenant_id' => $tenant->id]);
-    foreach (['contracts.update', 'contracts.retire', 'customers.read'] as $permission) {
+    foreach (['contracts.create', 'contracts.update', 'contracts.retire', 'customers.read', 'customers.update'] as $permission) {
         givePermissionWithTenant($actor, $tenant->id, $permission);
     }
     app(PermissionRegistrar::class)->setPermissionsTeamId($tenant->id);
@@ -325,6 +326,154 @@ function runContractServiceBookingRace(
     }
 }
 
+/** @return array{contract: string, customer: string, contract_waited_on_customer: bool} */
+function runContractCustomerAuditLockRace(User $actor, Customer $customer, ?Contract $contract): array
+{
+    if (! function_exists('pcntl_fork')) {
+        test()->markTestSkipped('pcntl is required for Contract concurrency evidence.');
+    }
+
+    $directory = sys_get_temp_dir().'/contract-customer-audit-'.bin2hex(random_bytes(8));
+    if (! mkdir($directory) && ! is_dir($directory)) {
+        throw new RuntimeException('Unable to create Contract/Customer concurrency directory.');
+    }
+
+    $customerLocked = $directory.'/customer-locked';
+    $releaseCustomer = $directory.'/release-customer';
+    $contractPidPath = $directory.'/contract-pid';
+    $contractStarted = $directory.'/contract-started';
+    $contractResult = $directory.'/contract-result';
+    $customerResult = $directory.'/customer-result';
+    $pids = [];
+
+    try {
+        $customerPid = pcntl_fork();
+        if ($customerPid === -1) {
+            throw new RuntimeException('Unable to fork Customer updater.');
+        }
+
+        if ($customerPid === 0) {
+            DB::purge();
+            DB::reconnect();
+            app(PermissionRegistrar::class)->forgetCachedPermissions();
+            app(PermissionRegistrar::class)->setPermissionsTeamId($actor->tenant_id);
+            DB::beginTransaction();
+
+            try {
+                Customer::query()->whereKey($customer->id)->lockForUpdate()->firstOrFail();
+                file_put_contents($customerLocked, 'locked');
+                while (! is_file($releaseCustomer)) {
+                    usleep(25_000);
+                }
+
+                app(CustomerService::class)->update(
+                    User::query()->findOrFail($actor->id),
+                    (int) $actor->tenant_id,
+                    Customer::query()->findOrFail($customer->id),
+                    ['name' => 'Concurrent customer name'],
+                );
+                DB::commit();
+                file_put_contents($customerResult, 'success');
+            } catch (Throwable $exception) {
+                DB::rollBack();
+                file_put_contents($customerResult, $exception::class);
+            }
+
+            exit(0);
+        }
+        $pids[] = $customerPid;
+
+        $contractPid = pcntl_fork();
+        if ($contractPid === -1) {
+            throw new RuntimeException('Unable to fork Contract creator.');
+        }
+
+        if ($contractPid === 0) {
+            DB::purge();
+            DB::reconnect();
+            while (! is_file($customerLocked)) {
+                usleep(25_000);
+            }
+
+            app(PermissionRegistrar::class)->forgetCachedPermissions();
+            app(PermissionRegistrar::class)->setPermissionsTeamId($actor->tenant_id);
+            file_put_contents($contractPidPath, (string) DB::scalar('SELECT pg_backend_pid()'));
+            file_put_contents($contractStarted, 'started');
+
+            try {
+                $service = app(ContractService::class);
+                $currentActor = User::query()->findOrFail($actor->id);
+                if ($contract === null) {
+                    $service->create($currentActor, [
+                        'customer_id' => $customer->id,
+                        'type' => 'recurring',
+                        'starts_on' => '2026-10-01',
+                        'ends_on' => null,
+                        'billing_unit' => 'hour',
+                        'unit_price' => '42.5000',
+                        'currency_code' => 'EUR',
+                    ]);
+                } else {
+                    $service->update($currentActor, $contract->id, ['customer_id' => $customer->id]);
+                }
+                file_put_contents($contractResult, 'success');
+            } catch (Throwable $exception) {
+                file_put_contents($contractResult, $exception::class);
+            }
+
+            exit(0);
+        }
+        $pids[] = $contractPid;
+
+        $deadline = microtime(true) + 10;
+        while (! is_file($contractStarted) || ! is_file($contractPidPath)) {
+            if (microtime(true) >= $deadline) {
+                throw new RuntimeException('Contract creator did not reach the race barrier.');
+            }
+            usleep(25_000);
+        }
+
+        DB::purge();
+        DB::reconnect();
+        $contractPid = (int) file_get_contents($contractPidPath);
+        $waitedOnCustomer = false;
+        while (microtime(true) < $deadline) {
+            $waitedOnCustomer = DB::table('pg_stat_activity')
+                ->where('pid', $contractPid)
+                ->where('wait_event_type', 'Lock')
+                ->exists();
+            if ($waitedOnCustomer) {
+                break;
+            }
+            usleep(25_000);
+        }
+
+        file_put_contents($releaseCustomer, 'release');
+        foreach ($pids as $pid) {
+            pcntl_waitpid($pid, $status);
+        }
+
+        return [
+            'contract' => trim((string) file_get_contents($contractResult)),
+            'customer' => trim((string) file_get_contents($customerResult)),
+            'contract_waited_on_customer' => $waitedOnCustomer,
+        ];
+    } finally {
+        if (! is_file($releaseCustomer)) {
+            file_put_contents($releaseCustomer, 'release');
+        }
+        foreach ($pids as $pid) {
+            pcntl_waitpid($pid, $status, WNOHANG);
+        }
+        foreach (glob($directory.'/*') ?: [] as $path) {
+            unlink($path);
+        }
+        rmdir($directory);
+        DB::purge();
+        DB::reconnect();
+    }
+}
+
 test('concurrent retirement commits exactly one successful transition and audit', function (): void {
     $tenant = TenantKey::factory()->create();
     $actor = contractConcurrencyActor($tenant);
@@ -368,3 +517,19 @@ test('concurrent booking history prevents customer or currency mutation with sta
     ['customer_id', ContractCustomerHistoryConflictException::class],
     ['currency_code', ContractCurrencyHistoryConflictException::class],
 ]);
+
+test('Contract association writes and Customer auditing share one deadlock-free lock order', function (string $operation): void {
+    $tenant = TenantKey::factory()->create();
+    $actor = contractConcurrencyActor($tenant);
+    $customer = Customer::factory()->create(['tenant_id' => $tenant->id]);
+    $contract = $operation === 'update'
+        ? Contract::factory()->create(['tenant_id' => $tenant->id])
+        : null;
+
+    expect(runContractCustomerAuditLockRace($actor, $customer, $contract))->toBe([
+        'contract' => 'success',
+        'customer' => 'success',
+        'contract_waited_on_customer' => true,
+    ])->and(Contract::query()->where('customer_id', $customer->id)->count())->toBe(1)
+        ->and(Activity::query()->where('event', 'contract.'.$operation)->count())->toBe(1);
+})->with(['create', 'update']);

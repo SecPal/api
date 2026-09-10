@@ -13,6 +13,7 @@ use App\Http\Middleware\InjectTenantId;
 use App\Models\Contract;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 
 abstract class ContractRequest extends FormRequest
 {
@@ -119,5 +120,35 @@ abstract class ContractRequest extends FormRequest
         $data = parent::validationData();
 
         return array_merge($data, $routeParameters);
+    }
+
+    /**
+     * @param  array<string, mixed>  $routeParameters
+     * @return array<string, mixed>
+     */
+    protected function mutationValidationData(array $routeParameters = []): array
+    {
+        /** @var array<string, mixed> $data */
+        $data = $this->getInputSource()->all();
+
+        return array_merge($data, $routeParameters);
+    }
+
+    protected function rejectMutationQueryParameters(Validator $validator): void
+    {
+        $originalQueryKeys = $this->attributes->get(
+            InjectTenantId::ORIGINAL_QUERY_KEYS_ATTRIBUTE,
+            array_keys($this->query->all()),
+        );
+
+        if (! is_array($originalQueryKeys)) {
+            return;
+        }
+
+        foreach ($originalQueryKeys as $key) {
+            if (is_string($key)) {
+                $validator->errors()->add($key, 'Query parameters are not accepted for Contract mutations.');
+            }
+        }
     }
 }
