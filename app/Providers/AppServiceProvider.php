@@ -23,6 +23,7 @@ use App\Models\OnboardingFormTemplate;
 use App\Models\OrganizationalUnit;
 use App\Models\Person;
 use App\Models\Qualification;
+use App\Models\ServiceBooking;
 use App\Models\Site;
 use App\Models\SiteAssignment;
 use App\Observers\EmployeeObserver;
@@ -41,6 +42,7 @@ use App\Policies\OnboardingFormTemplatePolicy;
 use App\Policies\OrganizationalUnitPolicy;
 use App\Policies\QualificationPolicy;
 use App\Policies\RoleManagementPolicy;
+use App\Policies\ServiceBookingPolicy;
 use App\Policies\SiteAssignmentPolicy;
 use App\Policies\SitePolicy;
 use App\SecurityEvents\SecurityEventName;
@@ -297,6 +299,7 @@ class AppServiceProvider extends ServiceProvider
         // Register policies for Customer & Site Management (Epic #210)
         Gate::policy(Customer::class, CustomerPolicy::class);
         Gate::policy(Contract::class, ContractPolicy::class);
+        Gate::policy(ServiceBooking::class, ServiceBookingPolicy::class);
         Gate::policy(CustomerEstablishment::class, CustomerEstablishmentPolicy::class);
         Gate::policy(Site::class, SitePolicy::class);
         Gate::policy(CostCenter::class, CostCenterPolicy::class);

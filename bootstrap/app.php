@@ -117,6 +117,50 @@ return Application::configure(basePath: dirname(__DIR__))
             ], 404);
         });
 
+        $exceptions->render(function (App\Exceptions\ServiceBookingTargetNotFoundException $e, Request $request) use ($shouldRenderApiJson) {
+            if (! $shouldRenderApiJson($request)) {
+                return null;
+            }
+
+            return response()->json([
+                'message' => 'Resource not found',
+                'code' => 'NOT_FOUND',
+            ], 404);
+        });
+
+        $exceptions->render(function (App\Exceptions\ServiceBookingRetiredException $e, Request $request) use ($shouldRenderApiJson) {
+            if (! $shouldRenderApiJson($request)) {
+                return null;
+            }
+
+            return response()->json([
+                'message' => 'The Service Booking is retired.',
+                'code' => 'CONFLICT',
+            ], 409);
+        });
+
+        $exceptions->render(function (App\Exceptions\ServiceBookingInvoicedException $e, Request $request) use ($shouldRenderApiJson) {
+            if (! $shouldRenderApiJson($request)) {
+                return null;
+            }
+
+            return response()->json([
+                'message' => 'The Service Booking is invoiced.',
+                'code' => 'CONFLICT',
+            ], 409);
+        });
+
+        $exceptions->render(function (App\Exceptions\ServiceBookingConcurrentTransitionException $e, Request $request) use ($shouldRenderApiJson) {
+            if (! $shouldRenderApiJson($request)) {
+                return null;
+            }
+
+            return response()->json([
+                'message' => 'The Service Booking changed in a concurrent state transition.',
+                'code' => 'CONFLICT',
+            ], 409);
+        });
+
         $exceptions->render(function (App\Exceptions\ContractRetiredException $e, Request $request) use ($shouldRenderApiJson) {
             if (! $shouldRenderApiJson($request)) {
                 return null;
