@@ -60,13 +60,21 @@ test('persistence ownership remains structurally distinct without content invent
 test('the shared localizer owns exact locale fallback and fail closed behavior', function (): void {
     $localizer = app(WorkInstructionContentLocalizer::class);
     $de = ['de' => ['title' => 'Deutsch', 'body' => 'Inhalt']];
+    $invalidDe = [
+        'de' => ['title' => ' ', 'body' => ''],
+        'en' => ['title' => 'English', 'body' => 'Content'],
+    ];
 
     expect($localizer->select($de, ContentLocale::German))->toBe([
         'locale' => 'de', 'title' => 'Deutsch', 'body' => 'Inhalt', 'fallback_used' => false,
     ])->and($localizer->select($de, ContentLocale::English))->toBe([
         'locale' => 'de', 'title' => 'Deutsch', 'body' => 'Inhalt', 'fallback_used' => true,
+    ])->and($localizer->select($invalidDe, ContentLocale::German))->toBe([
+        'locale' => 'en', 'title' => 'English', 'body' => 'Content', 'fallback_used' => true,
     ]);
 
     expect(fn (): array => $localizer->select([], ContentLocale::English))
+        ->toThrow(WorkInstructionContentIntegrityException::class)
+        ->and(fn (): array => $localizer->select(['de' => $invalidDe['de']], ContentLocale::German))
         ->toThrow(WorkInstructionContentIntegrityException::class);
 });

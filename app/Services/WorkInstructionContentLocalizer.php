@@ -18,12 +18,15 @@ final class WorkInstructionContentLocalizer
      */
     public function select(array $translations, ContentLocale $requested): array
     {
-        $actual = isset($translations[$requested->value]) ? $requested : $requested->fallback();
+        $actual = $this->isUsable($translations[$requested->value] ?? null)
+            ? $requested
+            : $requested->fallback();
         $translation = $translations[$actual->value] ?? null;
 
-        if ($translation === null) {
+        if (! $this->isUsable($translation)) {
             throw new WorkInstructionContentIntegrityException('Reusable content has no usable translation.');
         }
+        assert($translation !== null);
 
         return [
             'locale' => $actual->value,
@@ -31,5 +34,14 @@ final class WorkInstructionContentLocalizer
             'body' => $translation['body'],
             'fallback_used' => $actual !== $requested,
         ];
+    }
+
+    /** @param array{title: string, body: string}|null $translation */
+    private function isUsable(?array $translation): bool
+    {
+        return $translation !== null
+            && trim($translation['title']) !== ''
+            && mb_strlen($translation['title']) <= 255
+            && trim($translation['body']) !== '';
     }
 }

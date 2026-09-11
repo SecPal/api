@@ -337,6 +337,17 @@ test('persisted templates without translations fail closed', function (): void {
         ->assertStatus(500)->assertExactJson(['message' => 'Internal server error', 'code' => 'INTERNAL_SERVER_ERROR']);
 });
 
+test('persisted blank translations fail closed with a neutral error', function (): void {
+    grantContentPermission($this, 'work_instructions.read');
+    $template = contentTemplate($this->tenant->id, ['de' => ['title' => ' ', 'body' => '']]);
+    $block = standardBlock(['en' => ['title' => '', 'body' => ' ']]);
+
+    $this->withToken($this->token)->getJson('/v1/work-instruction-templates/'.$template->id)
+        ->assertStatus(500)->assertExactJson(['message' => 'Internal server error', 'code' => 'INTERNAL_SERVER_ERROR']);
+    $this->withToken($this->token)->getJson('/v1/standard-blocks/'.$block->id)
+        ->assertStatus(500)->assertExactJson(['message' => 'Internal server error', 'code' => 'INTERNAL_SERVER_ERROR']);
+});
+
 test('standard blocks are global immutable paginated ordered localized resources', function (): void {
     grantContentPermission($this, 'work_instructions.read');
     $time = now()->subHour()->startOfSecond();
