@@ -78,6 +78,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- added the accepted Contracts-defined reusable Work Instruction content library
+  with tenant-owned Templates, immutable system Standard Blocks, deterministic
+  German/English localization and fallback, and atomic complete Template
+  translation replacement (fixes `api#1438`)
 - added the accepted Contracts-defined tenant-isolated Work Instruction API
   with immutable tenant-scoped instruction numbers, forward-only
   draft/in-review/published/archived lifecycle transitions, and server-owned

@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Models\Concerns\EnforcesTenantRouteBinding;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -17,6 +18,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 /**
  * @property string $id
  * @property int $tenant_id
+ * @property \Illuminate\Support\Carbon $created_at
+ * @property \Illuminate\Support\Carbon $updated_at
  * @property-read TenantKey $tenant
  * @property-read \Illuminate\Database\Eloquent\Collection<int, WorkInstructionTemplateTranslation> $translations
  */
@@ -35,6 +38,14 @@ class WorkInstructionTemplate extends Model
     protected function casts(): array
     {
         return ['tenant_id' => 'integer'];
+    }
+
+    /** @param Builder<self> $query
+     * @return Builder<self>
+     */
+    public function scopeForTenant(Builder $query, int $tenantId): Builder
+    {
+        return $query->where($this->qualifyColumn('tenant_id'), $tenantId);
     }
 
     /** @return BelongsTo<TenantKey, $this> */
