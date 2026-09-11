@@ -19,15 +19,15 @@ final class UpdateWorkInstructionRequest extends WorkInstructionRequest
         unset($rules['instruction_number']);
 
         return array_merge(
-            ['workInstruction' => ['required', 'uuid']],
-            $this->closedBodyRules($rules, self::UPDATE_FIELDS),
+            ['work_instruction' => ['required', 'uuid']],
+            $rules,
         );
     }
 
     /** @return array<string, mixed> */
     public function validationData(): array
     {
-        return $this->mutationValidationData(['workInstruction' => $this->route('workInstruction')]);
+        return $this->mutationValidationData(['work_instruction' => $this->route('workInstruction')]);
     }
 
     /** @return list<callable(Validator): void> */
@@ -35,11 +35,11 @@ final class UpdateWorkInstructionRequest extends WorkInstructionRequest
     {
         return [function (Validator $validator): void {
             $this->rejectMutationQueryParameters($validator);
-            $this->rejectIntegerNormalizedBodyKeys($validator);
+            $this->rejectUnknownBodyKeys($validator, self::UPDATE_FIELDS);
             $originalBodyKeys = $this->attributes->get(InjectTenantId::ORIGINAL_BODY_KEYS_ATTRIBUTE, []);
 
             if (is_array($originalBodyKeys) && $originalBodyKeys === []) {
-                $validator->errors()->add('workInstruction', 'At least one Work Instruction property is required.');
+                $validator->errors()->add('work_instruction', 'At least one Work Instruction property is required.');
             }
         }];
     }

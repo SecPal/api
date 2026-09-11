@@ -13,6 +13,7 @@ use App\Http\Resources\Api\V1\WorkInstructionResource;
 use App\Models\Permission;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use Spatie\Permission\Models\Role;
 
@@ -110,4 +111,23 @@ test('permission catalog contains the accepted lifecycle capabilities without al
     ])->exists())->toBeFalse()
         ->and(Role::query()->whereHas('permissions', fn ($query) => $query->where('name', 'work_instructions.archive'))->exists())
         ->toBeFalse();
+});
+
+test('permission seeding removes the obsolete Work Instruction delete capability and its grants', function (): void {
+    $obsolete = Permission::query()->create([
+        'name' => 'work_instructions.delete',
+        'guard_name' => 'sanctum',
+    ]);
+    $role = Role::query()->create([
+        'name' => 'Legacy Work Instruction Manager',
+        'guard_name' => 'sanctum',
+    ]);
+    $role->givePermissionTo($obsolete);
+
+    expect(DB::table('role_has_permissions')->where('permission_id', $obsolete->id)->exists())->toBeTrue();
+
+    Artisan::call('db:seed', ['--class' => 'RolesAndPermissionsSeeder']);
+
+    expect(Permission::query()->whereKey($obsolete->id)->exists())->toBeFalse()
+        ->and(DB::table('role_has_permissions')->where('permission_id', $obsolete->id)->exists())->toBeFalse();
 });

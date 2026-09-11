@@ -16,7 +16,7 @@ use Illuminate\Support\Str;
 use Mockery\MockInterface;
 use Spatie\Permission\PermissionRegistrar;
 
-uses(RefreshDatabase::class)->group('serial');
+uses(RefreshDatabase::class);
 
 beforeEach(function (): void {
     incrementTestKekCounter();
@@ -115,7 +115,28 @@ test('list rejects invalid pagination and every unsupported query', function (st
 })->with([
     'page=0', 'page=nope', 'per_page=0', 'per_page=101', 'per_page=nope',
     'status=draft', 'locale=de', 'search=evacuation', 'sort=id', 'tenant_id=999',
+    '0=foo',
 ]);
+
+test('create and PATCH reject dotted literal unknown JSON properties', function (string $method): void {
+    grantWorkInstructionApiPermissions(
+        $this,
+        'work_instructions.create',
+        'work_instructions.update',
+    );
+
+    $response = $method === 'create'
+        ? $this->withToken($this->token)->postJson('/v1/work-instructions', validWorkInstructionPayload([
+            'metadata.extra' => 'injected',
+        ]))
+        : $this->withToken($this->token)->patchJson(
+            '/v1/work-instructions/'.WorkInstruction::factory()->create(['tenant_id' => $this->tenant->id])->id,
+            ['metadata.extra' => 'injected'],
+        );
+
+    $response->assertUnprocessable();
+    expect(array_keys($response->json('errors')))->toContain('metadata.extra');
+})->with(['create', 'patch']);
 
 test('create derives tenant and draft lifecycle preserves content and audits safely', function (): void {
     grantWorkInstructionApiPermissions($this, 'work_instructions.create');
@@ -224,7 +245,7 @@ test('inspect is tenant safe distinguishes malformed UUID and serializes no nest
             ->assertJsonMissingPath('data.archiver')
             ->assertJsonMissingPath('data.acknowledgments');
     } elseif ($kind === 'malformed') {
-        $response->assertUnprocessable()->assertJsonValidationErrors('workInstruction');
+        $response->assertUnprocessable()->assertJsonValidationErrors('work_instruction');
     } else {
         $response->assertNotFound()->assertExactJson([
             'message' => 'Resource not found',
@@ -232,6 +253,25 @@ test('inspect is tenant safe distinguishes malformed UUID and serializes no nest
         ]);
     }
 })->with(['local', 'foreign', 'missing', 'malformed']);
+
+test('every mutation reports malformed UUIDs with the contract validation key', function (string $method, string $suffix): void {
+    grantWorkInstructionApiPermissions(
+        $this,
+        'work_instructions.update',
+        'work_instructions.publish',
+        'work_instructions.archive',
+    );
+
+    $this->withToken($this->token)
+        ->json($method, '/v1/work-instructions/not-a-uuid'.$suffix, $method === 'PATCH' ? ['title' => 'Updated'] : [])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('work_instruction');
+})->with([
+    'update' => ['PATCH', ''],
+    'submit' => ['POST', '/submit-for-review'],
+    'publish' => ['POST', '/publish'],
+    'archive' => ['POST', '/archive'],
+]);
 
 test('cross-tenant mutations return the same neutral not-found response', function (string $operation): void {
     grantWorkInstructionApiPermissions(
@@ -306,7 +346,7 @@ test('PATCH is non-empty closed and keeps immutable and lifecycle fields server-
     $this->withToken($this->token)->patchJson('/v1/work-instructions/'.$instruction->id, $payload)
         ->assertUnprocessable()->assertJsonValidationErrors($field);
 })->with([
-    'empty' => [[], 'workInstruction'],
+    'empty' => [[], 'work_instruction'],
     'instruction number' => [['instruction_number' => 'WI-NEW'], 'instruction_number'],
     'id' => [['id' => (string) Str::uuid()], 'id'],
     'tenant' => [['tenant_id' => 9], 'tenant_id'],

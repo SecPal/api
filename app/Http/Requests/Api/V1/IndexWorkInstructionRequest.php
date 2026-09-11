@@ -7,14 +7,24 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Api\V1;
 
+use Illuminate\Validation\Validator;
+
 final class IndexWorkInstructionRequest extends WorkInstructionRequest
 {
     /** @return array<string, array<int, mixed>> */
     public function rules(): array
     {
-        return $this->closedQueryRules([
+        return [
             'page' => ['sometimes', 'integer', 'min:1'],
             'per_page' => ['sometimes', 'integer', 'min:1', 'max:100'],
-        ], ['page', 'per_page']);
+        ];
+    }
+
+    /** @return list<callable(Validator): void> */
+    public function after(): array
+    {
+        return [function (Validator $validator): void {
+            $this->rejectUnknownQueryKeys($validator, ['page', 'per_page']);
+        }];
     }
 }

@@ -14,7 +14,7 @@ final class StoreWorkInstructionRequest extends WorkInstructionRequest
     /** @return array<string, array<int, mixed>> */
     public function rules(): array
     {
-        return $this->closedBodyRules($this->contentRules(self::CREATE_FIELDS), self::CREATE_FIELDS);
+        return $this->contentRules(self::CREATE_FIELDS);
     }
 
     /** @return array<string, mixed> */
@@ -28,7 +28,7 @@ final class StoreWorkInstructionRequest extends WorkInstructionRequest
     {
         return [function (Validator $validator): void {
             $this->rejectMutationQueryParameters($validator);
-            $this->rejectIntegerNormalizedBodyKeys($validator);
+            $this->rejectUnknownBodyKeys($validator, self::CREATE_FIELDS);
         }];
     }
 }

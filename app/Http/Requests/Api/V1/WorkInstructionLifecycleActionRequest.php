@@ -14,16 +14,13 @@ final class WorkInstructionLifecycleActionRequest extends WorkInstructionRequest
     /** @return array<string, array<int, mixed>> */
     public function rules(): array
     {
-        return array_merge(
-            ['workInstruction' => ['required', 'uuid']],
-            $this->closedBodyRules([], []),
-        );
+        return ['work_instruction' => ['required', 'uuid']];
     }
 
     /** @return array<string, mixed> */
     public function validationData(): array
     {
-        return $this->mutationValidationData(['workInstruction' => $this->route('workInstruction')]);
+        return $this->mutationValidationData(['work_instruction' => $this->route('workInstruction')]);
     }
 
     /** @return list<callable(Validator): void> */
@@ -31,7 +28,7 @@ final class WorkInstructionLifecycleActionRequest extends WorkInstructionRequest
     {
         return [function (Validator $validator): void {
             $this->rejectMutationQueryParameters($validator);
-            $this->rejectIntegerNormalizedBodyKeys($validator);
+            $this->rejectUnknownBodyKeys($validator, []);
 
             if (trim($this->getContent()) !== '') {
                 $validator->errors()->add('body', 'A request body is not accepted for Work Instruction lifecycle actions.');

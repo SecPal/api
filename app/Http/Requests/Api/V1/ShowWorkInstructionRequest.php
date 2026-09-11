@@ -12,12 +12,12 @@ final class ShowWorkInstructionRequest extends WorkInstructionRequest
     /** @return array<string, array<int, mixed>> */
     public function rules(): array
     {
-        return ['workInstruction' => ['required', 'uuid']];
+        return ['work_instruction' => ['required', 'uuid']];
     }
 
     /** @return array<string, mixed> */
     public function validationData(): array
     {
-        return $this->routeValidationData(['workInstruction' => $this->route('workInstruction')]);
+        return $this->routeValidationData(['work_instruction' => $this->route('workInstruction')]);
     }
 }

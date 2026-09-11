@@ -61,53 +61,6 @@ abstract class WorkInstructionRequest extends FormRequest
         ];
     }
 
-    /**
-     * @param  array<string, array<int, mixed>>  $rules
-     * @param  list<string>  $allowedBodyKeys
-     * @return array<string, array<int, mixed>>
-     */
-    protected function closedBodyRules(array $rules, array $allowedBodyKeys): array
-    {
-        $originalBodyKeys = $this->attributes->get(InjectTenantId::ORIGINAL_BODY_KEYS_ATTRIBUTE, []);
-
-        if (! is_array($originalBodyKeys)) {
-            return $rules;
-        }
-
-        foreach ($originalBodyKeys as $key) {
-            if (is_string($key) && ! in_array($key, $allowedBodyKeys, true)) {
-                $rules[$key] = ['filled', 'prohibited'];
-            }
-        }
-
-        return $rules;
-    }
-
-    /**
-     * @param  array<string, array<int, mixed>>  $rules
-     * @param  list<string>  $allowedQueryKeys
-     * @return array<string, array<int, mixed>>
-     */
-    protected function closedQueryRules(array $rules, array $allowedQueryKeys): array
-    {
-        $originalQueryKeys = $this->attributes->get(
-            InjectTenantId::ORIGINAL_QUERY_KEYS_ATTRIBUTE,
-            array_keys($this->query->all()),
-        );
-
-        if (! is_array($originalQueryKeys)) {
-            return $rules;
-        }
-
-        foreach ($originalQueryKeys as $key) {
-            if (is_string($key) && ! in_array($key, $allowedQueryKeys, true)) {
-                $rules[$key] = ['filled', 'prohibited'];
-            }
-        }
-
-        return $rules;
-    }
-
     /** @param array<string, mixed> $routeParameters
      * @return array<string, mixed>
      */
@@ -148,7 +101,8 @@ abstract class WorkInstructionRequest extends FormRequest
         }
     }
 
-    protected function rejectIntegerNormalizedBodyKeys(Validator $validator): void
+    /** @param list<string> $allowedBodyKeys */
+    protected function rejectUnknownBodyKeys(Validator $validator, array $allowedBodyKeys): void
     {
         $originalBodyKeys = $this->attributes->get(InjectTenantId::ORIGINAL_BODY_KEYS_ATTRIBUTE, []);
 
@@ -157,8 +111,27 @@ abstract class WorkInstructionRequest extends FormRequest
         }
 
         foreach ($originalBodyKeys as $key) {
-            if (is_int($key)) {
-                $validator->errors()->add((string) $key, 'Numeric JSON property names are not accepted.');
+            if ((is_int($key) || is_string($key)) && ! in_array((string) $key, $allowedBodyKeys, true)) {
+                $validator->errors()->add((string) $key, 'This property is not accepted.');
+            }
+        }
+    }
+
+    /** @param list<string> $allowedQueryKeys */
+    protected function rejectUnknownQueryKeys(Validator $validator, array $allowedQueryKeys): void
+    {
+        $originalQueryKeys = $this->attributes->get(
+            InjectTenantId::ORIGINAL_QUERY_KEYS_ATTRIBUTE,
+            array_keys($this->query->all()),
+        );
+
+        if (! is_array($originalQueryKeys)) {
+            return;
+        }
+
+        foreach ($originalQueryKeys as $key) {
+            if ((is_int($key) || is_string($key)) && ! in_array((string) $key, $allowedQueryKeys, true)) {
+                $validator->errors()->add((string) $key, 'This query parameter is not accepted.');
             }
         }
     }
