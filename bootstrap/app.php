@@ -172,7 +172,7 @@ return Application::configure(basePath: dirname(__DIR__))
             }
 
             return response()->json([
-                'message' => 'The allocation replacement conflicted with a concurrent change.',
+                'message' => 'The allocation could not be replaced because authoritative state changed concurrently.',
                 'code' => 'CONFLICT',
             ], 409);
         });

@@ -5,6 +5,7 @@
 
 declare(strict_types=1);
 
+use App\Exceptions\CostCenterAllocationConflictException;
 use App\Models\Activity;
 use App\Models\CostCenterAllocation;
 use App\Models\InternalCostCenter;
@@ -12,7 +13,9 @@ use App\Models\ServiceBooking;
 use App\Models\TenantKey;
 use App\Models\User;
 use App\Services\CostCenterAllocationAuditRecorder;
+use Illuminate\Contracts\Debug\ExceptionHandler;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Str;
 use Mockery\MockInterface;
@@ -190,6 +193,33 @@ test('PUT rejects malformed split shapes before mutation', function (array $payl
             'internal_cost_center_id' => $id, 'share_bps' => 10000, 'id' => $id,
         ]]), 'allocations.0'],
     ];
+});
+
+test('PUT rejects integer-like string shares before mutation', function (): void {
+    grantAllocationApiPermissions($this, 'cost_center_allocations.update');
+    $booking = ServiceBooking::factory()->forTenant($this->tenant->id)->create();
+    $center = InternalCostCenter::factory()->forTenant($this->tenant->id)->create();
+
+    $this->withToken($this->token)->putJson(
+        '/v1/service-bookings/'.$booking->id.'/cost-center-allocations',
+        allocationPayload([['internal_cost_center_id' => $center->id, 'share_bps' => '10000']]),
+    )->assertUnprocessable()->assertJsonValidationErrors('allocations.0.share_bps');
+
+    expect(CostCenterAllocation::query()->where('service_booking_id', $booking->id)->count())->toBe(0);
+});
+
+test('concurrent allocation conflicts use the accepted closed message', function (): void {
+    $request = Request::create(
+        '/v1/service-bookings/11111111-1111-4111-8111-111111111111/cost-center-allocations',
+        'PUT',
+    );
+    $response = app(ExceptionHandler::class)->render($request, new CostCenterAllocationConflictException);
+
+    expect($response->getStatusCode())->toBe(409)
+        ->and($response->getContent())->json()->toBe([
+            'message' => 'The allocation could not be replaced because authoritative state changed concurrently.',
+            'code' => 'CONFLICT',
+        ]);
 });
 
 test('PUT conceals foreign and nonexistent centers and rejects inactive centers atomically', function (string $kind): void {

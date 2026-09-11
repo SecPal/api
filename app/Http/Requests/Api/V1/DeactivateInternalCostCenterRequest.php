@@ -29,6 +29,12 @@ final class DeactivateInternalCostCenterRequest extends InternalCostCenterReques
     /** @return list<callable(Validator): void> */
     public function after(): array
     {
-        return [fn (Validator $validator) => $this->rejectMutationQueryParameters($validator)];
+        return [function (Validator $validator): void {
+            $this->rejectMutationQueryParameters($validator);
+
+            if (trim($this->getContent()) !== '') {
+                $validator->errors()->add('body', 'A request body is not accepted for deactivation.');
+            }
+        }];
     }
 }

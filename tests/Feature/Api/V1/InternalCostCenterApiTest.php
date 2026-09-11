@@ -213,11 +213,25 @@ test('inactive PATCH and repeated deactivation are conflicts while historical al
     $booking = ServiceBooking::factory()->forTenant($this->tenant->id)->create();
     CostCenterAllocation::factory()->forServiceBooking($booking)->forCostCenter($center)->complete()->create();
 
-    $this->withToken($this->token)->postJson('/v1/internal-cost-centers/'.$center->id.'/deactivate')
+    $this->call(
+        'POST',
+        '/v1/internal-cost-centers/'.$center->id.'/deactivate',
+        server: [
+            'HTTP_ACCEPT' => 'application/json',
+            'HTTP_AUTHORIZATION' => 'Bearer '.$this->token,
+        ],
+    )
         ->assertOk()->assertJsonPath('data.status', 'inactive');
     $this->withToken($this->token)->patchJson('/v1/internal-cost-centers/'.$center->id, ['name' => 'No'])
         ->assertConflict()->assertJsonPath('code', 'CONFLICT');
-    $this->withToken($this->token)->postJson('/v1/internal-cost-centers/'.$center->id.'/deactivate')
+    $this->call(
+        'POST',
+        '/v1/internal-cost-centers/'.$center->id.'/deactivate',
+        server: [
+            'HTTP_ACCEPT' => 'application/json',
+            'HTTP_AUTHORIZATION' => 'Bearer '.$this->token,
+        ],
+    )
         ->assertConflict()->assertJsonPath('code', 'CONFLICT');
 
     expect(CostCenterAllocation::query()->where('internal_cost_center_id', $center->id)->count())->toBe(1)
@@ -230,7 +244,24 @@ test('deactivate rejects any body and malformed UUIDs', function (): void {
 
     $this->withToken($this->token)->postJson('/v1/internal-cost-centers/'.$center->id.'/deactivate', ['reason' => 'x'])
         ->assertUnprocessable()->assertJsonValidationErrors('reason');
-    $this->withToken($this->token)->postJson('/v1/internal-cost-centers/not-a-uuid/deactivate')
+    $this->call(
+        'POST',
+        '/v1/internal-cost-centers/'.$center->id.'/deactivate',
+        server: [
+            'CONTENT_TYPE' => 'application/json',
+            'HTTP_ACCEPT' => 'application/json',
+            'HTTP_AUTHORIZATION' => 'Bearer '.$this->token,
+        ],
+        content: '{}',
+    )->assertUnprocessable()->assertJsonValidationErrors('body');
+    $this->call(
+        'POST',
+        '/v1/internal-cost-centers/not-a-uuid/deactivate',
+        server: [
+            'HTTP_ACCEPT' => 'application/json',
+            'HTTP_AUTHORIZATION' => 'Bearer '.$this->token,
+        ],
+    )
         ->assertUnprocessable()->assertJsonValidationErrors('internalCostCenter');
 });
 
@@ -244,7 +275,14 @@ test('mutations conceal foreign and nonexistent valid Internal Cost Center IDs',
 
     $response = $operation === 'update'
         ? $this->withToken($this->token)->patchJson('/v1/internal-cost-centers/'.$id, ['name' => 'Hidden'])
-        : $this->withToken($this->token)->postJson('/v1/internal-cost-centers/'.$id.'/deactivate');
+        : $this->call(
+            'POST',
+            '/v1/internal-cost-centers/'.$id.'/deactivate',
+            server: [
+                'HTTP_ACCEPT' => 'application/json',
+                'HTTP_AUTHORIZATION' => 'Bearer '.$this->token,
+            ],
+        );
 
     $response->assertNotFound()
         ->assertExactJson(['message' => 'Resource not found', 'code' => 'NOT_FOUND']);

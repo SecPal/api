@@ -19,7 +19,7 @@ final class ReplaceCostCenterAllocationRequest extends CostCenterAllocationReque
             'allocations' => ['present', 'array'],
             'allocations.*' => ['required', 'array:internal_cost_center_id,share_bps'],
             'allocations.*.internal_cost_center_id' => ['required', 'uuid', 'distinct:strict'],
-            'allocations.*.share_bps' => ['required', 'integer', 'min:1', 'max:10000'],
+            'allocations.*.share_bps' => ['required', 'integer:strict', 'min:1', 'max:10000'],
         ], $this->closedBodyRules([], ['allocations']));
     }
 

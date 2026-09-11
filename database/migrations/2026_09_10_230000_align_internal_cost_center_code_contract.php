@@ -25,6 +25,16 @@ return new class extends Migration
 
     public function down(): void
     {
+        $hasBoundaryWhitespace = DB::table('internal_cost_centers')
+            ->whereRaw("code ~ '^[[:space:]]|[[:space:]]$'")
+            ->exists();
+
+        if ($hasBoundaryWhitespace) {
+            throw new RuntimeException(
+                'Cannot rollback the Internal Cost Center code contract while preserved codes contain boundary whitespace.',
+            );
+        }
+
         DB::statement(<<<'SQL'
             ALTER TABLE internal_cost_centers
             DROP CONSTRAINT internal_cost_centers_code_check,
