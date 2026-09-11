@@ -192,6 +192,46 @@ test('PATCH changes only active center name and audits committed state', functio
         ->and($audit->properties->get('changed_fields'))->toBe(['name']);
 });
 
+test('PATCH audits a no-op rename without claiming a changed field', function (): void {
+    grantInternalCostCenterApiPermissions($this, 'internal_cost_centers.update');
+    $center = InternalCostCenter::factory()->forTenant($this->tenant->id)->create(['name' => 'Unchanged']);
+
+    $this->withToken($this->token)->patchJson('/v1/internal-cost-centers/'.$center->id, [
+        'name' => 'Unchanged',
+    ])->assertOk()->assertJsonPath('data.name', 'Unchanged');
+
+    $audit = Activity::query()->where('event', 'internal_cost_center.update')->sole();
+    expect($audit->properties->get('changed_fields'))->toBe([])
+        ->and($audit->properties->get('changes'))->toBe([]);
+});
+
+test('PATCH rejects integer-normalized JSON property names', function (): void {
+    grantInternalCostCenterApiPermissions($this, 'internal_cost_centers.update');
+    $center = InternalCostCenter::factory()->forTenant($this->tenant->id)->create(['name' => 'Before']);
+
+    $this->call(
+        'PATCH',
+        '/v1/internal-cost-centers/'.$center->id,
+        server: [
+            'CONTENT_TYPE' => 'application/json',
+            'HTTP_ACCEPT' => 'application/json',
+            'HTTP_AUTHORIZATION' => 'Bearer '.$this->token,
+        ],
+        content: '{"0":"x"}',
+    )->assertUnprocessable()->assertJsonValidationErrors('0');
+
+    expect($center->fresh()?->name)->toBe('Before');
+});
+
+test('financial classification audit categories use financial retention', function (): void {
+    expect(Activity::getRetentionYearsForLogType('internal_cost_center_change'))->toBe(8)
+        ->and(Activity::getRetentionYearsForLogType('cost_center_allocation_change'))->toBe(8)
+        ->and(Activity::getAllRetentionYears())->toHaveKeys([
+            'internal_cost_center_change',
+            'cost_center_allocation_change',
+        ]);
+});
+
 test('PATCH rejects empty, immutable, server-owned, and unknown fields', function (array $payload, string $field): void {
     grantInternalCostCenterApiPermissions($this, 'internal_cost_centers.update');
     $center = InternalCostCenter::factory()->forTenant($this->tenant->id)->create();

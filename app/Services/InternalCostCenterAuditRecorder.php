@@ -41,7 +41,13 @@ class InternalCostCenterAuditRecorder
     /** @param array<string, scalar|null> $previous */
     public function recordUpdate(User $actor, InternalCostCenter $internalCostCenter, array $previous): Activity
     {
-        return $this->record($actor, $internalCostCenter, 'update', ['name'], $previous, $this->snapshot($internalCostCenter));
+        $current = $this->snapshot($internalCostCenter);
+        $changedFields = array_values(array_filter(
+            InternalCostCenter::MUTABLE_BUSINESS_FIELDS,
+            static fn (string $field): bool => ($previous[$field] ?? null) !== ($current[$field] ?? null),
+        ));
+
+        return $this->record($actor, $internalCostCenter, 'update', $changedFields, $previous, $current);
     }
 
     /** @param array<string, scalar|null> $previous */

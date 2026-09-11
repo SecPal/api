@@ -35,6 +35,7 @@ final class UpdateInternalCostCenterRequest extends InternalCostCenterRequest
     {
         return [function (Validator $validator): void {
             $this->rejectMutationQueryParameters($validator);
+            $this->rejectIntegerNormalizedBodyKeys($validator);
             $originalBodyKeys = $this->attributes->get(InjectTenantId::ORIGINAL_BODY_KEYS_ATTRIBUTE, []);
 
             if (is_array($originalBodyKeys) && $originalBodyKeys === []) {

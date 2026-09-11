@@ -26,6 +26,9 @@ final class StoreInternalCostCenterRequest extends InternalCostCenterRequest
     /** @return list<callable(Validator): void> */
     public function after(): array
     {
-        return [fn (Validator $validator) => $this->rejectMutationQueryParameters($validator)];
+        return [function (Validator $validator): void {
+            $this->rejectMutationQueryParameters($validator);
+            $this->rejectIntegerNormalizedBodyKeys($validator);
+        }];
     }
 }

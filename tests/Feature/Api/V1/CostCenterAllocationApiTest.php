@@ -208,6 +208,45 @@ test('PUT rejects integer-like string shares before mutation', function (): void
     expect(CostCenterAllocation::query()->where('service_booking_id', $booking->id)->count())->toBe(0);
 });
 
+test('PUT rejects object-shaped allocation collections without clearing the snapshot', function (string $allocations): void {
+    grantAllocationApiPermissions($this, 'cost_center_allocations.update');
+    $booking = ServiceBooking::factory()->forTenant($this->tenant->id)->create();
+    $original = CostCenterAllocation::factory()->createCompleteSplit($booking)->sole();
+
+    $this->call(
+        'PUT',
+        '/v1/service-bookings/'.$booking->id.'/cost-center-allocations',
+        server: [
+            'CONTENT_TYPE' => 'application/json',
+            'HTTP_ACCEPT' => 'application/json',
+            'HTTP_AUTHORIZATION' => 'Bearer '.$this->token,
+        ],
+        content: '{"allocations":'.$allocations.'}',
+    )->assertUnprocessable()->assertJsonValidationErrors('allocations');
+
+    expect(CostCenterAllocation::query()->where('service_booking_id', $booking->id)->sole()->id)
+        ->toBe($original->id);
+})->with([
+    'empty object' => ['{}'],
+    'keyed object' => ['{"target":{"internal_cost_center_id":"11111111-1111-4111-8111-111111111111","share_bps":10000}}'],
+]);
+
+test('PUT rejects differently cased spellings of the same allocation target', function (): void {
+    grantAllocationApiPermissions($this, 'cost_center_allocations.update');
+    $booking = ServiceBooking::factory()->forTenant($this->tenant->id)->create();
+    $center = InternalCostCenter::factory()->forTenant($this->tenant->id)->create();
+
+    $this->withToken($this->token)->putJson(
+        '/v1/service-bookings/'.$booking->id.'/cost-center-allocations',
+        allocationPayload([
+            ['internal_cost_center_id' => strtolower($center->id), 'share_bps' => 5000],
+            ['internal_cost_center_id' => strtoupper($center->id), 'share_bps' => 5000],
+        ]),
+    )->assertUnprocessable()->assertJsonValidationErrors('allocations.1.internal_cost_center_id');
+
+    expect(CostCenterAllocation::query()->where('service_booking_id', $booking->id)->count())->toBe(0);
+});
+
 test('concurrent allocation conflicts use the accepted closed message', function (): void {
     $request = Request::create(
         '/v1/service-bookings/11111111-1111-4111-8111-111111111111/cost-center-allocations',

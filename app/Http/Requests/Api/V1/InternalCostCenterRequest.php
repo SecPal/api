@@ -119,8 +119,23 @@ abstract class InternalCostCenterRequest extends FormRequest
         }
 
         foreach ($originalQueryKeys as $key) {
-            if (is_string($key)) {
-                $validator->errors()->add($key, 'Query parameters are not accepted for Internal Cost Center mutations.');
+            if (is_int($key) || is_string($key)) {
+                $validator->errors()->add((string) $key, 'Query parameters are not accepted for Internal Cost Center mutations.');
+            }
+        }
+    }
+
+    protected function rejectIntegerNormalizedBodyKeys(Validator $validator): void
+    {
+        $originalBodyKeys = $this->attributes->get(InjectTenantId::ORIGINAL_BODY_KEYS_ATTRIBUTE, []);
+
+        if (! is_array($originalBodyKeys)) {
+            return;
+        }
+
+        foreach ($originalBodyKeys as $key) {
+            if (is_int($key)) {
+                $validator->errors()->add((string) $key, 'Numeric JSON property names are not accepted.');
             }
         }
     }
