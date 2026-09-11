@@ -325,10 +325,27 @@ test('rejects blank codes and contradictory cost center lifecycle data', functio
 })->with([
     'blank code' => [['code' => '   ']],
     'tab-only code' => [['code' => "\t\t"]],
-    'padded code' => [['code' => ' OPS-42 ']],
     'active with timestamp' => [['inactive_at' => now()]],
     'inactive without timestamp' => [['status' => 'inactive']],
 ])->throws(QueryException::class);
+
+test('preserves nonblank internal cost center codes exactly as supplied', function (): void {
+    $center = InternalCostCenter::factory()->create(['code' => ' OPS-42 ']);
+
+    expect($center->fresh()?->code)->toBe(' OPS-42 ');
+});
+
+test('refuses an unsafe code-contract rollback before changing its constraint', function (): void {
+    $center = InternalCostCenter::factory()->create(['code' => ' OPS-42 ']);
+    $migration = require database_path('migrations/2026_09_10_230000_align_internal_cost_center_code_contract.php');
+
+    expect(fn () => $migration->down())->toThrow(
+        RuntimeException::class,
+        'Cannot rollback the Internal Cost Center code contract while preserved codes contain boundary whitespace.',
+    );
+
+    expect($center->fresh()?->code)->toBe(' OPS-42 ');
+});
 
 test('keeps internal cost center codes stable while allowing display name changes', function (): void {
     $center = InternalCostCenter::factory()->create(['code' => 'STABLE-42']);
