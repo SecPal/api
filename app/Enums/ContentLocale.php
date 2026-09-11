@@ -11,4 +11,12 @@ enum ContentLocale: string
 {
     case German = 'de';
     case English = 'en';
+
+    public function fallback(): self
+    {
+        return match ($this) {
+            self::German => self::English,
+            self::English => self::German,
+        };
+    }
 }

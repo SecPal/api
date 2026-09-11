@@ -17,6 +17,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  *
  * @property string $id
  * @property string $key
+ * @property \Illuminate\Support\Carbon $created_at
+ * @property \Illuminate\Support\Carbon $updated_at
  * @property-read \Illuminate\Database\Eloquent\Collection<int, WorkInstructionStandardBlockTranslation> $translations
  */
 class WorkInstructionStandardBlock extends Model

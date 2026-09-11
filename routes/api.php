@@ -32,6 +32,8 @@ use App\Http\Controllers\Api\V1\SourceController;
 use App\Http\Controllers\Api\V1\UserAssignmentController;
 use App\Http\Controllers\Api\V1\UserPermissionController;
 use App\Http\Controllers\Api\V1\WorkInstructionController;
+use App\Http\Controllers\Api\V1\WorkInstructionStandardBlockController;
+use App\Http\Controllers\Api\V1\WorkInstructionTemplateController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\PersonController;
 use App\Http\Controllers\RoleController;
@@ -201,6 +203,26 @@ Route::prefix('v1')->group(function () {
                 ->middleware(['permission:users.reset_mfa', 'throttle:mfa-user-reset']);
 
             Route::middleware('tenant.inject')->group(function (): void {
+                Route::get('/work-instruction-templates', [WorkInstructionTemplateController::class, 'index'])
+                    ->middleware('permission:work_instructions.read')
+                    ->name('listWorkInstructionTemplates');
+                Route::post('/work-instruction-templates', [WorkInstructionTemplateController::class, 'store'])
+                    ->middleware('permission:work_instructions.create')
+                    ->name('createWorkInstructionTemplate');
+                Route::get('/work-instruction-templates/{workInstructionTemplate}', [WorkInstructionTemplateController::class, 'show'])
+                    ->middleware('permission:work_instructions.read')
+                    ->name('getWorkInstructionTemplate');
+                Route::put('/work-instruction-templates/{workInstructionTemplate}', [WorkInstructionTemplateController::class, 'update'])
+                    ->middleware('permission:work_instructions.update')
+                    ->name('replaceWorkInstructionTemplateTranslations');
+
+                Route::get('/standard-blocks', [WorkInstructionStandardBlockController::class, 'index'])
+                    ->middleware('permission:work_instructions.read')
+                    ->name('listWorkInstructionStandardBlocks');
+                Route::get('/standard-blocks/{standardBlock}', [WorkInstructionStandardBlockController::class, 'show'])
+                    ->middleware('permission:work_instructions.read')
+                    ->name('getWorkInstructionStandardBlock');
+
                 Route::get('/work-instructions', [WorkInstructionController::class, 'index'])
                     ->middleware('permission:work_instructions.read')
                     ->name('listWorkInstructions');
