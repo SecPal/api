@@ -31,6 +31,7 @@ use App\Http\Controllers\Api\V1\SiteController;
 use App\Http\Controllers\Api\V1\SourceController;
 use App\Http\Controllers\Api\V1\UserAssignmentController;
 use App\Http\Controllers\Api\V1\UserPermissionController;
+use App\Http\Controllers\Api\V1\WorkInstructionController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\PersonController;
 use App\Http\Controllers\RoleController;
@@ -200,6 +201,28 @@ Route::prefix('v1')->group(function () {
                 ->middleware(['permission:users.reset_mfa', 'throttle:mfa-user-reset']);
 
             Route::middleware('tenant.inject')->group(function (): void {
+                Route::get('/work-instructions', [WorkInstructionController::class, 'index'])
+                    ->middleware('permission:work_instructions.read')
+                    ->name('listWorkInstructions');
+                Route::post('/work-instructions', [WorkInstructionController::class, 'store'])
+                    ->middleware('permission:work_instructions.create')
+                    ->name('createWorkInstruction');
+                Route::get('/work-instructions/{workInstruction}', [WorkInstructionController::class, 'show'])
+                    ->middleware('permission:work_instructions.read')
+                    ->name('getWorkInstruction');
+                Route::patch('/work-instructions/{workInstruction}', [WorkInstructionController::class, 'update'])
+                    ->middleware('permission:work_instructions.update')
+                    ->name('updateWorkInstruction');
+                Route::post('/work-instructions/{workInstruction}/submit-for-review', [WorkInstructionController::class, 'submitForReview'])
+                    ->middleware('permission:work_instructions.update')
+                    ->name('submitWorkInstructionForReview');
+                Route::post('/work-instructions/{workInstruction}/publish', [WorkInstructionController::class, 'publish'])
+                    ->middleware('permission:work_instructions.publish')
+                    ->name('publishWorkInstruction');
+                Route::post('/work-instructions/{workInstruction}/archive', [WorkInstructionController::class, 'archive'])
+                    ->middleware('permission:work_instructions.archive')
+                    ->name('archiveWorkInstruction');
+
                 Route::get('/contracts', [ContractController::class, 'index'])
                     ->middleware('permission:contracts.read');
                 Route::post('/contracts', [ContractController::class, 'store'])

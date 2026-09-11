@@ -31,6 +31,9 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->trimStrings(except: [
             static fn (Request $request): bool => $request->is('v1/internal-cost-centers')
                 && $request->isMethod('post'),
+            static fn (Request $request): bool => ($request->is('v1/work-instructions')
+                && $request->isMethod('post'))
+                || ($request->is('v1/work-instructions/*') && $request->isMethod('patch')),
         ]);
 
         $middleware->alias([
@@ -142,6 +145,28 @@ return Application::configure(basePath: dirname(__DIR__))
                 'message' => 'Resource not found',
                 'code' => 'NOT_FOUND',
             ], 404);
+        });
+
+        $exceptions->render(function (App\Exceptions\WorkInstructionTargetNotFoundException $e, Request $request) use ($shouldRenderApiJson) {
+            if (! $shouldRenderApiJson($request)) {
+                return null;
+            }
+
+            return response()->json([
+                'message' => 'Resource not found',
+                'code' => 'NOT_FOUND',
+            ], 404);
+        });
+
+        $exceptions->render(function (App\Exceptions\WorkInstructionConflictException $e, Request $request) use ($shouldRenderApiJson) {
+            if (! $shouldRenderApiJson($request)) {
+                return null;
+            }
+
+            return response()->json([
+                'message' => $e->getMessage(),
+                'code' => 'CONFLICT',
+            ], 409);
         });
 
         $exceptions->render(function (App\Exceptions\InternalCostCenterConflictException $e, Request $request) use ($shouldRenderApiJson) {

@@ -10,6 +10,7 @@ namespace App\Models;
 use App\Enums\ContentLocale;
 use App\Enums\WorkInstructionStatus;
 use App\Models\Concerns\EnforcesTenantRouteBinding;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -28,6 +29,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property string|null $published_by_user_id
  * @property \Illuminate\Support\Carbon|null $archived_at
  * @property string|null $archived_by_user_id
+ * @property \Illuminate\Support\Carbon $created_at
+ * @property \Illuminate\Support\Carbon $updated_at
  * @property-read TenantKey $tenant
  * @property-read User|null $publishedBy
  * @property-read User|null $archivedBy
@@ -35,6 +38,12 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  */
 class WorkInstruction extends Model
 {
+    /** @var list<string> */
+    public const CREATE_FIELDS = ['instruction_number', 'title', 'body', 'locale'];
+
+    /** @var list<string> */
+    public const MUTABLE_BUSINESS_FIELDS = ['title', 'body', 'locale'];
+
     /** @use HasFactory<\Database\Factories\WorkInstructionFactory> */
     use EnforcesTenantRouteBinding, HasFactory, HasUuids {
         EnforcesTenantRouteBinding::resolveRouteBindingQuery insteadof HasUuids;
@@ -89,5 +98,14 @@ class WorkInstruction extends Model
     public function acknowledgments(): HasMany
     {
         return $this->hasMany(WorkInstructionAcknowledgment::class);
+    }
+
+    /**
+     * @param  Builder<WorkInstruction>  $query
+     * @return Builder<WorkInstruction>
+     */
+    public function scopeForTenant(Builder $query, int $tenantId): Builder
+    {
+        return $query->where('tenant_id', $tenantId);
     }
 }

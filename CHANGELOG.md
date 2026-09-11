@@ -78,6 +78,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- added the accepted Contracts-defined tenant-isolated Work Instruction API
+  with immutable tenant-scoped instruction numbers, forward-only
+  draft/in-review/published/archived lifecycle transitions, and server-owned
+  publication and archival evidence (fixes `api#1437`)
 - added the accepted Contracts-defined tenant-wide Internal Cost Center API and
   atomic complete Service Booking allocation snapshots, kept distinct from the
   existing Site CostCenter domain (fixes `api#383`)

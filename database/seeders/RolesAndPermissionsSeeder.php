@@ -12,6 +12,11 @@ use Spatie\Permission\PermissionRegistrar;
 
 class RolesAndPermissionsSeeder extends Seeder
 {
+    /** @var list<string> */
+    private const OBSOLETE_SANCTUM_PERMISSIONS = [
+        'work_instructions.delete',
+    ];
+
     /**
      * Seed roles and permissions for the RBAC system.
      *
@@ -24,6 +29,11 @@ class RolesAndPermissionsSeeder extends Seeder
     {
         // Reset cached roles and permissions
         app()[PermissionRegistrar::class]->forgetCachedPermissions();
+
+        Permission::query()
+            ->where('guard_name', 'sanctum')
+            ->whereIn('name', self::OBSOLETE_SANCTUM_PERMISSIONS)
+            ->delete();
 
         // Define all permissions grouped by resource
         $permissions = $this->getPermissionDefinitions();
@@ -207,8 +217,8 @@ class RolesAndPermissionsSeeder extends Seeder
                 'read',
                 'create',
                 'update',
-                'delete',
                 'publish',
+                'archive',
                 'acknowledge',
                 'view_acknowledgments',
             ],
