@@ -110,7 +110,7 @@ Set-Cookie: laravel_session=<session>; path=/; HttpOnly; Secure; SameSite=lax
     "name": "John Doe",
     "email": "user@example.com",
     "roles": ["Manager"],
-    "permissions": ["employees.read", "shifts.read", "work_instructions.read"],
+    "permissions": ["employees.read", "shifts.read"],
     "hasOrganizationalScopes": true
   }
 }
@@ -140,7 +140,7 @@ Content-Type: application/json
   "name": "John Doe",
   "email": "user@example.com",
   "roles": ["Manager"],
-  "permissions": ["employees.read", "shifts.read", "work_instructions.read"],
+  "permissions": ["employees.read", "shifts.read"],
   "hasOrganizationalScopes": true
 }
 ```

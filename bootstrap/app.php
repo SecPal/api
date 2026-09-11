@@ -31,11 +31,6 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->trimStrings(except: [
             static fn (Request $request): bool => $request->is('v1/internal-cost-centers')
                 && $request->isMethod('post'),
-            static fn (Request $request): bool => ($request->is('v1/work-instructions')
-                && $request->isMethod('post'))
-                || ($request->is('v1/work-instructions/*') && $request->isMethod('patch')),
-            static fn (Request $request): bool => $request->is('v1/work-instruction-templates', 'v1/work-instruction-templates/*')
-                && in_array($request->method(), ['POST', 'PUT'], true),
         ]);
 
         $middleware->alias([
@@ -147,50 +142,6 @@ return Application::configure(basePath: dirname(__DIR__))
                 'message' => 'Resource not found',
                 'code' => 'NOT_FOUND',
             ], 404);
-        });
-
-        $exceptions->render(function (App\Exceptions\WorkInstructionTargetNotFoundException $e, Request $request) use ($shouldRenderApiJson) {
-            if (! $shouldRenderApiJson($request)) {
-                return null;
-            }
-
-            return response()->json([
-                'message' => 'Resource not found',
-                'code' => 'NOT_FOUND',
-            ], 404);
-        });
-
-        $exceptions->render(function (App\Exceptions\WorkInstructionContentTargetNotFoundException $e, Request $request) use ($shouldRenderApiJson) {
-            if (! $shouldRenderApiJson($request)) {
-                return null;
-            }
-
-            return response()->json([
-                'message' => 'Resource not found',
-                'code' => 'NOT_FOUND',
-            ], 404);
-        });
-
-        $exceptions->render(function (App\Exceptions\WorkInstructionContentIntegrityException $e, Request $request) use ($shouldRenderApiJson) {
-            if (! $shouldRenderApiJson($request)) {
-                return null;
-            }
-
-            return response()->json([
-                'message' => 'Internal server error',
-                'code' => 'INTERNAL_SERVER_ERROR',
-            ], 500);
-        });
-
-        $exceptions->render(function (App\Exceptions\WorkInstructionConflictException $e, Request $request) use ($shouldRenderApiJson) {
-            if (! $shouldRenderApiJson($request)) {
-                return null;
-            }
-
-            return response()->json([
-                'message' => $e->getMessage(),
-                'code' => 'CONFLICT',
-            ], 409);
         });
 
         $exceptions->render(function (App\Exceptions\InternalCostCenterConflictException $e, Request $request) use ($shouldRenderApiJson) {
@@ -397,18 +348,6 @@ return Application::configure(basePath: dirname(__DIR__))
                 return response()->json([
                     'message' => 'An internal error occurred',
                     'code' => 'INTERNAL_ERROR',
-                ], $status);
-            }
-
-            if ($status >= 500 && $request->is(
-                'v1/work-instruction-templates',
-                'v1/work-instruction-templates/*',
-                'v1/standard-blocks',
-                'v1/standard-blocks/*',
-            )) {
-                return response()->json([
-                    'message' => 'Internal server error',
-                    'code' => 'INTERNAL_SERVER_ERROR',
                 ], $status);
             }
 

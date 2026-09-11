@@ -14,6 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Breaking:** removed the unreleased Work Instruction product implementation,
+  including its HTTP surface, permissions, runtime layers, persistence, and
+  Contracts parity assumptions (fixes `api#1508`)
 - integrated active Legal Hold membership with Activity retention through a
   tenant-authoritative PostgreSQL predicate, deletion backstop, locked bounded
   processing, truthful held-skip statistics, and hash-chain-safe mixed batches
@@ -78,14 +81,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- added the accepted Contracts-defined reusable Work Instruction content library
-  with tenant-owned Templates, immutable system Standard Blocks, deterministic
-  German/English localization and fallback, and atomic complete Template
-  translation replacement (fixes `api#1438`)
-- added the accepted Contracts-defined tenant-isolated Work Instruction API
-  with immutable tenant-scoped instruction numbers, forward-only
-  draft/in-review/published/archived lifecycle transitions, and server-owned
-  publication and archival evidence (fixes `api#1437`)
 - added the accepted Contracts-defined tenant-wide Internal Cost Center API and
   atomic complete Service Booking allocation snapshots, kept distinct from the
   existing Site CostCenter domain (fixes `api#383`)
@@ -115,10 +110,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   active/released lifecycle constraints, immutable actor and Activity identity
   evidence, duplicate-safe historical attachment and detachment records, and
   PostgreSQL-enforced cross-tenant boundaries (fixes `api#449`)
-- added the canonical tenant-safe work-instruction persistence foundation with
-  closed lifecycle and German/English locale constraints, tenant-owned localized
-  templates, structurally system-owned standard blocks, composite tenant foreign
-  keys, and durable duplicate-safe employee acknowledgments (fixes `api#1436`)
 - added a closed versioned application security-event stream for authentication,
   MFA, passkey, bearer-token, password-reset, and rate-limit decisions, with
   keyed actor pseudonyms, trusted client addresses, deferred local-only output,
@@ -1601,7 +1592,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Predefined roles: Admin, Manager, Guard, Client, Works Council
   - Idempotent design: Safe to run multiple times, uses `firstOrCreate`
   - Auto-recreation: Deleted predefined roles are recreated on next seeder run
-  - Permission groups: 52 permissions across 7 resources (employees, shifts, work_instructions, roles, permissions, works_council, reports)
+  - Permission groups: 45 permissions across 6 resources (employees, shifts, roles, permissions, works_council, reports)
   - Wildcard expansion: Supports `resource.*` notation for assigning all resource actions
   - Only syncs permissions if role has none (prevents overwriting customizations)
   - Part of RBAC Phase 4 Epic (#108), provides production-ready role foundation

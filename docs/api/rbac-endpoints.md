@@ -514,7 +514,7 @@ Update a role's name, description, and/or permissions.
 {
   "name": "senior_regional_manager",
   "description": "Senior manager overseeing multiple regions",
-  "permissions": ["employees.*", "shifts.*", "work_instructions.read", "reports.generate"]
+  "permissions": ["employees.*", "shifts.*", "reports.generate"]
 }
 ```
 

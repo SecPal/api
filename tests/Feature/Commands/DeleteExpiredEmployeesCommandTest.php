@@ -19,8 +19,6 @@ use App\Models\Site;
 use App\Models\SiteAssignment;
 use App\Models\TenantKey;
 use App\Models\User;
-use App\Models\WorkInstruction;
-use App\Models\WorkInstructionAcknowledgment;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -125,35 +123,6 @@ test('it deletes expired terminated employees, removes local files, and anonymiz
         ->first();
 
     expect($activity)->not->toBeNull();
-});
-
-test('it retains pseudonymous acknowledgment identity when deleting an expired employee', function (): void {
-    $tenant = TenantKey::factory()->create();
-    $employee = Employee::factory()
-        ->for($tenant, 'tenant')
-        ->terminated()
-        ->create([
-            'status' => Employee::STATUS_TERMINATED,
-            'employment_end_date' => now()->subYears(4)->toDateString(),
-            'retention_period_end' => now()->subDay()->toDateString(),
-        ]);
-    $instruction = WorkInstruction::factory()->published()->create(['tenant_id' => $tenant->id]);
-    $acknowledgment = WorkInstructionAcknowledgment::factory()->create([
-        'tenant_id' => $tenant->id,
-        'work_instruction_id' => $instruction->id,
-        'employee_id' => $employee->id,
-    ]);
-
-    $this->artisan('employees:delete-expired')
-        ->expectsOutputToContain('Deleted 1 expired employee record(s)')
-        ->assertSuccessful();
-
-    $retainedAcknowledgment = $acknowledgment->fresh();
-
-    expect($retainedAcknowledgment)->not->toBeNull()
-        ->and($retainedAcknowledgment?->employee_id)->toBeNull()
-        ->and($retainedAcknowledgment?->employee_identity_id)->toBe($employee->id);
-    $this->assertDatabaseMissing('employees', ['id' => $employee->id]);
 });
 
 test('it preserves activity causer rank context before deleting expired employees', function (): void {

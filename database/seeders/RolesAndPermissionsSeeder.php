@@ -12,11 +12,6 @@ use Spatie\Permission\PermissionRegistrar;
 
 class RolesAndPermissionsSeeder extends Seeder
 {
-    /** @var list<string> */
-    private const OBSOLETE_SANCTUM_PERMISSIONS = [
-        'work_instructions.delete',
-    ];
-
     /**
      * Seed roles and permissions for the RBAC system.
      *
@@ -29,11 +24,6 @@ class RolesAndPermissionsSeeder extends Seeder
     {
         // Reset cached roles and permissions
         app()[PermissionRegistrar::class]->forgetCachedPermissions();
-
-        Permission::query()
-            ->where('guard_name', 'sanctum')
-            ->whereIn('name', self::OBSOLETE_SANCTUM_PERMISSIONS)
-            ->delete();
 
         // Define all permissions grouped by resource
         $permissions = $this->getPermissionDefinitions();
@@ -213,15 +203,6 @@ class RolesAndPermissionsSeeder extends Seeder
                 'publish',
                 'approve_as_br',
             ],
-            'work_instructions' => [
-                'read',
-                'create',
-                'update',
-                'publish',
-                'archive',
-                'acknowledge',
-                'view_acknowledgments',
-            ],
             'role' => [
                 'assign',   // Phase 3: POST /users/{user}/roles
                 'read',     // Phase 3: GET /users/{user}/roles
@@ -276,8 +257,6 @@ class RolesAndPermissionsSeeder extends Seeder
                     'qualification.read',
                     'shifts.read',
                     'shifts.update',
-                    'work_instructions.read',
-                    'work_instructions.acknowledge',
                 ],
             ],
             'Employee Read Only' => [
@@ -288,7 +267,6 @@ class RolesAndPermissionsSeeder extends Seeder
                     'employee_document.read',
                     'qualification.read',
                     'shifts.read',
-                    'work_instructions.read',
                 ],
             ],
             'HR' => [
@@ -347,11 +325,6 @@ class RolesAndPermissionsSeeder extends Seeder
                     'shifts.update',
                     'shifts.delete',
                     'shifts.publish',
-                    'work_instructions.read',
-                    'work_instructions.create',
-                    'work_instructions.update',
-                    'work_instructions.publish',
-                    'work_instructions.view_acknowledgments',
                     'reports.view',
                     'reports.generate',
                     // Phase 5: Employee Management API
@@ -374,14 +347,11 @@ class RolesAndPermissionsSeeder extends Seeder
                     'employees.read', // Own data only (enforced by policy)
                     'shifts.read',
                     'shifts.update', // Own shifts only (enforced by policy)
-                    'work_instructions.read',
-                    'work_instructions.acknowledge',
                 ],
             ],
             'Client' => [
                 'permissions' => [
                     'shifts.read', // Location-specific (enforced by policy)
-                    'work_instructions.read',
                     'reports.view',
                 ],
             ],
@@ -391,7 +361,6 @@ class RolesAndPermissionsSeeder extends Seeder
                     'employees.read_all_branches',
                     'shifts.read',
                     'shifts.approve_as_br',
-                    'work_instructions.read',
                     'works_council.access_employee_files',
                     'works_council.approve_shift_plans',
                     'reports.view',

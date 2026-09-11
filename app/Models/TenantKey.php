@@ -126,24 +126,6 @@ class TenantKey extends Model
         return $this->hasMany(User::class, 'tenant_id');
     }
 
-    /** @return \Illuminate\Database\Eloquent\Relations\HasMany<WorkInstruction, $this> */
-    public function workInstructions(): \Illuminate\Database\Eloquent\Relations\HasMany
-    {
-        return $this->hasMany(WorkInstruction::class, 'tenant_id');
-    }
-
-    /** @return \Illuminate\Database\Eloquent\Relations\HasMany<WorkInstructionTemplate, $this> */
-    public function workInstructionTemplates(): \Illuminate\Database\Eloquent\Relations\HasMany
-    {
-        return $this->hasMany(WorkInstructionTemplate::class, 'tenant_id');
-    }
-
-    /** @return \Illuminate\Database\Eloquent\Relations\HasMany<WorkInstructionAcknowledgment, $this> */
-    public function workInstructionAcknowledgments(): \Illuminate\Database\Eloquent\Relations\HasMany
-    {
-        return $this->hasMany(WorkInstructionAcknowledgment::class, 'tenant_id');
-    }
-
     /** @return \Illuminate\Database\Eloquent\Relations\HasMany<LegalHold, $this> */
     public function legalHolds(): \Illuminate\Database\Eloquent\Relations\HasMany
     {

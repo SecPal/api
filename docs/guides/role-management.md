@@ -54,13 +54,11 @@ SecPal seeds seven predefined roles that cover common use cases. There is no pre
 - `employee_qualification.read`, `employee_document.read`
 - `qualification.read`
 - `shifts.read`, `shifts.update`
-- `work_instructions.read`, `work_instructions.acknowledge`
 
 **Use Cases:**
 
 - Internal employees managing their own profile data
 - Staff reviewing their own qualifications and documents
-- Guards acknowledging work instructions
 
 **Scope:** Own data and policy-limited operational records
 
@@ -76,7 +74,6 @@ SecPal seeds seven predefined roles that cover common use cases. There is no pre
 - `employee_qualification.read`, `employee_document.read`
 - `qualification.read`
 - `shifts.read`
-- `work_instructions.read`
 
 **Use Cases:**
 
@@ -122,7 +119,6 @@ SecPal seeds seven predefined roles that cover common use cases. There is no pre
 - `cost-centers.read`, `cost-centers.create`, `cost-centers.update`
 - `employees.read`, `employees.create`, `employees.update`, `employees.read_salary`
 - `shifts.read`, `shifts.create`, `shifts.update`, `shifts.delete`, `shifts.publish`
-- `work_instructions.read`, `work_instructions.create`, `work_instructions.update`, `work_instructions.publish`
 - `activity_log.read`, `activity_log.read_system`, `onboarding.read`, `onboarding.write`
 
 **Use Cases:**
@@ -143,7 +139,6 @@ SecPal seeds seven predefined roles that cover common use cases. There is no pre
 
 - `employees.read` (own data only)
 - `shifts.read`, `shifts.update` (policy-limited)
-- `work_instructions.read`, `work_instructions.acknowledge`
 
 **Use Cases:**
 
@@ -162,7 +157,6 @@ SecPal seeds seven predefined roles that cover common use cases. There is no pre
 **Typical Permissions:**
 
 - `shifts.read`
-- `work_instructions.read`
 - `reports.view`
 
 **Use Cases:**
@@ -828,7 +822,7 @@ curl -X POST https://api.secpal.dev/v1/roles \
       "shifts.create",
       "shifts.update",
       "employees.read",
-      "work_instructions.read"
+      "reports.view"
     ]
   }'
 
