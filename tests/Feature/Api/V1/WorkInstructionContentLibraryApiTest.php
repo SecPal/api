@@ -150,6 +150,7 @@ test('template list is tenant isolated paginated ordered and localized without N
         ->assertJsonPath('meta.total', 17)->assertJsonPath('data.0.localized.locale', 'en')
         ->assertJsonPath('data.0.localized.fallback_used', true);
     expect(collect($response->json('data'))->pluck('id')->all())->toBe($expected)
+        ->and($response->json('links.next'))->toContain('locale=de')
         ->and(count(array_filter($queries, fn (array $query): bool => str_contains($query['query'], 'work_instruction_template_translations'))))->toBe(1);
 });
 
@@ -349,6 +350,7 @@ test('standard blocks are global immutable paginated ordered localized resources
         ->assertJsonPath('data.0.locked', true)->assertJsonPath('data.0.localized.locale', 'de')
         ->assertJsonPath('data.0.localized.fallback_used', true);
     expect(collect($response->json('data'))->pluck('id')->all())->toBe($expected)
+        ->and($response->json('links.next'))->toContain('locale=en')
         ->and(array_keys($response->json('data.0')))->toBe(['id', 'key', 'locked', 'localized', 'created_at', 'updated_at'])
         ->and($response->json('data.0'))->not->toHaveKeys(['tenant_id', 'translations', 'category']);
 

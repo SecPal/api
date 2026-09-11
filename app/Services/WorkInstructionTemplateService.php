@@ -32,6 +32,7 @@ final readonly class WorkInstructionTemplateService
     {
         $paginator = $this->templates->paginate(
             $this->authorizeActor($actor, 'viewAny'),
+            $locale,
             $page,
             $perPage,
         );

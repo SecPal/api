@@ -7,13 +7,14 @@ declare(strict_types=1);
 
 namespace App\Repositories;
 
+use App\Enums\ContentLocale;
 use App\Models\WorkInstructionTemplate;
 use Illuminate\Pagination\LengthAwarePaginator;
 
 final class WorkInstructionTemplateRepository
 {
     /** @return LengthAwarePaginator<int, WorkInstructionTemplate> */
-    public function paginate(int $tenantId, int $page, int $perPage): LengthAwarePaginator
+    public function paginate(int $tenantId, ContentLocale $locale, int $page, int $perPage): LengthAwarePaginator
     {
         return WorkInstructionTemplate::query()
             ->forTenant($tenantId)
@@ -21,7 +22,7 @@ final class WorkInstructionTemplateRepository
             ->orderByDesc('created_at')
             ->orderByDesc('id')
             ->paginate($perPage, ['*'], 'page', $page)
-            ->appends(['per_page' => $perPage]);
+            ->appends(['per_page' => $perPage, 'locale' => $locale->value]);
     }
 
     public function inspect(int $tenantId, string $id): WorkInstructionTemplate

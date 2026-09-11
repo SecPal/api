@@ -7,20 +7,21 @@ declare(strict_types=1);
 
 namespace App\Repositories;
 
+use App\Enums\ContentLocale;
 use App\Models\WorkInstructionStandardBlock;
 use Illuminate\Pagination\LengthAwarePaginator;
 
 final class WorkInstructionStandardBlockRepository
 {
     /** @return LengthAwarePaginator<int, WorkInstructionStandardBlock> */
-    public function paginate(int $page, int $perPage): LengthAwarePaginator
+    public function paginate(ContentLocale $locale, int $page, int $perPage): LengthAwarePaginator
     {
         return WorkInstructionStandardBlock::query()
             ->with('translations')
             ->orderByDesc('created_at')
             ->orderByDesc('id')
             ->paginate($perPage, ['*'], 'page', $page)
-            ->appends(['per_page' => $perPage]);
+            ->appends(['per_page' => $perPage, 'locale' => $locale->value]);
     }
 
     public function inspect(string $id): WorkInstructionStandardBlock

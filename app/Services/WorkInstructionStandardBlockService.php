@@ -30,7 +30,7 @@ final readonly class WorkInstructionStandardBlockService
     public function list(User $actor, ContentLocale $locale, int $page, int $perPage): LengthAwarePaginator
     {
         $this->authorizeActor($actor);
-        $paginator = $this->blocks->paginate($page, $perPage);
+        $paginator = $this->blocks->paginate($locale, $page, $perPage);
         $paginator->setCollection($paginator->getCollection()->map(
             fn (WorkInstructionStandardBlock $block): WorkInstructionStandardBlock => $this->present($block, $locale),
         ));
