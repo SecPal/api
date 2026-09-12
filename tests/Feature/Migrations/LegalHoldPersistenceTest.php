@@ -449,6 +449,23 @@ test('the migration rolls back and reapplies cleanly', function (): void {
             ->exists())->toBeTrue();
 });
 
+test('the migration adopts an existing users tenant identity constraint', function (): void {
+    $migration = require database_path('migrations/2026_09_09_130000_create_legal_hold_persistence.php');
+    $migration->down();
+
+    DB::statement(
+        'ALTER TABLE users ADD CONSTRAINT users_tenant_id_id_unique UNIQUE (tenant_id, id)'
+    );
+
+    $migration->up();
+
+    expect(Schema::hasTable('legal_holds'))->toBeTrue()
+        ->and(DB::table('pg_constraint')
+            ->whereRaw("conrelid = 'users'::regclass")
+            ->where('conname', 'users_tenant_id_id_unique')
+            ->exists())->toBeTrue();
+});
+
 test('the activity retention protection migration rolls back and reapplies cleanly', function (): void {
     $migration = require database_path('migrations/2026_09_09_140000_protect_held_activity_from_deletion.php');
     $migration->down();
