@@ -62,6 +62,16 @@ final class CustomerRepository
             SQL);
     }
 
+    public function lockRepresentationAuthorizationWriters(): void
+    {
+        DB::statement(<<<'SQL'
+            LOCK TABLE site_assignments, model_has_permissions, model_has_roles,
+                role_has_permissions, permissions, roles,
+                user_internal_organizational_scopes
+            IN SHARE ROW EXCLUSIVE MODE
+            SQL);
+    }
+
     public function findLockedForTenant(int $tenantId, string $customerId): ?Customer
     {
         return Customer::query()

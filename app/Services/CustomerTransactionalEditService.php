@@ -69,12 +69,7 @@ final class CustomerTransactionalEditService
                 $customer = $this->customers->findLockedForTenant($tenantId, $customerId)
                     ?? throw CustomerTransactionalEditException::notFound();
 
-                $currentRepresentation = $this->customerService
-                    ->loadCompleteCustomerRepresentation($customer);
-                $currentBody = [
-                    'data' => (new CustomerResource($currentRepresentation))->resolve(),
-                ];
-                $this->assertCurrentIfMatch($ifMatch, CustomerRepresentationETag::strong($currentBody));
+                $this->assertCurrentIfMatch($ifMatch, $this->currentRepresentationETag($customer));
 
                 $payload = $this->requestContract->validate($requestContent, $customerId);
                 $resultingLegalEntityId = $this->resultingLegalEntityId($customer, $payload['customer']);
@@ -99,6 +94,10 @@ final class CustomerTransactionalEditService
                     $payload['customer_establishments'],
                     $links,
                 );
+
+                $this->customers->lockRepresentationAuthorizationWriters();
+                $this->revalidateOperationAuthorization($user, $tenantId);
+                $this->assertCurrentIfMatch($ifMatch, $this->currentRepresentationETag($customer));
 
                 $this->applyReplacement(
                     $tenantId,
@@ -140,6 +139,17 @@ final class CustomerTransactionalEditService
         if (! hash_equals($currentETag, $ifMatch)) {
             throw CustomerTransactionalEditException::stale();
         }
+    }
+
+    private function currentRepresentationETag(Customer $customer): string
+    {
+        $currentRepresentation = $this->customerService
+            ->loadCompleteCustomerRepresentation($customer);
+        $currentBody = [
+            'data' => (new CustomerResource($currentRepresentation))->resolve(),
+        ];
+
+        return CustomerRepresentationETag::strong($currentBody);
     }
 
     /**
