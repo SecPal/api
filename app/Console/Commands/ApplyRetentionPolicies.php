@@ -45,6 +45,8 @@ use Illuminate\Support\Facades\Log;
  */
 class ApplyRetentionPolicies extends Command
 {
+    private const RETENTION_CHUNK_SIZE = 100;
+
     /**
      * The name and signature of the console command.
      *
@@ -184,83 +186,110 @@ class ApplyRetentionPolicies extends Command
         // Example: 2022-03-15 + 3y = 2025-03-15 → endOfYear() = 2025-12-31 → +1d = 2026-01-01 00:00:00
         $cutoffDate = now()->subYears($retentionYears)->endOfYear()->addDay()->startOfDay();
 
-        // Use whereIn for batch processing (Performance: 1 query vs N queries)
-        // Batch process: fetch all logs, orphan successors, archive + hard delete
-        $logsToArchive = Activity::where('tenant_id', $tenantId)
+        $candidateIds = Activity::where('tenant_id', $tenantId)
             ->whereIn('log_name', $logNames)
             ->where('created_at', '<', $cutoffDate)
-            ->get();
+            ->orderByDesc('id')
+            ->pluck('id')
+            ->map(static function (mixed $id): int {
+                if (! is_int($id) && ! is_string($id)) {
+                    throw new \RuntimeException('Invalid Activity identity returned by the database.');
+                }
 
-        $count = $logsToArchive->count();
+                return (int) $id;
+            })
+            ->values();
+
+        $candidateCount = $candidateIds->count();
 
         if ($this->option('dry-run')) {
             $logNamesStr = implode(', ', array_map(fn ($n) => "'{$n}'", $logNames));
-            $this->line("Would archive and hard delete {$count} logs ({$logNamesStr}) older than {$cutoffDate->format('Y-m-d')}");
+            $this->line("Would archive and hard delete {$candidateCount} logs ({$logNamesStr}) older than {$cutoffDate->format('Y-m-d')}");
 
-            return $count;
+            return $candidateCount;
         }
 
-        if ($count === 0) {
+        if ($candidateCount === 0) {
             return 0;
         }
 
+        $archived = 0;
         $orphaned = 0;
-        $eventHashes = $logsToArchive->pluck('event_hash')->toArray();
 
-        // Single query to find all logs that will become orphaned
-        if ($eventHashes === []) {
-            $logsToOrphan = collect();
-        } else {
-            $logsToOrphan = Activity::where('tenant_id', $tenantId)
-                ->whereIn('previous_hash', $eventHashes)
-                ->get()
-                ->keyBy('previous_hash');
-        }
+        foreach ($candidateIds->chunk(self::RETENTION_CHUNK_SIZE) as $candidateIdChunk) {
+            $result = DB::transaction(function () use ($tenantId, $candidateIdChunk): array {
+                $logs = Activity::query()
+                    ->where('tenant_id', $tenantId)
+                    ->whereIntegerInRaw('id', $candidateIdChunk->values()->all())
+                    ->orderByDesc('id')
+                    ->lockForUpdate()
+                    ->get();
 
-        // Use transaction for atomic archive + delete (all-or-nothing)
-        // If any log fails to archive or delete, entire batch rolls back
-        // This ensures GDPR compliance and audit integrity (no partial state)
-        DB::transaction(function () use ($logsToArchive, $logsToOrphan, &$orphaned) {
-            foreach ($logsToArchive as $log) {
-                // Step 1: Archive hashes only (GDPR Art. 5(1)(e) - data minimization)
-                ActivityArchive::create([
-                    'id' => $log->id,
-                    'tenant_id' => $log->tenant_id,
-                    'log_name' => $log->log_name,
-                    'created_at' => $log->created_at,
-                    'event_hash' => $log->event_hash,
-                    'previous_hash' => $log->previous_hash,
-                    'merkle_root' => $log->merkle_root,
-                    'merkle_batch_id' => $log->merkle_batch_id,
-                ]);
-
-                // Step 2: Mark successor as orphaned genesis (if exists)
-                if (isset($logsToOrphan[$log->event_hash])) {
-                    /** @var Activity $nextLog */
-                    $nextLog = $logsToOrphan[$log->event_hash];
-                    $nextLog->update([
-                        'previous_hash' => null,
-                        'is_orphaned_genesis' => true,
-                        'orphaned_reason' => "Predecessor archived (retention: {$log->log_name}, {$log->created_at->format('Y-m-d')})",
-                        'orphaned_at' => now(),
-                    ]);
-                    $orphaned++;
+                if ($logs->isEmpty()) {
+                    return ['archived' => 0, 'orphaned' => 0];
                 }
 
-                // Step 3: Hard delete (personal data removed per GDPR Art. 17)
-                $log->forceDelete();
-            }
-        });
+                $eventHashes = $logs
+                    ->pluck('event_hash')
+                    ->filter(fn (mixed $hash): bool => is_string($hash) && $hash !== '')
+                    ->values()
+                    ->all();
+                $successorsByPreviousHash = $eventHashes === []
+                    ? collect()
+                    : Activity::query()
+                        ->where('tenant_id', $tenantId)
+                        ->whereIn('previous_hash', $eventHashes)
+                        ->orderByDesc('id')
+                        ->lockForUpdate()
+                        ->get()
+                        ->keyBy('previous_hash');
+                $chunkArchived = 0;
+                $chunkOrphaned = 0;
+
+                foreach ($logs as $log) {
+                    ActivityArchive::create([
+                        'id' => $log->id,
+                        'tenant_id' => $log->tenant_id,
+                        'log_name' => $log->log_name,
+                        'created_at' => $log->created_at,
+                        'event_hash' => $log->event_hash,
+                        'previous_hash' => $log->previous_hash,
+                        'merkle_root' => $log->merkle_root,
+                        'merkle_batch_id' => $log->merkle_batch_id,
+                    ]);
+
+                    /** @var Activity|null $nextLog */
+                    $nextLog = $successorsByPreviousHash->get($log->event_hash);
+                    if ($nextLog !== null) {
+                        $nextLog->update([
+                            'previous_hash' => null,
+                            'is_orphaned_genesis' => true,
+                            'orphaned_reason' => "Predecessor archived (retention: {$log->log_name}, {$log->created_at->format('Y-m-d')})",
+                            'orphaned_at' => now(),
+                        ]);
+                        $chunkOrphaned++;
+                    }
+
+                    $log->forceDelete();
+                    $chunkArchived++;
+                }
+
+                return ['archived' => $chunkArchived, 'orphaned' => $chunkOrphaned];
+            });
+
+            $archived += $result['archived'];
+            $orphaned += $result['orphaned'];
+        }
 
         $statistics['orphaned_created'] += $orphaned;
 
         $logNamesStr = implode(', ', array_map(fn ($n) => "'{$n}'", $logNames));
-        $this->info("✓ Archived + deleted {$count} logs ({$logNamesStr}) older than {$cutoffDate->format('Y-m-d')}");
+        $this->info("✓ Archived + deleted {$archived} logs ({$logNamesStr}) older than {$cutoffDate->format('Y-m-d')}");
         if ($orphaned > 0) {
             $this->info("  → Created {$orphaned} orphaned genesis markers");
         }
 
-        return $count;
+        return $archived;
     }
 
     /**
@@ -279,7 +308,9 @@ class ApplyRetentionPolicies extends Command
                 ['8-year retention: Archived + Deleted', $statistics['retention_8_archived'] ?? 0],
                 ['10-year retention: Archived + Deleted', $statistics['retention_10_archived'] ?? 0],
                 ['Orphaned genesis created', $statistics['orphaned_created']],
-                ['Total processed', array_sum($statistics)],
+                ['Total processed', ($statistics['retention_3_archived'] ?? 0)
+                    + ($statistics['retention_8_archived'] ?? 0)
+                    + ($statistics['retention_10_archived'] ?? 0)],
             ]
         );
     }

@@ -25,6 +25,12 @@ class RolesAndPermissionsSeeder extends Seeder
         // Reset cached roles and permissions
         app()[PermissionRegistrar::class]->forgetCachedPermissions();
 
+        Permission::query()
+            ->where('name', 'like', 'legal_holds.%')
+            ->get()
+            ->each
+            ->delete();
+
         // Define all permissions grouped by resource
         $permissions = $this->getPermissionDefinitions();
 

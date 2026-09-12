@@ -12,6 +12,7 @@ use App\Models\ActivityArchive;
 use App\Models\TenantKey;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Artisan;
 
 uses(RefreshDatabase::class);
 
@@ -141,12 +142,15 @@ test('it tracks statistics for archived and hard deleted logs', function () {
         ]);
 
     // Act
-    $this->artisan('activity:apply-retention')
-        ->expectsOutputToContain('3-year retention')
-        ->expectsOutputToContain('8-year retention')
-        ->expectsOutputToContain('10-year retention')
-        ->expectsOutputToContain('Retention Statistics')
-        ->assertSuccessful();
+    expect(Artisan::call('activity:apply-retention'))->toBe(0);
+
+    $output = Artisan::output();
+    expect($output)
+        ->toContain('3-year retention')
+        ->toContain('8-year retention')
+        ->toContain('10-year retention')
+        ->toContain('Retention Statistics')
+        ->toMatch('/Total processed\s+\|\s+3/');
 
     // Verify: All 3 logs archived and hard deleted, none remain
     expect(Activity::count())->toBe(0);
@@ -292,4 +296,20 @@ test('it processes logs atomically in transaction', function () {
     // Verify: Archives exist for both original log IDs
     expect(ActivityArchive::find($log1->id))->not->toBeNull();
     expect(ActivityArchive::find($log2->id))->not->toBeNull();
+});
+
+test('it processes retention backlogs beyond one bounded chunk', function () {
+    Activity::factory()
+        ->count(101)
+        ->for($this->tenant, 'tenant')
+        ->create([
+            'log_name' => 'default',
+            'created_at' => Carbon::now()->subYears(4)->startOfYear(),
+        ]);
+
+    $this->artisan('activity:apply-retention')
+        ->assertSuccessful();
+
+    expect(Activity::count())->toBe(0)
+        ->and(ActivityArchive::count())->toBe(101);
 });
