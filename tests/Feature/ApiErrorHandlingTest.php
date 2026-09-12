@@ -22,6 +22,18 @@ it('returns the normalized JSON 404 payload for unknown api routes regardless of
     expect($response->headers->get('content-type'))->toContain('application/json');
 })->with([true, false]);
 
+it('returns the normalized JSON 404 payload for removed product routes', function (string $path): void {
+    $this->getJson($path)
+        ->assertNotFound()
+        ->assertExactJson([
+            'message' => 'Resource not found.',
+        ]);
+})->with([
+    '/v1/work-instructions',
+    '/v1/work-instruction-templates',
+    '/v1/standard-blocks',
+]);
+
 it('localizes normalized JSON 404 payloads using the request locale', function (): void {
     $response = $this->withHeaders([
         'Accept-Language' => 'de',

@@ -21,6 +21,9 @@ return new class extends Migration
         Schema::table('activity_log', function (Blueprint $table): void {
             $table->unique(['tenant_id', 'id'], 'activity_log_tenant_id_id_unique');
         });
+        Schema::table('users', function (Blueprint $table): void {
+            $table->unique(['tenant_id', 'id'], 'users_tenant_id_id_unique');
+        });
 
         Schema::create('legal_holds', function (Blueprint $table): void {
             $table->uuid('id')->primary();
@@ -397,6 +400,10 @@ return new class extends Migration
     {
         Schema::dropIfExists('legal_hold_activity_attachments');
         Schema::dropIfExists('legal_holds');
+
+        Schema::table('users', function (Blueprint $table): void {
+            $table->dropUnique('users_tenant_id_id_unique');
+        });
 
         DB::statement('DROP FUNCTION IF EXISTS enforce_legal_hold_attachment_history()');
         DB::statement('DROP FUNCTION IF EXISTS enforce_legal_hold_history()');

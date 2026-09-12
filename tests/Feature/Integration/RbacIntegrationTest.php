@@ -1,8 +1,9 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use App\Models\Permission;
 use App\Models\TemporalRoleUser;
 use App\Models\TenantKey;
 use App\Models\User;
@@ -52,6 +53,14 @@ afterEach(function (): void {
 });
 
 describe('Seeded Sensitive Employee Access', function (): void {
+    test('retired product permissions are not seeded', function (): void {
+        expect(
+            Permission::query()
+                ->where('name', 'like', 'work_instructions.%')
+                ->exists()
+        )->toBeFalse();
+    });
+
     test('employees.read_sensitive is granted only to the HR role', function (): void {
         $hrRole = Role::findByName('HR', 'sanctum');
 

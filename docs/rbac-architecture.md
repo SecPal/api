@@ -212,12 +212,12 @@ SecPal seeds seven predefined roles that cover common use cases. There is no pre
 
 | Role                   | Description                   | Typical Permissions                                                                                            | Scope                           |
 | ---------------------- | ----------------------------- | -------------------------------------------------------------------------------------------------------------- | ------------------------------- |
-| **Employee**           | Self-service employee access  | `employee.read`, `employee.update`, `shifts.read`, `work_instructions.read`                                    | Own data only                   |
-| **Employee Read Only** | Read-only self-service access | `employee.read`, `shifts.read`, `work_instructions.read`                                                       | Own data only                   |
+| **Employee**           | Self-service employee access  | `employee.read`, `employee.update`, `shifts.read`                                                              | Own data only                   |
+| **Employee Read Only** | Read-only self-service access | `employee.read`, `shifts.read`                                                                                 | Own data only                   |
 | **HR**                 | HR lifecycle operations       | `employees.read`, `employees.create`, `employees.read_sensitive`, `onboarding.approve`                         | Explicit organizational scopes  |
-| **Manager**            | Operational management        | `customers.read`, `customers.update`, `sites.read`, `shifts.read`, `work_instructions.publish`                 | Explicit organizational scopes  |
-| **Guard**              | Security personnel            | `employee.read`, `shifts.read`, `shifts.update`, `work_instructions.read`                                      | Own data and assigned records   |
-| **Client**             | External stakeholder access   | `shifts.read`, `work_instructions.read`, `reports.view`                                                        | Customer/site scoped            |
+| **Manager**            | Operational management        | `customers.read`, `customers.update`, `sites.read`, `shifts.read`                                              | Explicit organizational scopes  |
+| **Guard**              | Security personnel            | `employee.read`, `shifts.read`, `shifts.update`                                                                | Own data and assigned records   |
+| **Client**             | External stakeholder access   | `shifts.read`, `reports.view`                                                                                  | Customer/site scoped            |
 | **Works Council**      | Employee representation       | `employees.read`, `employees.read_all_branches`, `shifts.approve_as_br`, `works_council.access_employee_files` | Approval workflows within scope |
 
 #### All Roles Are Equal
@@ -286,7 +286,6 @@ Examples:
 
 - `employees` - Employee management
 - `shifts` - Shift planning
-- `work_instructions` - Work instructions (Dienstanweisungen)
 - `roles` - Role management (Phase 4)
 - `permissions` - Permission management (Phase 4)
 - `works_council` - Works council specific features
@@ -347,7 +346,6 @@ $manager->syncPermissions([
     'shifts.read',
     'shifts.create',
     'shifts.update',
-    'work_instructions.read',
 ]);
 
 // API: Dynamic role permission changes (Phase 4)
@@ -591,7 +589,7 @@ Guard becomes "Team Lead" during large event (18:00-06:00)
 Solution:
 POST /v1/users/{guard_id}/permissions
 {
-  "permissions": ["shifts.update", "work_instructions.publish"],
+  "permissions": ["shifts.update", "reports.generate"],
   "valid_from": "2025-11-15T18:00:00Z",
   "valid_until": "2025-11-16T06:00:00Z",
   "reason": "Team Lead for Stadium Event"
@@ -1329,7 +1327,7 @@ Assigning role/permission?
 ✅ employees.delete
 ✅ employees.read_salary      (specific action)
 ✅ shifts.publish              (workflow action)
-✅ work_instructions.acknowledge
+✅ reports.generate
 ```
 
 **DON'T:**

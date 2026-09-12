@@ -264,7 +264,7 @@ Content-Type: application/json
     "email": "user@example.com",
     "name": "John Doe",
     "roles": ["Manager"],
-    "permissions": ["employees.read", "shifts.read", "work_instructions.read"],
+    "permissions": ["employees.read", "shifts.read"],
     "hasOrganizationalScopes": true
   }
 }
@@ -286,7 +286,7 @@ Content-Type: application/json
   "email": "user@example.com",
   "name": "John Doe",
   "roles": ["Manager"],
-  "permissions": ["employees.read", "shifts.read", "work_instructions.read"],
+  "permissions": ["employees.read", "shifts.read"],
   "hasOrganizationalScopes": true
 }
 ```

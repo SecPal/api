@@ -698,12 +698,6 @@ class Employee extends Model
         return $this->belongsTo(User::class);
     }
 
-    /** @return HasMany<WorkInstructionAcknowledgment, $this> */
-    public function workInstructionAcknowledgments(): HasMany
-    {
-        return $this->hasMany(WorkInstructionAcknowledgment::class);
-    }
-
     /** @return BelongsTo<LegalEntity, $this> */
     public function legalEntity(): BelongsTo
     {

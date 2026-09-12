@@ -282,7 +282,6 @@ class Activity extends SpatieActivity
         'works_council_access' => 3,
         'sensitive_access' => 3,
         'guard_book_event' => 3,
-        'work_instruction_change' => 3,
 
         // 8 Years: HGB §257 & AO §147 - Buchungsbelege
         'invoice_generated' => 8,

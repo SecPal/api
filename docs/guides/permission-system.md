@@ -30,7 +30,7 @@ Examples:
 ✅ employees.read
 ✅ employees.create
 ✅ shifts.publish
-✅ work_instructions.acknowledge
+✅ reports.generate
 ```
 
 ### Rules
@@ -38,7 +38,7 @@ Examples:
 1. **Lowercase only** - no uppercase letters
 2. **Dot separator** - use `.` not `-` or `_`
 3. **Resource first** - then action
-4. **Snake_case** - for multi-word resources (`work_instructions`); URL-aligned resources whose route path is hyphenated keep kebab-case (`cost-centers`)
+4. **Snake_case** - for multi-word resources (`employee_qualification`); URL-aligned resources whose route path is hyphenated keep kebab-case (`cost-centers`)
 5. **Descriptive** - action describes what it does
 
 ### Valid Examples
@@ -52,7 +52,7 @@ Examples:
 ✅ employees.export            - Export employee data
 ✅ shifts.publish              - Publish shift plans
 ✅ shifts.approve_as_br        - Works council approval
-✅ work_instructions.read      - View work instructions
+✅ employee_qualification.read - View employee qualifications
 ✅ reports.generate            - Generate reports
 ```
 
@@ -75,15 +75,14 @@ Permissions are grouped by **resource** (domain entity).
 
 ### Core Resources
 
-| Resource            | Description            | Example Permissions                            |
-| ------------------- | ---------------------- | ---------------------------------------------- |
-| `employees`         | Employee management    | `read`, `create`, `update`, `delete`           |
-| `shifts`            | Shift planning         | `read`, `create`, `publish`, `approve_as_br`   |
-| `work_instructions` | Work instructions      | `read`, `create`, `publish`, `acknowledge`     |
-| `roles`             | Role management        | `read`, `create`, `update`, `delete`           |
-| `permissions`       | Permission management  | `read`, `create`, `update`, `delete`           |
-| `works_council`     | Works council features | `access_employee_files`, `approve_shift_plans` |
-| `reports`           | Report generation      | `view`, `generate`, `export`                   |
+| Resource        | Description            | Example Permissions                            |
+| --------------- | ---------------------- | ---------------------------------------------- |
+| `employees`     | Employee management    | `read`, `create`, `update`, `delete`           |
+| `shifts`        | Shift planning         | `read`, `create`, `publish`, `approve_as_br`   |
+| `roles`         | Role management        | `read`, `create`, `update`, `delete`           |
+| `permissions`   | Permission management  | `read`, `create`, `update`, `delete`           |
+| `works_council` | Works council features | `access_employee_files`, `approve_shift_plans` |
+| `reports`       | Report generation      | `view`, `generate`, `export`                   |
 
 ---
 
@@ -105,16 +104,15 @@ Standard CRUD actions used across resources:
 
 Domain-specific actions for workflows:
 
-| Action              | Description                   | Example                         |
-| ------------------- | ----------------------------- | ------------------------------- |
-| `publish`           | Make resource active/visible  | `shifts.publish`                |
-| `acknowledge`       | Confirm receipt/understanding | `work_instructions.acknowledge` |
-| `approve_as_br`     | Works council approval        | `shifts.approve_as_br`          |
-| `read_salary`       | View sensitive salary data    | `employees.read_salary`         |
-| `read_all_branches` | Cross-branch access           | `employees.read_all_branches`   |
-| `generate`          | Create dynamic content        | `reports.generate`              |
-| `assign_temporary`  | Assign temporal roles         | `role.assign`                   |
-| `extend_expiration` | Extend role expiration        | `role.assign`                   |
+| Action              | Description                  | Example                       |
+| ------------------- | ---------------------------- | ----------------------------- |
+| `publish`           | Make resource active/visible | `shifts.publish`              |
+| `approve_as_br`     | Works council approval       | `shifts.approve_as_br`        |
+| `read_salary`       | View sensitive salary data   | `employees.read_salary`       |
+| `read_all_branches` | Cross-branch access          | `employees.read_all_branches` |
+| `generate`          | Create dynamic content       | `reports.generate`            |
+| `assign_temporary`  | Assign temporal roles        | `role.assign`                 |
+| `extend_expiration` | Extend role expiration       | `role.assign`                 |
 
 ---
 
@@ -182,8 +180,6 @@ Representative permissions assigned to predefined roles. There is no predefined 
 - qualification.read
 - shifts.read
 - shifts.update
-- work_instructions.read
-- work_instructions.acknowledge
 ```
 
 ---
@@ -198,7 +194,6 @@ Representative permissions assigned to predefined roles. There is no predefined 
 - employee_document.read
 - qualification.read
 - shifts.read
-- work_instructions.read
 ```
 
 ---
@@ -257,12 +252,6 @@ Shifts:
 - shifts.delete
 - shifts.publish
 
-Work Instructions:
-- work_instructions.read
-- work_instructions.create
-- work_instructions.update
-- work_instructions.publish
-
 Onboarding / Audit:
 - onboarding.read
 - onboarding.write
@@ -287,9 +276,6 @@ Employees:
 Shifts:
 - shifts.read (own assignments only - policy enforced)
 
-Work Instructions:
-- work_instructions.read
-- work_instructions.acknowledge
 ```
 
 ---
@@ -305,9 +291,6 @@ Customers / Sites:
 
 Shifts:
 - shifts.read (location-specific - policy enforced)
-
-Work Instructions:
-- work_instructions.read (location-specific)
 
 Reports:
 - reports.view (location-specific)

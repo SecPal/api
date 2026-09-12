@@ -117,12 +117,6 @@ class User extends Authenticatable implements MustVerifyEmailContract, TwoFactor
         return $this->belongsTo(TenantKey::class, 'tenant_id');
     }
 
-    /** @return HasMany<WorkInstructionAcknowledgment, $this> */
-    public function workInstructionAcknowledgments(): HasMany
-    {
-        return $this->hasMany(WorkInstructionAcknowledgment::class, 'acknowledged_by_user_id');
-    }
-
     /** @return HasMany<LegalHold, $this> */
     public function createdLegalHolds(): HasMany
     {

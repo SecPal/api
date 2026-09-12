@@ -88,6 +88,11 @@ test('creates the canonical PostgreSQL legal hold persistence schema and constra
         ->selectRaw('pg_get_constraintdef(oid) AS definition')
         ->value('definition');
 
+    $usersTenantIdentityConstraintExists = DB::table('pg_constraint')
+        ->whereRaw("conrelid = 'users'::regclass")
+        ->where('conname', 'users_tenant_id_id_unique')
+        ->exists();
+
     expect($constraints)->toHaveCount(10)
         ->and(DB::table('pg_indexes')
             ->where('schemaname', DB::raw('current_schema()'))
@@ -109,6 +114,7 @@ test('creates the canonical PostgreSQL legal hold persistence schema and constra
             ->whereRaw('pronamespace = current_schema()::regnamespace')
             ->where('proname', 'activity_is_actively_held')
             ->value('provolatile'))->toBe('s')
+        ->and($usersTenantIdentityConstraintExists)->toBeTrue()
         ->and($creatorForeignKey)->toContain(
             'FOREIGN KEY (tenant_id, created_by_user_id) REFERENCES users(tenant_id, id)'
         );
@@ -419,6 +425,10 @@ test('the migration rolls back and reapplies cleanly', function (): void {
 
     expect(Schema::hasTable('legal_hold_activity_attachments'))->toBeFalse()
         ->and(Schema::hasTable('legal_holds'))->toBeFalse()
+        ->and(DB::table('pg_constraint')
+            ->whereRaw("conrelid = 'users'::regclass")
+            ->where('conname', 'users_tenant_id_id_unique')
+            ->exists())->toBeFalse()
         ->and(DB::table('pg_proc')
             ->whereRaw('pronamespace = current_schema()::regnamespace')
             ->whereIn('proname', [
@@ -432,7 +442,11 @@ test('the migration rolls back and reapplies cleanly', function (): void {
     $migration->up();
 
     expect(Schema::hasTable('legal_holds'))->toBeTrue()
-        ->and(Schema::hasTable('legal_hold_activity_attachments'))->toBeTrue();
+        ->and(Schema::hasTable('legal_hold_activity_attachments'))->toBeTrue()
+        ->and(DB::table('pg_constraint')
+            ->whereRaw("conrelid = 'users'::regclass")
+            ->where('conname', 'users_tenant_id_id_unique')
+            ->exists())->toBeTrue();
 });
 
 test('the activity retention protection migration rolls back and reapplies cleanly', function (): void {
