@@ -59,6 +59,10 @@ describe('Seeded Sensitive Employee Access', function (): void {
             'name' => 'legal_holds.read',
             'guard_name' => 'sanctum',
         ]);
+        $customPermission = Permission::create([
+            'name' => 'legal-holds.read',
+            'guard_name' => 'sanctum',
+        ]);
         $role = Role::findByName('Manager', 'sanctum');
         $role->givePermissionTo($retiredPermission);
         givePermissionWithTenant(
@@ -74,7 +78,14 @@ describe('Seeded Sensitive Employee Access', function (): void {
                 ->where('name', 'like', 'work_instructions.%')
                 ->exists()
         )->toBeFalse()
-            ->and(Permission::query()->where('name', 'like', 'legal_holds.%')->exists())->toBeFalse()
+            ->and(Permission::query()->whereIn('name', [
+                'legal_holds.read',
+                'legal_holds.create',
+                'legal_holds.attach',
+                'legal_holds.detach',
+                'legal_holds.release',
+            ])->exists())->toBeFalse()
+            ->and($customPermission->fresh())->not->toBeNull()
             ->and(DB::table('role_has_permissions')->where('permission_id', $retiredPermission->id)->exists())->toBeFalse()
             ->and(DB::table('model_has_permissions')->where('permission_id', $retiredPermission->id)->exists())->toBeFalse();
     });

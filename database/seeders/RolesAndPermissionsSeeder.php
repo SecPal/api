@@ -26,7 +26,13 @@ class RolesAndPermissionsSeeder extends Seeder
         app()[PermissionRegistrar::class]->forgetCachedPermissions();
 
         Permission::query()
-            ->where('name', 'like', 'legal_holds.%')
+            ->whereIn('name', [
+                'legal_holds.read',
+                'legal_holds.create',
+                'legal_holds.attach',
+                'legal_holds.detach',
+                'legal_holds.release',
+            ])
             ->get()
             ->each
             ->delete();
