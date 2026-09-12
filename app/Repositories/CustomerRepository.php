@@ -9,6 +9,7 @@ namespace App\Repositories;
 
 use App\Models\Customer;
 use App\Models\TenantKey;
+use Illuminate\Support\Facades\DB;
 
 final class CustomerRepository
 {
@@ -51,6 +52,28 @@ final class CustomerRepository
             ->whereKey($customer->id)
             ->lockForUpdate()
             ->firstOrFail();
+    }
+
+    public function lockRepresentationWriters(): void
+    {
+        DB::statement(<<<'SQL'
+            LOCK TABLE customers, customer_establishments, sites, customer_assignments, users
+            IN SHARE ROW EXCLUSIVE MODE
+            SQL);
+    }
+
+    public function findLockedForTenant(int $tenantId, string $customerId): ?Customer
+    {
+        return Customer::query()
+            ->where('tenant_id', $tenantId)
+            ->whereKey($customerId)
+            ->lockForUpdate()
+            ->first();
+    }
+
+    public function hasSites(Customer $customer): bool
+    {
+        return $customer->sites()->exists();
     }
 
     public function hasDomainDependencies(Customer $customer): bool

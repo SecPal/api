@@ -294,6 +294,8 @@ Route::prefix('v1')->group(function () {
                 Route::get('/customers', [CustomerController::class, 'index']);
                 Route::post('/customers', [CustomerController::class, 'store']);
                 Route::get('/customers/{customer}', [CustomerController::class, 'show']);
+                Route::put('/customers/{customer}/transactional-edit', [CustomerController::class, 'transactionalEdit'])
+                    ->whereUuid('customer');
                 Route::patch('/customers/{customer}', [CustomerController::class, 'update']);
                 Route::delete('/customers/{customer}', [CustomerController::class, 'destroy']);
                 // Nested resource: customer's sites
