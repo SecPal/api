@@ -21,14 +21,9 @@ return new class extends Migration
         Schema::table('activity_log', function (Blueprint $table): void {
             $table->unique(['tenant_id', 'id'], 'activity_log_tenant_id_id_unique');
         });
-        if (! DB::table('pg_constraint')
-            ->whereRaw("conrelid = 'users'::regclass")
-            ->where('conname', 'users_tenant_id_id_unique')
-            ->exists()) {
-            Schema::table('users', function (Blueprint $table): void {
-                $table->unique(['tenant_id', 'id'], 'users_tenant_id_id_unique');
-            });
-        }
+        Schema::table('users', function (Blueprint $table): void {
+            $table->unique(['tenant_id', 'id'], 'users_tenant_id_id_unique');
+        });
 
         Schema::create('legal_holds', function (Blueprint $table): void {
             $table->uuid('id')->primary();
