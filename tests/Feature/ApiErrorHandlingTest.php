@@ -29,6 +29,7 @@ it('returns the normalized JSON 404 payload for removed product routes', functio
             'message' => 'Resource not found.',
         ]);
 })->with([
+    '/v1/legal-holds',
     '/v1/work-instructions',
     '/v1/work-instruction-templates',
     '/v1/standard-blocks',
