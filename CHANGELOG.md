@@ -17,10 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Breaking:** removed the unreleased Work Instruction product implementation,
   including its HTTP surface, permissions, runtime layers, persistence, and
   Contracts parity assumptions (fixes `api#1508`)
-- integrated active Legal Hold membership with Activity retention through a
-  tenant-authoritative PostgreSQL predicate, deletion backstop, locked bounded
-  processing, truthful held-skip statistics, and hash-chain-safe mixed batches
-  (fixes `api#453`)
+- **Breaking:** removed the unreleased Legal Hold product implementation,
+  including its HTTP surface, permissions, runtime layers, persistence, and
+  Contracts parity assumptions (fixes `api#1509`)
 - completed domain lookup coverage for customer, site, and employee create and
   relationship-reassignment workflows, and added the distinct tenant-safe
   customer-establishment link-candidate lookup (fixes `api#1336`)
@@ -96,20 +95,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   contracts, exact historical service-booking totals, internal cost centers,
   and optional transaction-complete basis-point allocation splits (fixes
   `api#376`)
-- added the Contracts-defined Legal Hold HTTP API with tenant-isolated
-  `legal_holds.*` permissions, closed validation, privacy-minimized resources,
-  and service-owned lifecycle, retention, and transactional audit guarantees
-  (fixes `api#455`)
-- added synchronous Activity-backed Legal Hold lifecycle audits with atomic
-  mutation evidence, privacy-minimized versioned metadata, closed failure
-  categories, serialized forensic hash ordering, and explicit
-  rollback/fail-closed transaction semantics (fixes `api#454`)
-- added the tenant-authoritative transactional Legal Hold lifecycle service for case creation and inspection, Activity attachment/detachment with immutable actor evidence, and justified release, including row-locked race safety, stable lifecycle conflicts, and rollback evidence (fixes `api#451`)
-
-- added the canonical tenant-safe legal-hold persistence foundation with closed
-  active/released lifecycle constraints, immutable actor and Activity identity
-  evidence, duplicate-safe historical attachment and detachment records, and
-  PostgreSQL-enforced cross-tenant boundaries (fixes `api#449`)
 - added a closed versioned application security-event stream for authentication,
   MFA, passkey, bearer-token, password-reset, and rate-limit decisions, with
   keyed actor pseudonyms, trusted client addresses, deferred local-only output,

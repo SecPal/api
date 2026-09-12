@@ -25,6 +25,19 @@ class RolesAndPermissionsSeeder extends Seeder
         // Reset cached roles and permissions
         app()[PermissionRegistrar::class]->forgetCachedPermissions();
 
+        Permission::query()
+            ->where('guard_name', 'sanctum')
+            ->whereIn('name', [
+                'legal_holds.read',
+                'legal_holds.create',
+                'legal_holds.attach',
+                'legal_holds.detach',
+                'legal_holds.release',
+            ])
+            ->get()
+            ->each
+            ->delete();
+
         // Define all permissions grouped by resource
         $permissions = $this->getPermissionDefinitions();
 
@@ -171,13 +184,6 @@ class RolesAndPermissionsSeeder extends Seeder
                 'read',
                 'read_all', // Access to global logs (no organizational unit)
                 'read_system', // View activities from privileged or system actors (Issue #440)
-            ],
-            'legal_holds' => [
-                'read',
-                'create',
-                'attach',
-                'detach',
-                'release',
             ],
             'onboarding' => [
                 'read',

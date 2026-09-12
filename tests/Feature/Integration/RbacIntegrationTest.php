@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Support\ApiTimestamp;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
 
@@ -54,11 +55,49 @@ afterEach(function (): void {
 
 describe('Seeded Sensitive Employee Access', function (): void {
     test('retired product permissions are not seeded', function (): void {
+        $retiredPermission = Permission::create([
+            'name' => 'legal_holds.read',
+            'guard_name' => 'sanctum',
+        ]);
+        $customPermission = Permission::create([
+            'name' => 'legal-holds.read',
+            'guard_name' => 'sanctum',
+        ]);
+        $otherGuardPermission = Permission::create([
+            'name' => 'legal_holds.read',
+            'guard_name' => 'web',
+        ]);
+        $role = Role::findByName('Manager', 'sanctum');
+        $role->givePermissionTo($retiredPermission);
+        givePermissionWithTenant(
+            $this->privilegedUser,
+            $this->tenant->id,
+            $retiredPermission->name,
+        );
+
+        Artisan::call('db:seed', ['--class' => 'RolesAndPermissionsSeeder']);
+
         expect(
             Permission::query()
                 ->where('name', 'like', 'work_instructions.%')
                 ->exists()
-        )->toBeFalse();
+        )->toBeFalse()
+            ->and(
+                Permission::query()
+                    ->where('guard_name', 'sanctum')
+                    ->whereIn('name', [
+                        'legal_holds.read',
+                        'legal_holds.create',
+                        'legal_holds.attach',
+                        'legal_holds.detach',
+                        'legal_holds.release',
+                    ])
+                    ->exists()
+            )->toBeFalse()
+            ->and($customPermission->fresh())->not->toBeNull()
+            ->and($otherGuardPermission->fresh())->not->toBeNull()
+            ->and(DB::table('role_has_permissions')->where('permission_id', $retiredPermission->id)->exists())->toBeFalse()
+            ->and(DB::table('model_has_permissions')->where('permission_id', $retiredPermission->id)->exists())->toBeFalse();
     });
 
     test('employees.read_sensitive is granted only to the HR role', function (): void {

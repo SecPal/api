@@ -11,9 +11,7 @@ namespace App\Console\Commands;
 
 use App\Models\Activity;
 use App\Models\ActivityArchive;
-use App\Repositories\LegalHoldRepository;
 use Illuminate\Console\Command;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -65,11 +63,6 @@ class ApplyRetentionPolicies extends Command
      */
     protected $description = 'Apply calendar year retention policies: archive hashes + hard delete (GDPR Art. 17)';
 
-    public function __construct(private readonly LegalHoldRepository $legalHolds)
-    {
-        parent::__construct();
-    }
-
     /**
      * Execute the console command.
      */
@@ -98,7 +91,6 @@ class ApplyRetentionPolicies extends Command
             'retention_8_archived' => 0,
             'retention_10_archived' => 0,
             'orphaned_created' => 0,
-            'held_skipped' => 0,
         ];
 
         try {
@@ -147,7 +139,6 @@ class ApplyRetentionPolicies extends Command
             'retention_8_archived' => 0,
             'retention_10_archived' => 0,
             'orphaned_created' => 0,
-            'held_skipped' => 0,
         ];
 
         // Process all retention periods (3, 8, 10 years)
@@ -195,8 +186,6 @@ class ApplyRetentionPolicies extends Command
         // Example: 2022-03-15 + 3y = 2025-03-15 → endOfYear() = 2025-12-31 → +1d = 2026-01-01 00:00:00
         $cutoffDate = now()->subYears($retentionYears)->endOfYear()->addDay()->startOfDay();
 
-        // Candidate discovery is intentionally separate from the authoritative
-        // deletion-time check. Each candidate is locked and rechecked below.
         $candidateIds = Activity::where('tenant_id', $tenantId)
             ->whereIn('log_name', $logNames)
             ->where('created_at', '<', $cutoffDate)
@@ -214,14 +203,10 @@ class ApplyRetentionPolicies extends Command
         $candidateCount = $candidateIds->count();
 
         if ($this->option('dry-run')) {
-            $heldCount = $this->countHeldCandidates($tenantId, $candidateIds);
-            $eligibleCount = $candidateCount - $heldCount;
-            $statistics['held_skipped'] += $heldCount;
             $logNamesStr = implode(', ', array_map(fn ($n) => "'{$n}'", $logNames));
-            $this->line("Would archive and hard delete {$eligibleCount} logs ({$logNamesStr}) older than {$cutoffDate->format('Y-m-d')}");
-            $this->line("Would skip {$heldCount} actively held logs");
+            $this->line("Would archive and hard delete {$candidateCount} logs ({$logNamesStr}) older than {$cutoffDate->format('Y-m-d')}");
 
-            return $eligibleCount;
+            return $candidateCount;
         }
 
         if ($candidateCount === 0) {
@@ -230,7 +215,6 @@ class ApplyRetentionPolicies extends Command
 
         $archived = 0;
         $orphaned = 0;
-        $heldSkipped = 0;
 
         foreach ($candidateIds->chunk(self::RETENTION_CHUNK_SIZE) as $candidateIdChunk) {
             $result = DB::transaction(function () use ($tenantId, $candidateIdChunk): array {
@@ -242,60 +226,27 @@ class ApplyRetentionPolicies extends Command
                     ->get();
 
                 if ($logs->isEmpty()) {
-                    return ['archived' => 0, 'orphaned' => 0, 'held_skipped' => 0];
+                    return ['archived' => 0, 'orphaned' => 0];
                 }
 
-                $lockedActivityIds = [];
-                foreach ($logs as $lockedActivity) {
-                    $lockedActivityIds[] = $lockedActivity->id;
-                }
-
-                $heldActivityIds = array_fill_keys(
-                    $this->legalHolds->activelyHeldActivityIdentityIds(
-                        $tenantId,
-                        $lockedActivityIds,
-                    ),
-                    true,
-                );
-                $deletableEventHashes = $logs
-                    ->reject(fn (Activity $log): bool => isset($heldActivityIds[$log->id]))
+                $eventHashes = $logs
                     ->pluck('event_hash')
                     ->filter(fn (mixed $hash): bool => is_string($hash) && $hash !== '')
                     ->values()
                     ->all();
-                $successorsByPreviousHash = $deletableEventHashes === []
+                $successorsByPreviousHash = $eventHashes === []
                     ? collect()
                     : Activity::query()
                         ->where('tenant_id', $tenantId)
-                        ->whereIn('previous_hash', $deletableEventHashes)
+                        ->whereIn('previous_hash', $eventHashes)
                         ->orderByDesc('id')
                         ->lockForUpdate()
                         ->get()
                         ->keyBy('previous_hash');
-                $successorIds = [];
-                foreach ($successorsByPreviousHash as $successor) {
-                    /** @var Activity $successor */
-                    $successorIds[] = $successor->id;
-                }
-                $heldSuccessorIds = array_fill_keys(
-                    $this->legalHolds->activelyHeldActivityIdentityIds(
-                        $tenantId,
-                        $successorIds,
-                    ),
-                    true,
-                );
                 $chunkArchived = 0;
                 $chunkOrphaned = 0;
-                $chunkHeldSkipped = 0;
 
                 foreach ($logs as $log) {
-                    if (isset($heldActivityIds[$log->id])) {
-                        $chunkHeldSkipped++;
-
-                        continue;
-                    }
-
-                    // Step 1: Archive hashes only (GDPR Art. 5(1)(e) - data minimization)
                     ActivityArchive::create([
                         'id' => $log->id,
                         'tenant_id' => $log->tenant_id,
@@ -307,14 +258,9 @@ class ApplyRetentionPolicies extends Command
                         'merkle_batch_id' => $log->merkle_batch_id,
                     ]);
 
-                    // Step 2: Mark the actual live successor only when it is not held.
-                    // A held successor continues to verify against this archive.
                     /** @var Activity|null $nextLog */
                     $nextLog = $successorsByPreviousHash->get($log->event_hash);
-
-                    if ($nextLog !== null
-                        && ! isset($heldActivityIds[$nextLog->id])
-                        && ! isset($heldSuccessorIds[$nextLog->id])) {
+                    if ($nextLog !== null) {
                         $nextLog->update([
                             'previous_hash' => null,
                             'is_orphaned_genesis' => true,
@@ -324,49 +270,26 @@ class ApplyRetentionPolicies extends Command
                         $chunkOrphaned++;
                     }
 
-                    // Step 3: Hard delete (personal data removed per GDPR Art. 17)
                     $log->forceDelete();
                     $chunkArchived++;
                 }
 
-                return [
-                    'archived' => $chunkArchived,
-                    'orphaned' => $chunkOrphaned,
-                    'held_skipped' => $chunkHeldSkipped,
-                ];
+                return ['archived' => $chunkArchived, 'orphaned' => $chunkOrphaned];
             });
 
             $archived += $result['archived'];
             $orphaned += $result['orphaned'];
-            $heldSkipped += $result['held_skipped'];
         }
 
         $statistics['orphaned_created'] += $orphaned;
-        $statistics['held_skipped'] += $heldSkipped;
 
         $logNamesStr = implode(', ', array_map(fn ($n) => "'{$n}'", $logNames));
         $this->info("✓ Archived + deleted {$archived} logs ({$logNamesStr}) older than {$cutoffDate->format('Y-m-d')}");
-        if ($heldSkipped > 0) {
-            $this->info("  → Skipped {$heldSkipped} actively held logs");
-        }
         if ($orphaned > 0) {
             $this->info("  → Created {$orphaned} orphaned genesis markers");
         }
 
         return $archived;
-    }
-
-    /** @param Collection<int, int> $candidateIds */
-    private function countHeldCandidates(int $tenantId, Collection $candidateIds): int
-    {
-        return $candidateIds
-            ->chunk(self::RETENTION_CHUNK_SIZE)
-            ->sum(fn (Collection $ids): int => count(
-                $this->legalHolds->activelyHeldActivityIdentityIds(
-                    $tenantId,
-                    array_values($ids->all()),
-                )
-            ));
     }
 
     /**
@@ -384,12 +307,10 @@ class ApplyRetentionPolicies extends Command
                 ['3-year retention: Archived + Deleted', $statistics['retention_3_archived'] ?? 0],
                 ['8-year retention: Archived + Deleted', $statistics['retention_8_archived'] ?? 0],
                 ['10-year retention: Archived + Deleted', $statistics['retention_10_archived'] ?? 0],
-                ['Actively held: Skipped', $statistics['held_skipped'] ?? 0],
                 ['Orphaned genesis created', $statistics['orphaned_created']],
                 ['Total processed', ($statistics['retention_3_archived'] ?? 0)
                     + ($statistics['retention_8_archived'] ?? 0)
-                    + ($statistics['retention_10_archived'] ?? 0)
-                    + ($statistics['held_skipped'] ?? 0)],
+                    + ($statistics['retention_10_archived'] ?? 0)],
             ]
         );
     }

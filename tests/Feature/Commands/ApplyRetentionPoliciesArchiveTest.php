@@ -9,11 +9,10 @@ declare(strict_types=1);
 
 use App\Models\Activity;
 use App\Models\ActivityArchive;
-use App\Models\LegalHold;
-use App\Models\LegalHoldActivityAttachment;
 use App\Models\TenantKey;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Artisan;
 
 uses(RefreshDatabase::class);
 
@@ -77,49 +76,6 @@ test('it archives and hard deletes expired logs directly', function () {
     expect($archive->description ?? null)->toBeNull(); // Column shouldn't exist
     expect($archive->properties ?? null)->toBeNull();  // Column shouldn't exist
     expect($archive->subject_id ?? null)->toBeNull();  // Column shouldn't exist
-});
-
-test('it preserves expired activity attached to an active legal hold', function () {
-    $activity = Activity::factory()
-        ->for($this->tenant, 'tenant')
-        ->create([
-            'log_name' => 'default',
-            'created_at' => Carbon::now()->subYears(4)->startOfYear(),
-            'description' => 'Evidence protected by an active legal hold',
-        ]);
-    $activity->refresh();
-    $successor = Activity::factory()->for($this->tenant, 'tenant')->create([
-        'log_name' => 'default',
-        'created_at' => Carbon::now(),
-    ])->refresh();
-    $hold = LegalHold::factory()->active()->create([
-        'tenant_id' => $this->tenant->id,
-        'justification' => 'Privileged case rationale that must not be logged.',
-    ]);
-    $attachment = LegalHoldActivityAttachment::factory()->attached()->create([
-        'tenant_id' => $this->tenant->id,
-        'legal_hold_id' => $hold->id,
-        'activity_id' => $activity->id,
-        'activity_identity_id' => $activity->id,
-    ]);
-    $originalPreviousHash = $activity->previous_hash;
-    $originalUpdatedAt = $activity->updated_at;
-
-    $this->artisan('activity:apply-retention')
-        ->expectsOutputToContain('Skipped 1 actively held logs')
-        ->expectsOutputToContain('Actively held: Skipped')
-        ->doesntExpectOutputToContain('Evidence protected by an active legal hold')
-        ->doesntExpectOutputToContain('Privileged case rationale')
-        ->assertSuccessful();
-
-    expect($activity->fresh())->not->toBeNull()
-        ->and(ActivityArchive::query()->find($activity->id))->toBeNull()
-        ->and($attachment->fresh()?->activity_id)->toBe($activity->id)
-        ->and($activity->fresh()?->previous_hash)->toBe($originalPreviousHash)
-        ->and($activity->fresh()?->is_orphaned_genesis)->toBeFalse()
-        ->and($activity->fresh()?->updated_at?->equalTo($originalUpdatedAt))->toBeTrue()
-        ->and($successor->fresh()?->previous_hash)->toBe($activity->event_hash)
-        ->and($successor->fresh()?->is_orphaned_genesis)->toBeFalse();
 });
 
 test('it creates orphaned genesis for successor when archiving predecessor', function () {
@@ -186,12 +142,15 @@ test('it tracks statistics for archived and hard deleted logs', function () {
         ]);
 
     // Act
-    $this->artisan('activity:apply-retention')
-        ->expectsOutputToContain('3-year retention')
-        ->expectsOutputToContain('8-year retention')
-        ->expectsOutputToContain('10-year retention')
-        ->expectsOutputToContain('Retention Statistics')
-        ->assertSuccessful();
+    expect(Artisan::call('activity:apply-retention'))->toBe(0);
+
+    $output = Artisan::output();
+    expect($output)
+        ->toContain('3-year retention')
+        ->toContain('8-year retention')
+        ->toContain('10-year retention')
+        ->toContain('Retention Statistics')
+        ->toMatch('/Total processed\s+\|\s+3/');
 
     // Verify: All 3 logs archived and hard deleted, none remain
     expect(Activity::count())->toBe(0);
@@ -337,4 +296,20 @@ test('it processes logs atomically in transaction', function () {
     // Verify: Archives exist for both original log IDs
     expect(ActivityArchive::find($log1->id))->not->toBeNull();
     expect(ActivityArchive::find($log2->id))->not->toBeNull();
+});
+
+test('it processes retention backlogs beyond one bounded chunk', function () {
+    Activity::factory()
+        ->count(101)
+        ->for($this->tenant, 'tenant')
+        ->create([
+            'log_name' => 'default',
+            'created_at' => Carbon::now()->subYears(4)->startOfYear(),
+        ]);
+
+    $this->artisan('activity:apply-retention')
+        ->assertSuccessful();
+
+    expect(Activity::count())->toBe(0)
+        ->and(ActivityArchive::count())->toBe(101);
 });

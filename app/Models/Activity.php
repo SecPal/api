@@ -15,7 +15,6 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Spatie\Activitylog\Models\Activity as SpatieActivity;
@@ -107,12 +106,6 @@ class Activity extends SpatieActivity
     protected $table = 'activity_log';
 
     private bool $captureRequestOrganizationalUnit = true;
-
-    /** @return HasMany<LegalHoldActivityAttachment, $this> */
-    public function legalHoldAttachments(): HasMany
-    {
-        return $this->hasMany(LegalHoldActivityAttachment::class, 'activity_id');
-    }
 
     public function suppressRequestOrganizationalUnitCapture(): void
     {
