@@ -10,6 +10,7 @@ namespace App\Repositories;
 use App\Models\Customer;
 use App\Models\CustomerEstablishment;
 use App\Models\Establishment;
+use Illuminate\Database\Eloquent\Collection;
 
 final class CustomerEstablishmentRepository
 {
@@ -43,6 +44,37 @@ final class CustomerEstablishmentRepository
             ->whereKey($establishmentId)
             ->lockForUpdate()
             ->firstOrFail();
+    }
+
+    /** @return Collection<int, CustomerEstablishment> */
+    public function lockAllIncludingTrashedForCustomer(int $tenantId, string $customerId): Collection
+    {
+        return CustomerEstablishment::withTrashed()
+            ->where('tenant_id', $tenantId)
+            ->where('customer_id', $customerId)
+            ->orderBy('establishment_id')
+            ->lockForUpdate()
+            ->get();
+    }
+
+    /**
+     * @param  list<string>  $establishmentIds
+     * @return Collection<int, Establishment>
+     */
+    public function lockEligibleEstablishments(
+        int $tenantId,
+        string $legalEntityId,
+        array $establishmentIds,
+    ): Collection {
+        return Establishment::query()
+            ->where('tenant_id', $tenantId)
+            ->where('legal_entity_id', $legalEntityId)
+            ->where('is_active', true)
+            ->whereHas('legalEntity', static fn ($query) => $query->where('is_active', true))
+            ->whereIn('id', $establishmentIds)
+            ->orderBy('id')
+            ->lockForUpdate()
+            ->get();
     }
 
     /** @param array<string, mixed> $attributes */
