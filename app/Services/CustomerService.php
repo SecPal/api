@@ -48,6 +48,39 @@ final class CustomerService
         return $customer;
     }
 
+    public function loadCompleteCustomerRepresentation(Customer $customer): Customer
+    {
+        $customer->unsetRelations();
+        $customer->load([
+            'assignments' => static fn (Relation $relation) => $relation
+                ->getQuery()
+                ->orderBy('customer_assignments.id'),
+            'assignments.user',
+            'sites' => static fn (Relation $relation) => $relation
+                ->getQuery()
+                ->orderBy('sites.id'),
+            'customerEstablishments' => static fn (Relation $relation) => $relation
+                ->getQuery()
+                ->orderBy('customer_establishments.id'),
+        ]);
+        $customer->loadCount('sites');
+
+        return $customer;
+    }
+
+    public function loadTransactionalCustomerResult(Customer $customer): Customer
+    {
+        $customer->refresh();
+        $customer->unsetRelations();
+        $customer->load([
+            'customerEstablishments' => static fn (Relation $relation) => $relation
+                ->getQuery()
+                ->orderBy('customer_establishments.id'),
+        ]);
+
+        return $customer;
+    }
+
     /** @return \Closure(Relation<*, *, *>): void */
     private function visibleCustomerEstablishmentsConstraint(User $user, int $tenantId): \Closure
     {

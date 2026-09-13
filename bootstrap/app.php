@@ -4,6 +4,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use App\Exceptions\CustomerDomainDependencyConflictException;
+use App\Exceptions\CustomerTransactionalEditException;
 use App\Exceptions\DuplicateResourceException;
 use App\SecurityEvents\SecurityEventName;
 use App\Services\SecurityEventRecorder;
@@ -81,6 +82,17 @@ return Application::configure(basePath: dirname(__DIR__))
         $shouldRenderApiJson = static function (Request $request): bool {
             return $request->is('v1', 'v1/*') || $request->expectsJson();
         };
+
+        $exceptions->render(function (CustomerTransactionalEditException $e, Request $request) use ($shouldRenderApiJson) {
+            if (! $shouldRenderApiJson($request)) {
+                return null;
+            }
+
+            return response()->json([
+                'message' => $e->getMessage(),
+                'code' => $e->errorCode(),
+            ], $e->status());
+        });
 
         // Return JSON 401 response for unauthenticated API requests
         // Prevents "Route [login] not defined" error since this is a pure API without web routes

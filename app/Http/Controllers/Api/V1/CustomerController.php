@@ -16,10 +16,13 @@ use App\Models\Customer;
 use App\Models\Site;
 use App\Models\User;
 use App\Services\CustomerService;
+use App\Services\CustomerTransactionalEditService;
+use App\Support\CustomerRepresentationETag;
 use App\Support\LikePattern;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
 
@@ -38,6 +41,7 @@ class CustomerController extends Controller
 {
     public function __construct(
         private readonly CustomerService $customerService,
+        private readonly CustomerTransactionalEditService $transactionalEditService,
     ) {}
 
     /**
@@ -134,21 +138,52 @@ class CustomerController extends Controller
         /** @var User $user */
         $user = request()->user();
 
-        $customer->load([
-            'assignments.user',
-            'sites' => function (HasMany $query) use ($user): void {
-                if ($this->hasUnrestrictedCustomerReadAccess($user)) {
-                    return;
-                }
+        $hasUnrestrictedReadAccess = $this->hasUnrestrictedCustomerReadAccess($user);
+        if ($hasUnrestrictedReadAccess) {
+            $customer = $this->customerService->loadCompleteCustomerRepresentation($customer);
+        } else {
+            $customer->load([
+                'assignments.user',
+                'sites' => function (HasMany $query) use ($user): void {
+                    $query->whereIn('sites.id', $user->visibleSitesQuery()->select('sites.id'));
+                },
+            ]);
+            $customer->loadCount($this->visibleSitesCountDefinition($user));
+            $customer = $this->customerService->loadVisibleCustomerEstablishments(
+                $user,
+                $customer->tenant_id,
+                $customer,
+            );
+        }
 
-                $query->whereIn('sites.id', $user->visibleSitesQuery()->select('sites.id'));
-            },
-        ]);
-        $customer->loadCount($this->visibleSitesCountDefinition($user));
-        $customer = $this->customerService->loadVisibleCustomerEstablishments(
+        /** @var array{data: array<string, mixed>} $body */
+        $body = (new CustomerResource($customer))->response(request())->getData(true);
+        $response = response()->json($body);
+
+        if ($hasUnrestrictedReadAccess) {
+            $response->header('ETag', CustomerRepresentationETag::strong($body));
+        }
+
+        return $response;
+    }
+
+    public function transactionalEdit(Request $request, string $customer): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+        /** @var int $tenantId */
+        $tenantId = $request->get('tenant_id');
+
+        $customer = $this->transactionalEditService->edit(
             $user,
-            $customer->tenant_id,
+            $tenantId,
             $customer,
+            $request->header('If-Match'),
+            $request->getContent(),
+            [
+                'customer' => $request->input('customer'),
+                'customer_establishments' => $request->input('customer_establishments'),
+            ],
         );
 
         return response()->json([
