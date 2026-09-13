@@ -6,6 +6,7 @@
 declare(strict_types=1);
 
 use App\Models\Customer;
+use App\Models\CustomerAssignment;
 use App\Models\CustomerEstablishment;
 use App\Models\Establishment;
 use App\Models\LegalEntity;
@@ -14,7 +15,9 @@ use App\Models\Site;
 use App\Models\TenantKey;
 use App\Models\User;
 use App\Models\UserInternalOrganizationalScope;
+use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Artisan;
 use Spatie\Permission\PermissionRegistrar;
 
@@ -486,6 +489,45 @@ test('stale retry needs a fresh GET and successful PUT emits no successor valida
         ->putJson($url, transactionalCustomerPayload($this->customer, ['name' => 'Retry Edit']))
         ->assertOk()
         ->assertJsonPath('data.name', 'Retry Edit');
+});
+
+test('wall clock progression after the initial comparison does not stale the edit', function (): void {
+    $initialTime = Carbon::parse('2026-09-13 23:59:59 UTC');
+    Carbon::setTestNow($initialTime);
+
+    try {
+        $assignment = CustomerAssignment::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'customer_id' => $this->customer->id,
+            'valid_until' => $initialTime->toDateString(),
+        ]);
+        $etag = customerEtag($this, $this->customer);
+        $clockAdvanced = false;
+
+        DB::listen(function (QueryExecuted $query) use (&$clockAdvanced, $initialTime): void {
+            if (! $clockAdvanced
+                && str_contains($query->sql, 'customer_establishments')
+                && str_contains(strtolower($query->sql), 'for update')) {
+                Carbon::setTestNow($initialTime->copy()->addDay());
+                $clockAdvanced = true;
+            }
+        });
+
+        $this->withToken($this->token)
+            ->withHeader('If-Match', $etag)
+            ->putJson(
+                "/v1/customers/{$this->customer->id}/transactional-edit",
+                transactionalCustomerPayload($this->customer, ['name' => 'Clock-safe edit']),
+            )
+            ->assertOk()
+            ->assertJsonPath('data.name', 'Clock-safe edit');
+
+        expect($clockAdvanced)->toBeTrue()
+            ->and($assignment->fresh()?->is_active)->toBeFalse()
+            ->and($this->customer->refresh()->name)->toBe('Clock-safe edit');
+    } finally {
+        Carbon::setTestNow();
+    }
 });
 
 test('customer write failure rolls back relationship reconciliation', function (): void {

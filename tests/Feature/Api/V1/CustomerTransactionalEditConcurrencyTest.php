@@ -215,7 +215,7 @@ test('two HTTP edits from one validator cannot both commit', function (): void {
     }
 });
 
-test('a site visibility change after the initial validator check prevents commit', function (): void {
+test('a racing site visibility change prevents commit', function (): void {
     if (! function_exists('pcntl_fork')) {
         $this->markTestSkipped('pcntl is required for transactional edit concurrency evidence.');
     }
@@ -251,33 +251,35 @@ test('a site visibility change after the initial validator check prevents commit
     DB::disconnect();
 
     try {
-        $blockerPid = pcntl_fork();
-        if ($blockerPid === -1) {
-            throw new RuntimeException('Unable to fork establishment-lock holder.');
+        $visibilityWriterPid = pcntl_fork();
+        if ($visibilityWriterPid === -1) {
+            throw new RuntimeException('Unable to fork site visibility writer.');
         }
 
-        if ($blockerPid === 0) {
+        if ($visibilityWriterPid === 0) {
             DB::purge();
             DB::reconnect();
             DB::beginTransaction();
-            DB::table('establishments')
-                ->where('id', $establishment->id)
-                ->lockForUpdate()
-                ->first();
-            file_put_contents($directory.'/locked', 'yes');
+            SiteAssignment::create([
+                'tenant_id' => $this->tenant->id,
+                'site_id' => $site->id,
+                'user_id' => $this->user->id,
+                'role' => 'Site Manager',
+            ]);
+            file_put_contents($directory.'/visibility-written', 'yes');
             while (! is_file($release)) {
                 usleep(25_000);
             }
             DB::commit();
             exit(0);
         }
-        $childPids[] = $blockerPid;
+        $childPids[] = $visibilityWriterPid;
 
         $deadline = microtime(true) + 10;
-        while (! is_file($directory.'/locked') && microtime(true) < $deadline) {
+        while (! is_file($directory.'/visibility-written') && microtime(true) < $deadline) {
             usleep(25_000);
         }
-        expect(is_file($directory.'/locked'))->toBeTrue();
+        expect(is_file($directory.'/visibility-written'))->toBeTrue();
 
         $workerPid = pcntl_fork();
         if ($workerPid === -1) {
@@ -302,10 +304,7 @@ test('a site visibility change after the initial validator check prevents commit
                 ->withHeader('If-Match', $etag)
                 ->putJson("/v1/customers/{$this->customer->id}/transactional-edit", [
                     'customer' => ['name' => 'Must Not Commit'],
-                    'customer_establishments' => [[
-                        'customer_id' => $this->customer->id,
-                        'establishment_id' => $establishment->id,
-                    ]],
+                    'customer_establishments' => [],
                 ]);
 
             file_put_contents(
@@ -325,31 +324,18 @@ test('a site visibility change after the initial validator check prevents commit
         DB::purge();
         DB::reconnect();
         $workerBackendPid = (int) file_get_contents($directory.'/worker-pid');
-        $workerReachedPostEtagValidation = false;
+        $workerWaitedForVisibilityWriter = false;
         while (microtime(true) < $deadline) {
-            $workerReachedPostEtagValidation = DB::table('pg_stat_activity')
+            $workerWaitedForVisibilityWriter = DB::table('pg_stat_activity')
                 ->where('pid', $workerBackendPid)
                 ->where('wait_event_type', 'Lock')
                 ->exists();
-            if ($workerReachedPostEtagValidation) {
+            if ($workerWaitedForVisibilityWriter) {
                 break;
             }
             usleep(25_000);
         }
-        expect($workerReachedPostEtagValidation)->toBeTrue();
-
-        SiteAssignment::create([
-            'tenant_id' => $this->tenant->id,
-            'site_id' => $site->id,
-            'user_id' => $this->user->id,
-            'role' => 'Site Manager',
-        ]);
-        $changed = $this->withToken($this->token)
-            ->getJson("/v1/customers/{$this->customer->id}")
-            ->assertOk()
-            ->assertJsonPath('data.sites.0.access_instructions', 'Visible only to site editors')
-            ->assertJsonPath('data.sites.0.notes', 'Policy-dependent representation');
-        expect($changed->headers->get('ETag'))->not->toBe($etag);
+        expect($workerWaitedForVisibilityWriter)->toBeTrue();
 
         file_put_contents($release, 'go');
         foreach ($childPids as $pid) {
@@ -372,6 +358,13 @@ test('a site visibility change after the initial validator check prevents commit
                 'code' => 'CUSTOMER_EDIT_STALE',
             ],
         ])->and($this->customer->refresh()->name)->toBe('Race Baseline');
+
+        $changed = $this->withToken($this->token)
+            ->getJson("/v1/customers/{$this->customer->id}")
+            ->assertOk()
+            ->assertJsonPath('data.sites.0.access_instructions', 'Visible only to site editors')
+            ->assertJsonPath('data.sites.0.notes', 'Policy-dependent representation');
+        expect($changed->headers->get('ETag'))->not->toBe($etag);
     } finally {
         if (! is_file($release)) {
             file_put_contents($release, 'go');

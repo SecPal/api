@@ -64,6 +64,7 @@ final class CustomerTransactionalEditService
                 $requestContent,
             ): Customer {
                 $this->customers->lockRepresentationWriters();
+                $this->customers->lockRepresentationAuthorizationWriters();
                 $this->revalidateOperationAuthorization($user, $tenantId);
 
                 $customer = $this->customers->findLockedForTenant($tenantId, $customerId)
@@ -95,9 +96,7 @@ final class CustomerTransactionalEditService
                     $links,
                 );
 
-                $this->customers->lockRepresentationAuthorizationWriters();
                 $this->revalidateOperationAuthorization($user, $tenantId);
-                $this->assertCurrentIfMatch($ifMatch, $this->currentRepresentationETag($customer));
 
                 $this->applyReplacement(
                     $tenantId,

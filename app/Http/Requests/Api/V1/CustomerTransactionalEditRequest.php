@@ -15,7 +15,7 @@ use stdClass;
 
 final class CustomerTransactionalEditRequest
 {
-    public const AUTHORITATIVE_CONTRACTS_SHA = '6639eca8a09a1a563a861724e4fb230c93d8a565';
+    public const AUTHORITATIVE_CONTRACTS_SHA = 'f8771b74d887b84b84dcc94e2405df7b47222466';
 
     /** @var list<string> */
     public const CUSTOMER_FIELDS = [

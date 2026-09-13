@@ -15,7 +15,7 @@ test('transactional edit implementation is bound to the accepted contracts deliv
             && in_array('PUT', $candidate->methods(), true));
 
     expect(CustomerTransactionalEditRequest::AUTHORITATIVE_CONTRACTS_SHA)
-        ->toBe('6639eca8a09a1a563a861724e4fb230c93d8a565')
+        ->toBe('f8771b74d887b84b84dcc94e2405df7b47222466')
         ->and($route)->not->toBeNull()
         ->and($route->getActionName())->toBe(CustomerController::class.'@transactionalEdit')
         ->and($route->wheres['customer'] ?? null)->not->toBeNull();

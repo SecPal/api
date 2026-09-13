@@ -82,8 +82,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - added the Contracts-defined tenant-scoped transactional customer edit endpoint,
   including complete establishment replacement, strong aggregate validators,
-  concurrency-safe atomic mutation, and closed failure handling (fixes
-  `api#1332`)
+  state-coupled concurrency-safe atomic mutation without wall-clock-only stale
+  rejection, and closed failure handling (fixes `api#1332`)
 - added the accepted Contracts-defined tenant-wide Internal Cost Center API and
   atomic complete Service Booking allocation snapshots, kept distinct from the
   existing Site CostCenter domain (fixes `api#383`)
