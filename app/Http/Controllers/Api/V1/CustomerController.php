@@ -138,7 +138,8 @@ class CustomerController extends Controller
         /** @var User $user */
         $user = request()->user();
 
-        if ($this->hasUnrestrictedCustomerReadAccess($user)) {
+        $hasUnrestrictedReadAccess = $this->hasUnrestrictedCustomerReadAccess($user);
+        if ($hasUnrestrictedReadAccess) {
             $customer = $this->customerService->loadCompleteCustomerRepresentation($customer);
         } else {
             $customer->load([
@@ -155,13 +156,15 @@ class CustomerController extends Controller
             );
         }
 
-        $body = [
-            'data' => new CustomerResource($customer),
-        ];
-        $etagBody = ['data' => $body['data']->resolve(request())];
+        /** @var array{data: array<string, mixed>} $body */
+        $body = (new CustomerResource($customer))->response(request())->getData(true);
+        $response = response()->json($body);
 
-        return response()->json($body)
-            ->header('ETag', CustomerRepresentationETag::strong($etagBody));
+        if ($hasUnrestrictedReadAccess) {
+            $response->header('ETag', CustomerRepresentationETag::strong($body));
+        }
+
+        return $response;
     }
 
     public function transactionalEdit(Request $request, string $customer): JsonResponse

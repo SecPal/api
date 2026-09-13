@@ -80,10 +80,14 @@ final class CustomerTransactionalEditRequest
                 $structuralErrors['customer'] = ['The customer payload is invalid.'];
             }
 
-            if (($document->customer->billing_address ?? null) instanceof stdClass) {
-                $address = get_object_vars($document->customer->billing_address);
-                if (array_diff(array_keys($address), self::ADDRESS_FIELDS) !== []) {
+            if (property_exists($document->customer, 'billing_address')) {
+                if (! $document->customer->billing_address instanceof stdClass) {
                     $structuralErrors['customer'] = ['The customer payload is invalid.'];
+                } else {
+                    $address = get_object_vars($document->customer->billing_address);
+                    if (array_diff(array_keys($address), self::ADDRESS_FIELDS) !== []) {
+                        $structuralErrors['customer'] = ['The customer payload is invalid.'];
+                    }
                 }
             }
         }
@@ -111,6 +115,8 @@ final class CustomerTransactionalEditRequest
 
         /** @var array{customer: array<string, mixed>, customer_establishments: list<array<string, mixed>>} $payload */
         $payload = json_decode($content, true, 512, JSON_THROW_ON_ERROR);
+        $billingAddressPresent = array_key_exists('billing_address', $payload['customer']);
+        $requiredAddressMember = $billingAddressPresent ? 'required' : 'sometimes';
         $validator = Validator::make($payload, [
             'customer' => ['array'],
             'customer.legal_entity_id' => ['sometimes', 'uuid'],
@@ -120,10 +126,10 @@ final class CustomerTransactionalEditRequest
                 'sometimes',
                 'array:street,city,postal_code,country,latitude,longitude',
             ],
-            'customer.billing_address.street' => ['required_with:customer.billing_address', 'string', 'max:255'],
-            'customer.billing_address.city' => ['required_with:customer.billing_address', 'string', 'max:100'],
-            'customer.billing_address.postal_code' => ['required_with:customer.billing_address', 'string', 'max:20'],
-            'customer.billing_address.country' => ['required_with:customer.billing_address', 'string', 'size:2'],
+            'customer.billing_address.street' => [$requiredAddressMember, 'string', 'max:255'],
+            'customer.billing_address.city' => [$requiredAddressMember, 'string', 'max:100'],
+            'customer.billing_address.postal_code' => [$requiredAddressMember, 'string', 'max:20'],
+            'customer.billing_address.country' => [$requiredAddressMember, 'string', 'size:2'],
             'customer.billing_address.latitude' => ['sometimes', 'nullable', 'numeric', 'between:-90,90'],
             'customer.billing_address.longitude' => ['sometimes', 'nullable', 'numeric', 'between:-180,180'],
             'customer.is_active' => ['sometimes', 'boolean'],
@@ -145,10 +151,21 @@ final class CustomerTransactionalEditRequest
             $this->fail($errors);
         }
 
+        if (isset($payload['customer']['legal_entity_id'])) {
+            $payload['customer']['legal_entity_id'] = $this->canonicalUuid(
+                $payload['customer']['legal_entity_id'],
+            );
+        }
+        foreach ($payload['customer_establishments'] as &$assignment) {
+            $assignment['customer_id'] = $this->canonicalUuid($assignment['customer_id']);
+            $assignment['establishment_id'] = $this->canonicalUuid($assignment['establishment_id']);
+        }
+        unset($assignment);
+
         $identityErrors = [];
         $seenEstablishments = [];
         foreach ($payload['customer_establishments'] as $index => $assignment) {
-            if (($assignment['customer_id'] ?? null) !== $pathCustomerId) {
+            if (($assignment['customer_id'] ?? null) !== strtolower($pathCustomerId)) {
                 $identityErrors["customer_establishments.{$index}.customer_id"] = [
                     'The selected customer is invalid.',
                 ];
@@ -172,6 +189,15 @@ final class CustomerTransactionalEditRequest
         }
 
         return $payload;
+    }
+
+    private function canonicalUuid(mixed $value): string
+    {
+        if (! is_string($value)) {
+            throw new \LogicException('Validated UUID must be a string.');
+        }
+
+        return strtolower($value);
     }
 
     private function neutralMessage(string $field): string

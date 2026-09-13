@@ -115,4 +115,9 @@ final class CustomerEstablishmentRepository
     {
         $customerEstablishment->delete();
     }
+
+    public function forceDelete(CustomerEstablishment $customerEstablishment): void
+    {
+        $customerEstablishment->forceDelete();
+    }
 }

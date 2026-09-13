@@ -63,12 +63,12 @@ final class CustomerTransactionalEditService
                 $ifMatch,
                 $requestContent,
             ): Customer {
+                $customer = $this->customers->findLockedForTenant($tenantId, $customerId)
+                    ?? throw CustomerTransactionalEditException::notFound();
+
                 $this->customers->lockRepresentationWriters();
                 $this->customers->lockRepresentationAuthorizationWriters();
                 $this->revalidateOperationAuthorization($user, $tenantId);
-
-                $customer = $this->customers->findLockedForTenant($tenantId, $customerId)
-                    ?? throw CustomerTransactionalEditException::notFound();
 
                 $this->assertCurrentIfMatch($ifMatch, $this->currentRepresentationETag($customer));
 
@@ -264,9 +264,13 @@ final class CustomerTransactionalEditService
         Collection $establishments,
         Collection $links,
     ): void {
+        $legalEntityChanges = isset($customerAttributes['legal_entity_id'])
+            && $customerAttributes['legal_entity_id'] !== $customer->legal_entity_id;
         $desiredIds = array_fill_keys(array_map($this->establishmentId(...), $assignments), true);
         foreach ($links as $link) {
-            if (! $link->trashed() && ! isset($desiredIds[$link->establishment_id])) {
+            if ($legalEntityChanges) {
+                $this->customerEstablishments->forceDelete($link);
+            } elseif (! $link->trashed() && ! isset($desiredIds[$link->establishment_id])) {
                 $this->customerEstablishments->delete($link);
             }
         }
@@ -275,7 +279,9 @@ final class CustomerTransactionalEditService
             $this->customers->update($customer, $customerAttributes);
         }
 
-        $linksByEstablishment = $links->keyBy('establishment_id');
+        $linksByEstablishment = $legalEntityChanges
+            ? new Collection
+            : $links->keyBy('establishment_id');
         foreach ($assignments as $assignment) {
             $establishmentId = $this->establishmentId($assignment);
             $establishment = $establishments->get($establishmentId);

@@ -12,6 +12,7 @@ use App\Models\Site;
 use App\Models\SiteAssignment;
 use App\Models\TenantKey;
 use App\Models\User;
+use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Foundation\Testing\RefreshDatabaseState;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
@@ -197,6 +198,170 @@ test('two HTTP edits from one validator cannot both commit', function (): void {
             ])
             ->and($this->customer->refresh()->name)
             ->toBeIn(['Concurrent Winner 1', 'Concurrent Winner 2']);
+    } finally {
+        if (! is_file($release)) {
+            file_put_contents($release, 'go');
+        }
+        foreach ($childPids as $pid) {
+            pcntl_waitpid($pid, $status, WNOHANG);
+        }
+        foreach (glob($directory.'/*') ?: [] as $path) {
+            unlink($path);
+        }
+        if (is_dir($directory)) {
+            rmdir($directory);
+        }
+        DB::purge();
+        DB::reconnect();
+    }
+});
+
+test('ordinary PATCH and transactional edit use a deadlock-safe customer lock order', function (): void {
+    if (! function_exists('pcntl_fork')) {
+        $this->markTestSkipped('pcntl is required for transactional edit concurrency evidence.');
+    }
+
+    $etag = $this->withToken($this->token)
+        ->getJson("/v1/customers/{$this->customer->id}")
+        ->assertOk()
+        ->headers->get('ETag');
+    expect($etag)->toBeString();
+
+    $directory = sys_get_temp_dir().'/transactional-patch-race-'.bin2hex(random_bytes(8));
+    if (! mkdir($directory) && ! is_dir($directory)) {
+        throw new RuntimeException('Unable to create customer PATCH race directory.');
+    }
+
+    $release = $directory.'/release';
+    $childPids = [];
+    DB::disconnect();
+
+    try {
+        $patchPid = pcntl_fork();
+        if ($patchPid === -1) {
+            throw new RuntimeException('Unable to fork customer PATCH worker.');
+        }
+
+        if ($patchPid === 0) {
+            DB::purge();
+            DB::reconnect();
+            $paused = false;
+            DB::listen(function (QueryExecuted $query) use (&$paused, $directory, $release): void {
+                $sql = strtolower($query->sql);
+                if (! $paused
+                    && str_contains($sql, 'from "customers"')
+                    && str_contains($sql, 'for update')) {
+                    $paused = true;
+                    file_put_contents($directory.'/patch-locked', 'yes');
+                    while (! is_file($release)) {
+                        usleep(25_000);
+                    }
+                }
+            });
+
+            $response = $this->withToken($this->token)
+                ->patchJson("/v1/customers/{$this->customer->id}", [
+                    'name' => 'PATCH Winner',
+                ]);
+            file_put_contents(
+                $directory.'/patch-result',
+                json_encode(['status' => $response->getStatusCode()], JSON_THROW_ON_ERROR),
+            );
+            exit(0);
+        }
+        $childPids[] = $patchPid;
+
+        $deadline = microtime(true) + 10;
+        while (! is_file($directory.'/patch-locked') && microtime(true) < $deadline) {
+            usleep(25_000);
+        }
+        expect(is_file($directory.'/patch-locked'))->toBeTrue();
+
+        $transactionalPid = pcntl_fork();
+        if ($transactionalPid === -1) {
+            throw new RuntimeException('Unable to fork transactional edit worker.');
+        }
+
+        if ($transactionalPid === 0) {
+            if (function_exists('xdebug_stop_code_coverage')) {
+                xdebug_stop_code_coverage(false);
+            }
+
+            DB::purge();
+            DB::reconnect();
+            app(PermissionRegistrar::class)->forgetCachedPermissions();
+            app(PermissionRegistrar::class)->setPermissionsTeamId($this->tenant->id);
+            file_put_contents(
+                $directory.'/transactional-pid',
+                (string) DB::scalar('SELECT pg_backend_pid()'),
+            );
+
+            $response = $this->withToken($this->token)
+                ->withHeader('If-Match', $etag)
+                ->putJson("/v1/customers/{$this->customer->id}/transactional-edit", [
+                    'customer' => ['name' => 'Transactional Winner'],
+                    'customer_establishments' => [],
+                ]);
+            file_put_contents(
+                $directory.'/transactional-result',
+                json_encode([
+                    'status' => $response->getStatusCode(),
+                    'body' => $response->json(),
+                ], JSON_THROW_ON_ERROR),
+            );
+            exit(0);
+        }
+        $childPids[] = $transactionalPid;
+
+        while (! is_file($directory.'/transactional-pid') && microtime(true) < $deadline) {
+            usleep(25_000);
+        }
+        DB::purge();
+        DB::reconnect();
+        $transactionalBackendPid = (int) file_get_contents($directory.'/transactional-pid');
+        $transactionalEditWaited = false;
+        while (microtime(true) < $deadline) {
+            $transactionalEditWaited = DB::table('pg_stat_activity')
+                ->where('pid', $transactionalBackendPid)
+                ->where('wait_event_type', 'Lock')
+                ->exists();
+            if ($transactionalEditWaited) {
+                break;
+            }
+            usleep(25_000);
+        }
+        expect($transactionalEditWaited)->toBeTrue();
+
+        file_put_contents($release, 'go');
+        foreach ($childPids as $pid) {
+            expect(pcntl_waitpid($pid, $status))->toBe($pid)
+                ->and(pcntl_wifexited($status))->toBeTrue()
+                ->and(pcntl_wexitstatus($status))->toBe(0);
+        }
+        $childPids = [];
+
+        $patchResult = json_decode(
+            (string) file_get_contents($directory.'/patch-result'),
+            true,
+            512,
+            JSON_THROW_ON_ERROR,
+        );
+        $transactionalResult = json_decode(
+            (string) file_get_contents($directory.'/transactional-result'),
+            true,
+            512,
+            JSON_THROW_ON_ERROR,
+        );
+
+        expect($patchResult)->toBe(['status' => 200])
+            ->and($transactionalResult)->toBe([
+                'status' => 412,
+                'body' => [
+                    'message' => 'The customer edit snapshot is stale.',
+                    'code' => 'CUSTOMER_EDIT_STALE',
+                ],
+            ])
+            ->and($this->customer->refresh()->name)->toBe('PATCH Winner');
     } finally {
         if (! is_file($release)) {
             file_put_contents($release, 'go');

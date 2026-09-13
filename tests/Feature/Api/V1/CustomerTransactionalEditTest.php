@@ -15,10 +15,12 @@ use App\Models\Site;
 use App\Models\TenantKey;
 use App\Models\User;
 use App\Models\UserInternalOrganizationalScope;
+use App\Support\CustomerRepresentationETag;
 use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Gate;
 use Spatie\Permission\PermissionRegistrar;
 
 uses(RefreshDatabase::class);
@@ -328,6 +330,79 @@ test('rejects every ineligible desired establishment without disclosing why', fu
     }
 });
 
+test('treats UUID identities canonically and rejects case-variant duplicate establishments', function (): void {
+    $uppercaseCustomerId = strtoupper($this->customer->id);
+    $uppercaseLegalEntityId = strtoupper($this->legalEntity->id);
+    $uppercaseEstablishmentId = strtoupper($this->establishments[0]->id);
+
+    $this->withToken($this->token)
+        ->withHeader('If-Match', customerEtag($this, $this->customer))
+        ->putJson(
+            "/v1/customers/{$this->customer->id}/transactional-edit",
+            transactionalCustomerPayload(
+                $this->customer,
+                ['legal_entity_id' => $uppercaseLegalEntityId],
+                [[
+                    'customer_id' => $uppercaseCustomerId,
+                    'establishment_id' => $uppercaseEstablishmentId,
+                ]],
+            ),
+        )
+        ->assertOk();
+
+    $this->withToken($this->token)
+        ->withHeader('If-Match', customerEtag($this, $this->customer))
+        ->putJson(
+            "/v1/customers/{$this->customer->id}/transactional-edit",
+            transactionalCustomerPayload(
+                $this->customer,
+                ['name' => 'Original Customer'],
+                [
+                    [
+                        'customer_id' => $this->customer->id,
+                        'establishment_id' => $this->establishments[0]->id,
+                    ],
+                    [
+                        'customer_id' => $uppercaseCustomerId,
+                        'establishment_id' => $uppercaseEstablishmentId,
+                    ],
+                ],
+            ),
+        )
+        ->assertUnprocessable()
+        ->assertJsonPath(
+            'errors.customer_establishments.0',
+            'Each establishment may be assigned at most once.',
+        );
+});
+
+test('requires a billing address object with every required member', function (): void {
+    $url = "/v1/customers/{$this->customer->id}/transactional-edit";
+    $etag = customerEtag($this, $this->customer);
+
+    $this->withToken($this->token)
+        ->withHeader('If-Match', $etag)
+        ->putJson($url, transactionalCustomerPayload(
+            $this->customer,
+            ['billing_address' => []],
+        ))
+        ->assertUnprocessable()
+        ->assertJsonPath('errors.customer.0', 'The customer payload is invalid.');
+
+    $emptyAddressResponse = rawTransactionalPut(
+        $this,
+        $url,
+        $etag,
+        json_encode([
+            'customer' => ['billing_address' => (object) []],
+            'customer_establishments' => [],
+        ], JSON_THROW_ON_ERROR),
+    )
+        ->assertUnprocessable();
+    expect($emptyAddressResponse->json('errors')['customer.billing_address.street'][0])
+        ->toBe('The customer field is invalid.');
+});
+
 test('applies If-Match before request validation and dependency conflicts', function (): void {
     CustomerEstablishment::factory()->create([
         'tenant_id' => $this->tenant->id,
@@ -424,6 +499,42 @@ test('blocks omission of a site-dependent relationship and rolls back customer c
     expect($this->customer->refresh()->name)->toBe('Original Customer');
 });
 
+test('changes Legal Entity with zero Sites and replaces incompatible establishment links', function (): void {
+    $oldLink = CustomerEstablishment::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'legal_entity_id' => $this->legalEntity->id,
+        'customer_id' => $this->customer->id,
+        'establishment_id' => $this->establishments[0]->id,
+    ]);
+    $newLegalEntity = LegalEntity::factory()
+        ->forTenant((string) $this->tenant->id)
+        ->create();
+    $newEstablishment = Establishment::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'legal_entity_id' => $newLegalEntity->id,
+    ]);
+
+    $this->withToken($this->token)
+        ->withHeader('If-Match', customerEtag($this, $this->customer))
+        ->putJson(
+            "/v1/customers/{$this->customer->id}/transactional-edit",
+            transactionalCustomerPayload(
+                $this->customer,
+                ['legal_entity_id' => $newLegalEntity->id],
+                [[
+                    'customer_id' => $this->customer->id,
+                    'establishment_id' => $newEstablishment->id,
+                ]],
+            ),
+        )
+        ->assertOk()
+        ->assertJsonPath('data.legal_entity_id', $newLegalEntity->id)
+        ->assertJsonPath('data.customer_establishments.0.establishment_id', $newEstablishment->id);
+
+    expect($this->customer->refresh()->legal_entity_id)->toBe($newLegalEntity->id)
+        ->and(CustomerEstablishment::withTrashed()->find($oldLink->id))->toBeNull();
+});
+
 test('strong GET validator is stable and covers every emitted aggregate relationship family', function (): void {
     $etag = customerEtag($this, $this->customer);
     expect(customerEtag($this, $this->customer))->toBe($etag);
@@ -463,6 +574,49 @@ test('strong GET validator is stable and covers every emitted aggregate relation
         ->and(array_unique([$etag, $afterCustomer, $afterLink, $afterSite, $afterAssignment, $afterUser]))
         ->toHaveCount(6)
         ->and($assignment->exists)->toBeTrue();
+});
+
+test('strong GET validator hashes the exact emitted body and is omitted for filtered readers', function (): void {
+    $assignedUser = User::factory()->create(['tenant_id' => $this->tenant->id]);
+    CustomerAssignment::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'customer_id' => $this->customer->id,
+        'user_id' => $assignedUser->id,
+    ]);
+    Site::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'legal_entity_id' => $this->legalEntity->id,
+        'customer_id' => $this->customer->id,
+        'establishment_id' => $this->establishments[0]->id,
+        'access_instructions' => 'Gate-dependent instructions',
+        'notes' => 'Gate-dependent notes',
+    ]);
+    $siteUpdateChecks = 0;
+    Gate::before(static function (User $user, string $ability) use (&$siteUpdateChecks): ?bool {
+        if ($ability !== 'update') {
+            return null;
+        }
+
+        $allowed = $siteUpdateChecks % 2 === 0;
+        $siteUpdateChecks++;
+
+        return $allowed;
+    });
+
+    $response = $this->withToken($this->token)
+        ->getJson("/v1/customers/{$this->customer->id}")
+        ->assertOk();
+
+    expect($response->headers->get('ETag'))
+        ->toBe(CustomerRepresentationETag::strong($response->json()))
+        ->and($siteUpdateChecks)->toBe(1);
+
+    expect($assignedUser->can('customers.read'))->toBeFalse();
+    $this->withoutHeader('Authorization')
+        ->actingAs($assignedUser, 'sanctum')
+        ->getJson("/v1/customers/{$this->customer->id}")
+        ->assertOk()
+        ->assertHeaderMissing('ETag');
 });
 
 test('stale retry needs a fresh GET and successful PUT emits no successor validator', function (): void {
