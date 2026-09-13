@@ -403,6 +403,32 @@ test('requires a billing address object with every required member', function ()
         ->toBe('The customer field is invalid.');
 });
 
+test('rejects a whitespace-only customer name through Laravel request normalization', function (): void {
+    $response = $this->withToken($this->token)
+        ->withHeader('If-Match', customerEtag($this, $this->customer))
+        ->putJson(
+            "/v1/customers/{$this->customer->id}/transactional-edit",
+            transactionalCustomerPayload($this->customer, ['name' => '   ']),
+        )
+        ->assertUnprocessable();
+
+    expect($response->json('errors')['customer.name'][0])->toBe('The customer field is invalid.')
+        ->and($this->customer->refresh()->name)->toBe('Original Customer');
+});
+
+test('persists Laravel-normalized padded customer input', function (): void {
+    $this->withToken($this->token)
+        ->withHeader('If-Match', customerEtag($this, $this->customer))
+        ->putJson(
+            "/v1/customers/{$this->customer->id}/transactional-edit",
+            transactionalCustomerPayload($this->customer, ['name' => '  Padded Customer  ']),
+        )
+        ->assertOk()
+        ->assertJsonPath('data.name', 'Padded Customer');
+
+    expect($this->customer->refresh()->name)->toBe('Padded Customer');
+});
+
 test('applies If-Match before request validation and dependency conflicts', function (): void {
     CustomerEstablishment::factory()->create([
         'tenant_id' => $this->tenant->id,
@@ -534,6 +560,65 @@ test('changes Legal Entity with zero Sites and replaces incompatible establishme
     expect($this->customer->refresh()->legal_entity_id)->toBe($newLegalEntity->id)
         ->and(CustomerEstablishment::withTrashed()->find($oldLink->id))->toBeNull();
 });
+
+test('inactive customer state cannot create or restore an establishment relationship', function (
+    bool $alreadyInactive,
+    bool $restore,
+): void {
+    if ($alreadyInactive) {
+        $this->customer->update(['is_active' => false]);
+    }
+
+    $existing = null;
+    if ($restore) {
+        $existing = CustomerEstablishment::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'customer_id' => $this->customer->id,
+            'establishment_id' => $this->establishments[0]->id,
+        ]);
+        $existing->delete();
+    }
+
+    $response = $this->withToken($this->token)
+        ->withHeader('If-Match', customerEtag($this, $this->customer))
+        ->putJson(
+            "/v1/customers/{$this->customer->id}/transactional-edit",
+            transactionalCustomerPayload(
+                $this->customer,
+                [
+                    'name' => 'Must Roll Back',
+                    ...($alreadyInactive ? [] : ['is_active' => false]),
+                ],
+                [[
+                    'customer_id' => $this->customer->id,
+                    'establishment_id' => $this->establishments[0]->id,
+                ]],
+            ),
+        )
+        ->assertUnprocessable();
+
+    expect($response->json('errors')['customer_establishments.0.establishment_id'][0])
+        ->toBe('The selected establishment is invalid.')
+        ->and($this->customer->refresh()->name)->toBe('Original Customer')
+        ->and($this->customer->is_active)->toBe(! $alreadyInactive);
+
+    $persisted = CustomerEstablishment::withTrashed()
+        ->where('customer_id', $this->customer->id)
+        ->where('establishment_id', $this->establishments[0]->id)
+        ->first();
+    if ($restore) {
+        expect($persisted?->id)->toBe($existing?->id)
+            ->and($persisted?->trashed())->toBeTrue();
+    } else {
+        expect($persisted)->toBeNull();
+    }
+})->with([
+    'already inactive, new relationship' => [true, false],
+    'already inactive, restored relationship' => [true, true],
+    'resulting inactive, new relationship' => [false, false],
+    'resulting inactive, restored relationship' => [false, true],
+]);
 
 test('strong GET validator is stable and covers every emitted aggregate relationship family', function (): void {
     $etag = customerEtag($this, $this->customer);

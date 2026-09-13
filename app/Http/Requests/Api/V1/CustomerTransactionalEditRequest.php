@@ -49,12 +49,13 @@ final class CustomerTransactionalEditRequest
     /**
      * Parse and validate the syntactic request contract after If-Match succeeds.
      *
+     * @param  array<string, mixed>  $normalizedInput
      * @return array{
      *   customer: array<string, mixed>,
      *   customer_establishments: list<array<string, mixed>>
      * }
      */
-    public function validate(string $content, string $pathCustomerId): array
+    public function validate(string $content, string $pathCustomerId, array $normalizedInput): array
     {
         try {
             $document = json_decode($content, false, 512, JSON_THROW_ON_ERROR);
@@ -114,7 +115,7 @@ final class CustomerTransactionalEditRequest
         }
 
         /** @var array{customer: array<string, mixed>, customer_establishments: list<array<string, mixed>>} $payload */
-        $payload = json_decode($content, true, 512, JSON_THROW_ON_ERROR);
+        $payload = $normalizedInput;
         $billingAddressPresent = array_key_exists('billing_address', $payload['customer']);
         $requiredAddressMember = $billingAddressPresent ? 'required' : 'sometimes';
         $validator = Validator::make($payload, [

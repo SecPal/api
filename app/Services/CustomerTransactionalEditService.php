@@ -46,12 +46,14 @@ final class CustomerTransactionalEditService
         }
     }
 
+    /** @param array<string, mixed> $normalizedInput */
     public function edit(
         User $user,
         int $tenantId,
         string $customerId,
         ?string $ifMatch,
         string $requestContent,
+        array $normalizedInput,
     ): Customer {
         $this->ensureOperationAuthorized($user, $tenantId);
 
@@ -62,6 +64,7 @@ final class CustomerTransactionalEditService
                 $customerId,
                 $ifMatch,
                 $requestContent,
+                $normalizedInput,
             ): Customer {
                 $customer = $this->customers->findLockedForTenant($tenantId, $customerId)
                     ?? throw CustomerTransactionalEditException::notFound();
@@ -72,7 +75,11 @@ final class CustomerTransactionalEditService
 
                 $this->assertCurrentIfMatch($ifMatch, $this->currentRepresentationETag($customer));
 
-                $payload = $this->requestContract->validate($requestContent, $customerId);
+                $payload = $this->requestContract->validate(
+                    $requestContent,
+                    $customerId,
+                    $normalizedInput,
+                );
                 $resultingLegalEntityId = $this->resultingLegalEntityId($customer, $payload['customer']);
                 $this->validateCustomerDomain(
                     $user,
@@ -99,6 +106,7 @@ final class CustomerTransactionalEditService
                 $this->revalidateOperationAuthorization($user, $tenantId);
 
                 $this->applyReplacement(
+                    $user,
                     $tenantId,
                     $customer,
                     $payload['customer'],
@@ -257,6 +265,7 @@ final class CustomerTransactionalEditService
      * @param  Collection<int, CustomerEstablishment>  $links
      */
     private function applyReplacement(
+        User $user,
         int $tenantId,
         Customer $customer,
         array $customerAttributes,
@@ -282,7 +291,7 @@ final class CustomerTransactionalEditService
         $linksByEstablishment = $legalEntityChanges
             ? new Collection
             : $links->keyBy('establishment_id');
-        foreach ($assignments as $assignment) {
+        foreach ($assignments as $index => $assignment) {
             $establishmentId = $this->establishmentId($assignment);
             $establishment = $establishments->get($establishmentId);
             if (! $establishment instanceof Establishment) {
@@ -293,6 +302,16 @@ final class CustomerTransactionalEditService
                 $assignment,
                 clearMissing: $existing === null || $existing->trashed(),
             );
+
+            if ($existing === null || $existing->trashed()) {
+                $this->ensureRelationshipWritable(
+                    $user,
+                    $tenantId,
+                    $customer,
+                    $establishment,
+                    $index,
+                );
+            }
 
             if ($existing instanceof CustomerEstablishment) {
                 if ($existing->trashed()) {
@@ -313,6 +332,31 @@ final class CustomerTransactionalEditService
                 'customer_id' => $customer->id,
                 'establishment_id' => $establishmentId,
                 ...$contactAttributes,
+            ]);
+        }
+    }
+
+    private function ensureRelationshipWritable(
+        User $user,
+        int $tenantId,
+        Customer $customer,
+        Establishment $establishment,
+        int $index,
+    ): void {
+        try {
+            $this->domainAccess->ensureCustomerEstablishmentWritable(
+                $user,
+                $tenantId,
+                $customer,
+                $establishment,
+            );
+        } catch (AuthorizationException) {
+            throw CustomerTransactionalEditException::forbidden();
+        } catch (ValidationException) {
+            throw ValidationException::withMessages([
+                "customer_establishments.{$index}.establishment_id" => [
+                    'The selected establishment is invalid.',
+                ],
             ]);
         }
     }

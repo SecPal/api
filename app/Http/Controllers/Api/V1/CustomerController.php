@@ -180,6 +180,10 @@ class CustomerController extends Controller
             $customer,
             $request->header('If-Match'),
             $request->getContent(),
+            [
+                'customer' => $request->input('customer'),
+                'customer_establishments' => $request->input('customer_establishments'),
+            ],
         );
 
         return response()->json([
