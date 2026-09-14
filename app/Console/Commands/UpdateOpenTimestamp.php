@@ -23,7 +23,7 @@ class UpdateOpenTimestamp extends Command
     /**
      * Execute the console command.
      *
-     * This command checks the installed OpenTimestamp (opentimestamps-client) Python
+     * This command checks the installed OpenTimestamp core Python
      * package for available updates and, outside production only, optionally
      * performs the upgrade using pip before running a follow-up calendar health
      * check via the ots:check command.
@@ -59,7 +59,7 @@ class UpdateOpenTimestamp extends Command
         /** @var array<int, array{name: string, version: string, latest_version: string}> $outdatedList */
         $outdatedList = is_array($outdated) ? $outdated : [];
 
-        $otsUpdate = collect($outdatedList)->firstWhere('name', 'opentimestamps-client');
+        $otsUpdate = collect($outdatedList)->firstWhere('name', 'opentimestamps');
 
         if (! $otsUpdate || ! is_array($otsUpdate)) {
             $this->info('✓ OpenTimestamps is already up to date');
@@ -72,7 +72,7 @@ class UpdateOpenTimestamp extends Command
 
         if ($this->option('dry-run')) {
             $this->info('Dry run - no changes made');
-            $this->line('Would run: pip install --upgrade opentimestamps-client');
+            $this->line('Would run: pip install --upgrade opentimestamps');
 
             return self::SUCCESS;
         }
@@ -88,7 +88,7 @@ class UpdateOpenTimestamp extends Command
         $this->info('Updating OpenTimestamp...');
 
         $updateExecResult = $executor->execute(
-            ['pip', 'install', '--upgrade', 'opentimestamps-client'],
+            ['pip', 'install', '--upgrade', 'opentimestamps'],
             null,
             60 // 60 second timeout for package installation
         );

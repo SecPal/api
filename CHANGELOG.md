@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- removed the vulnerable GitPython runtime path by replacing the OpenTimestamps
+  client CLI upgrade with a bounded core-library helper that accepts only
+  maintained calendar origins, and removed the client and Git dependency chain
+  from production, CI, and development installation paths (fixes `api#1519`)
 - **Breaking:** removed the unreleased Work Instruction product implementation,
   including its HTTP surface, permissions, runtime layers, persistence, and
   Contracts parity assumptions (fixes `api#1508`)
@@ -32,7 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   expected SHA-256, while local imports require the same digest admission before
   parsing or activation (fixes `api#1411`)
 - removed scheduled OpenTimestamp package-index update discovery; production
-  health monitoring now checks the installed pinned client and configured
+  health monitoring now checks the installed pinned OpenTimestamps package and configured
   calendar/provider operations without treating package-index availability as
   readiness, and immutable production images refuse runtime updates (fixes
   `api#1410`)

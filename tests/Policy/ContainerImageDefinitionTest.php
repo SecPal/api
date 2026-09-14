@@ -16,6 +16,7 @@ it('defines the production API image contract', function (): void {
     $dockerignore = file_get_contents($root.'/.dockerignore');
     $caddyfile = file_get_contents($root.'/docker/frankenphp/Caddyfile');
     $productionIni = file_get_contents($root.'/docker/php/conf.d/production.ini');
+    $pythonRequirements = file_get_contents($root.'/docker/python/opentimestamps-requirements.txt');
     $workflow = file_get_contents($root.'/.github/workflows/container-image.yml');
     $documentation = file_get_contents($root.'/docs/containers.md');
     $proxyConfig = file_get_contents($root.'/config/trustedproxy.php');
@@ -47,6 +48,10 @@ it('defines the production API image contract', function (): void {
         ->toContain('HEALTHCHECK NONE')
         ->not->toContain('artisan migrate')
         ->not->toContain('octane');
+
+    expect($pythonRequirements)
+        ->toContain('opentimestamps==0.4.5 --hash=sha256:')
+        ->not->toContain('opentimestamps-client', 'gitpython', 'gitdb', 'smmap', 'appdirs', 'pysocks');
 
     expect($smokeScript)
         ->toContain('DB_SSLMODE=verify-full')
@@ -107,7 +112,9 @@ it('checks container command output without early-terminating pipelines', functi
         ->toContain('exit(extension_loaded("redis") ? 1 : 0)')
         ->not->toContain('php --ri redis')
         ->toContain('php_ini_output=$(docker run --rm "$image" php --ini)')
-        ->toContain('ots_version=$(docker run --rm "$image" ots --version)')
+        ->toContain('docker run --rm "$image" python3 -c \'import opentimestamps\'')
+        ->toContain('git_import=$(docker run --rm "$image" python3 -c \'import git\' 2>&1)')
+        ->toContain('assert_output_contains "$git_import" \'ModuleNotFoundError\'')
         ->not->toMatch('/docker run[^\n]*\\|[ \t]*grep\\b/');
 });
 

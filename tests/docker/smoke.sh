@@ -127,9 +127,20 @@ run_runtime_cli php artisan --version
 run_runtime_cli php artisan schedule:list
 run_runtime_cli php artisan queue:work --help >/dev/null
 run_runtime_cli php artisan schedule:work --help >/dev/null
-ots_version=$(docker run --rm "$image" ots --version)
-assert_output_contains "$ots_version" v0.7.2
 docker run --rm "$image" python3 -c 'import opentimestamps'
+if git_import=$(docker run --rm "$image" python3 -c 'import git' 2>&1); then exit 1; fi
+assert_output_contains "$git_import" 'ModuleNotFoundError'
+if docker run --rm "$image" python3 -m pip show GitPython >/dev/null 2>&1; then exit 1; fi
+if docker run --rm "$image" python3 -m pip show gitdb >/dev/null 2>&1; then exit 1; fi
+if docker run --rm "$image" python3 -m pip show smmap >/dev/null 2>&1; then exit 1; fi
+if docker run --rm "$image" python3 -m pip show opentimestamps-client >/dev/null 2>&1; then exit 1; fi
+docker run --rm "$image" python3 -m pip check
+stamp_usage=$(docker run --rm "$image" python3 /app/scripts/ots-stamp-hash.py 2>&1 || true)
+assert_output_contains "$stamp_usage" 'Usage:'
+upgrade_usage=$(docker run --rm "$image" python3 /app/scripts/ots-upgrade.py 2>&1 || true)
+assert_output_contains "$upgrade_usage" 'EXECUTION_ERROR'
+verify_usage=$(docker run --rm "$image" python3 /app/scripts/ots-verify.py 2>&1 || true)
+assert_output_contains "$verify_usage" 'Usage:'
 docker run --rm "$image" frankenphp fmt --diff --config /etc/frankenphp/Caddyfile >/dev/null
 docker run --rm "$image" frankenphp validate --config /etc/frankenphp/Caddyfile
 test "$(docker image inspect --format '{{index .Config.Healthcheck.Test 0}}' "$image")" = NONE
