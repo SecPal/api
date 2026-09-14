@@ -147,6 +147,8 @@ class OpenTimestampService
      *
      * @param  string  $pendingProof  Binary OTS proof with pending attestations
      * @return string|null Binary upgraded proof with Bitcoin attestation, or null if pending
+     *
+     * @throws RuntimeException When the helper reports an invalid proof or execution failure
      */
     public function upgrade(string $pendingProof): ?string
     {
@@ -155,7 +157,7 @@ class OpenTimestampService
                 'message' => 'Rebuild the image with the reviewed, pinned OpenTimestamp dependency.',
             ]);
 
-            return null;
+            throw new RuntimeException('OpenTimestamp proof upgrade failed: EXECUTION_ERROR');
         }
 
         $scriptPath = base_path('scripts/ots-upgrade.py');
@@ -164,7 +166,7 @@ class OpenTimestampService
                 'script_path' => $scriptPath,
             ]);
 
-            return null;
+            throw new RuntimeException('OpenTimestamp proof upgrade failed: EXECUTION_ERROR');
         }
 
         Log::debug('OpenTimestamp: Attempting proof upgrade', [
@@ -175,7 +177,7 @@ class OpenTimestampService
         if ($tempFile === null) {
             Log::error('OpenTimestamp: Cannot create temp file for upgrade');
 
-            return null;
+            throw new RuntimeException('OpenTimestamp proof upgrade failed: EXECUTION_ERROR');
         }
 
         try {
@@ -185,7 +187,7 @@ class OpenTimestampService
                     'proof_size' => strlen($pendingProof),
                 ]);
 
-                return null;
+                throw new RuntimeException('OpenTimestamp proof upgrade failed: EXECUTION_ERROR');
             }
 
             $result = $this->processExecutor->execute(
@@ -194,13 +196,26 @@ class OpenTimestampService
                 10
             );
 
-            if ($result['exitCode'] !== 0) {
+            $helperStatus = trim((string) ($result['stderr'] ?? ''));
+            if ($result['exitCode'] === 1 && $helperStatus === 'STILL_PENDING') {
                 Log::debug('OpenTimestamp: No proof upgrade available', [
                     'exit_code' => $result['exitCode'],
-                    'result' => $this->sanitizeProcessMessage((string) ($result['stderr'] ?? '')),
+                    'result' => 'STILL_PENDING',
                 ]);
 
                 return null;
+            }
+
+            if ($result['exitCode'] !== 0) {
+                $failureStatus = in_array($helperStatus, ['INVALID_PROOF', 'EXECUTION_ERROR'], true)
+                    ? $helperStatus
+                    : 'EXECUTION_ERROR';
+                Log::error('OpenTimestamp: Proof upgrade helper failed', [
+                    'exit_code' => $result['exitCode'],
+                    'result' => $failureStatus,
+                ]);
+
+                throw new RuntimeException("OpenTimestamp proof upgrade failed: {$failureStatus}");
             }
 
             $upgradedProofBinary = file_get_contents($tempFile);

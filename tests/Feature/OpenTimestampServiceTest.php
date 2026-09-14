@@ -164,7 +164,7 @@ test('upgrade returns confirmed proof when available', function () {
     expect($upgraded)->toBe($confirmedProof);
 });
 
-test('upgrade cleans its temporary proof after helper failure', function () {
+test('upgrade reports an invalid proof as a failure and cleans its temporary proof', function () {
     $temporaryPath = null;
     $this->mockExecutor
         ->shouldReceive('execute')
@@ -175,9 +175,32 @@ test('upgrade cleans its temporary proof after helper failure', function () {
             return ['exitCode' => 2, 'stdout' => '', 'stderr' => 'INVALID_PROOF'];
         });
 
-    expect($this->service->upgrade('malformed'))->toBeNull()
-        ->and($temporaryPath)->toBeString()
+    expect(fn () => $this->service->upgrade('malformed'))
+        ->toThrow(RuntimeException::class, 'OpenTimestamp proof upgrade failed: INVALID_PROOF');
+
+    expect($temporaryPath)->toBeString()
         ->and(file_exists($temporaryPath))->toBeFalse();
+});
+
+test('upgrade reports a helper execution error instead of treating it as pending', function () {
+    $this->mockExecutor
+        ->shouldReceive('execute')
+        ->once()
+        ->andReturn(['exitCode' => 2, 'stdout' => '', 'stderr' => 'EXECUTION_ERROR']);
+
+    expect(fn () => $this->service->upgrade(createPendingProof()))
+        ->toThrow(RuntimeException::class, 'OpenTimestamp proof upgrade failed: EXECUTION_ERROR');
+});
+
+test('upgrade reports a missing Python runtime as an execution failure', function () {
+    $this->mockExecutor
+        ->shouldReceive('commandExists')
+        ->with('python3')
+        ->once()
+        ->andReturn(false);
+
+    expect(fn () => $this->service->upgrade(createPendingProof()))
+        ->toThrow(RuntimeException::class, 'OpenTimestamp proof upgrade failed: EXECUTION_ERROR');
 });
 
 test('verify returns false for invalid proof', function () {

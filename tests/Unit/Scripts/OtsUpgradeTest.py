@@ -7,7 +7,10 @@ from __future__ import annotations
 
 import contextlib
 import io
+import os
+import subprocess
 import socket
+import time
 import urllib.error
 import runpy
 import sys
@@ -20,13 +23,18 @@ import opentimestamps.calendar
 from opentimestamps.calendar import CommitmentNotFoundError, UrlWhitelist
 from opentimestamps.core.notary import BitcoinBlockHeaderAttestation, PendingAttestation
 from opentimestamps.core.op import OpSHA256
-from opentimestamps.core.serialize import StreamDeserializationContext, StreamSerializationContext
+from opentimestamps.core.serialize import (
+    DeserializationError,
+    StreamDeserializationContext,
+    StreamSerializationContext,
+)
 from opentimestamps.core.timestamp import DetachedTimestampFile, Timestamp
 
 
 SCRIPT = Path(__file__).resolve().parents[3] / "scripts" / "ots-upgrade.py"
 DIGEST = bytes.fromhex("ab" * 32)
 ALLOWED = "https://alice.calendar.opentimestamps.org"
+ALLOWED_SECOND = "https://bob.calendar.opentimestamps.org"
 UNAPPROVED = "http://127.0.0.1:8000/private"
 
 
@@ -48,12 +56,12 @@ def deserialize(proof: bytes) -> DetachedTimestampFile:
 
 
 class OtsUpgradeTest(unittest.TestCase):
-    def run_helper(self, proof: bytes, remote_calendar):
+    def run_helper(self, proof: bytes, remote_calendar, allowed=(ALLOWED,)):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "proof.ots"
             path.write_bytes(proof)
             stderr = io.StringIO()
-            whitelist = UrlWhitelist([ALLOWED])
+            whitelist = UrlWhitelist(allowed)
             with (
                 patch.object(opentimestamps.calendar, "DEFAULT_CALENDAR_WHITELIST", whitelist),
                 patch.object(opentimestamps.calendar, "RemoteCalendar", remote_calendar),
@@ -148,6 +156,159 @@ class OtsUpgradeTest(unittest.TestCase):
         self.assertEqual(1, code)
         self.assertEqual(original, result)
         self.assertIn("STILL_PENDING", stderr)
+
+    def test_malformed_calendar_response_does_not_block_later_calendar(self):
+        timestamp = Timestamp(DIGEST)
+        timestamp.attestations.add(PendingAttestation(ALLOWED))
+        timestamp.attestations.add(PendingAttestation(ALLOWED_SECOND))
+        detached = DetachedTimestampFile(OpSHA256(), timestamp)
+        output = io.BytesIO()
+        detached.serialize(StreamSerializationContext(output))
+        original = output.getvalue()
+        calls = []
+
+        class Remote:
+            def __init__(self, url):
+                self.url = url
+
+            def get_timestamp(self, commitment, timeout=None):
+                calls.append(self.url)
+                if len(calls) == 1:
+                    raise opentimestamps.core.serialize.DeserializationError("malformed response")
+                upgraded = Timestamp(commitment)
+                upgraded.attestations.add(BitcoinBlockHeaderAttestation(840_000))
+                return upgraded
+
+        code, result, stderr = self.run_helper(
+            original,
+            Remote,
+            allowed=(ALLOWED, ALLOWED_SECOND),
+        )
+
+        self.assertEqual(0, code)
+        self.assertEqual(2, len(calls))
+        self.assertNotEqual(original, result)
+        self.assertIn("UPGRADED", stderr)
+
+    def test_calendar_work_uses_one_cumulative_wall_clock_deadline(self):
+        runtime = runpy.run_path(str(SCRIPT), run_name="ots_upgrade_test")
+        detached = deserialize(proof_with_pending(ALLOWED))
+        stages = []
+
+        class SlowRemote:
+            def __init__(self, url):
+                pass
+
+            def get_timestamp(self, commitment, timeout=None):
+                for stage in ("resolution", "connect", "tls", "request", "read"):
+                    stages.append(stage)
+                    time.sleep(0.03)
+                raise AssertionError("the cumulative deadline was not enforced")
+
+        runtime["upgrade"].__globals__["REQUEST_TIMEOUT_SECONDS"] = 0.07
+        started = time.monotonic()
+        with (
+            patch.object(
+                opentimestamps.calendar,
+                "DEFAULT_CALENDAR_WHITELIST",
+                UrlWhitelist([ALLOWED]),
+            ),
+            patch.object(opentimestamps.calendar, "RemoteCalendar", SlowRemote),
+        ):
+            upgraded = runtime["upgrade"](detached)
+
+        self.assertFalse(upgraded)
+        self.assertLess(time.monotonic() - started, 0.5)
+        self.assertNotIn("read", stages)
+
+    def test_input_reader_requests_only_the_proof_limit_plus_sentinel(self):
+        runtime = runpy.run_path(str(SCRIPT), run_name="ots_upgrade_test")
+        requested_sizes = []
+
+        class Reader:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                pass
+
+            def read(self, size):
+                requested_sizes.append(size)
+                return b"x" * size
+
+        with patch.object(Path, "open", return_value=Reader()):
+            with self.assertRaises(DeserializationError):
+                runtime["read_proof_bytes"](Path("oversized.ots"))
+
+        self.assertEqual([runtime["MAX_PROOF_BYTES"] + 1], requested_sizes)
+
+    def test_oversized_serialized_upgrade_does_not_replace_input(self):
+        runtime = runpy.run_path(str(SCRIPT), run_name="ots_upgrade_test")
+        original = proof_with_pending(ALLOWED)
+
+        class Remote:
+            def __init__(self, url):
+                pass
+
+            def get_timestamp(self, commitment, timeout=None):
+                upgraded = Timestamp(commitment)
+                upgraded.attestations.add(BitcoinBlockHeaderAttestation(840_000))
+                return upgraded
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "proof.ots"
+            path.write_bytes(original)
+            runtime["main"].__globals__["serialize"] = (
+                lambda detached: b"x" * (runtime["MAX_PROOF_BYTES"] + 1)
+            )
+            stderr = io.StringIO()
+            with (
+                patch.object(
+                    opentimestamps.calendar,
+                    "DEFAULT_CALENDAR_WHITELIST",
+                    UrlWhitelist([ALLOWED]),
+                ),
+                patch.object(opentimestamps.calendar, "RemoteCalendar", Remote),
+                patch.object(sys, "argv", [str(SCRIPT), str(path)]),
+                contextlib.redirect_stderr(stderr),
+            ):
+                code = runtime["main"]()
+
+            self.assertEqual(2, code)
+            self.assertEqual(original, path.read_bytes())
+            self.assertEqual("EXECUTION_ERROR\n", stderr.getvalue())
+
+    def test_failed_atomic_replace_preserves_input_and_removes_staging_file(self):
+        runtime = runpy.run_path(str(SCRIPT), run_name="ots_upgrade_test")
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "proof.ots"
+            path.write_bytes(b"original")
+            with patch("os.replace", side_effect=OSError("replace failed")):
+                with self.assertRaises(OSError):
+                    runtime["atomic_replace"](path, b"upgraded")
+
+            self.assertEqual(b"original", path.read_bytes())
+            self.assertEqual([path], list(Path(directory).iterdir()))
+
+    def test_missing_core_dependency_returns_deterministic_execution_error(self):
+        with tempfile.TemporaryDirectory() as directory:
+            Path(directory, "opentimestamps.py").write_text(
+                "raise ImportError('simulated unavailable core')\n",
+                encoding="utf-8",
+            )
+            environment = os.environ.copy()
+            environment["PYTHONPATH"] = directory
+            result = subprocess.run(
+                [sys.executable, str(SCRIPT), "unused.ots"],
+                capture_output=True,
+                check=False,
+                env=environment,
+                timeout=5,
+            )
+
+        self.assertEqual(2, result.returncode)
+        self.assertEqual(b"EXECUTION_ERROR\n", result.stderr)
+        self.assertNotIn(b"Traceback", result.stderr)
 
     def test_approved_hostname_resolving_private_is_rejected(self):
         runtime = runpy.run_path(str(SCRIPT), run_name="ots_upgrade_test")

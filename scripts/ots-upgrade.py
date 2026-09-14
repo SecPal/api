@@ -10,29 +10,65 @@ import binascii
 import http.client
 import io
 import ipaddress
+import os
+import signal
 import socket
 import ssl
 import sys
+import tempfile
 import time
 import urllib.error
 import urllib.request
+from contextlib import contextmanager
 from pathlib import Path
 from urllib.parse import urljoin, urlsplit
 
-import opentimestamps.calendar
-from opentimestamps.core.notary import BitcoinBlockHeaderAttestation, PendingAttestation
-from opentimestamps.core.serialize import (
-    DeserializationError,
-    StreamDeserializationContext,
-    StreamSerializationContext,
-)
-from opentimestamps.core.timestamp import DetachedTimestampFile, Timestamp
+try:
+    import opentimestamps.calendar
+    from opentimestamps.core.notary import BitcoinBlockHeaderAttestation, PendingAttestation
+    from opentimestamps.core.serialize import (
+        DeserializationError,
+        StreamDeserializationContext,
+        StreamSerializationContext,
+    )
+    from opentimestamps.core.timestamp import DetachedTimestampFile, Timestamp
+except Exception:
+    print("EXECUTION_ERROR", file=sys.stderr)
+    raise SystemExit(2)
 
 
 MAX_PROOF_BYTES = 1_048_576
 MAX_CALENDAR_REQUESTS = 4
 TOTAL_TIMEOUT_SECONDS = 8.0
 REQUEST_TIMEOUT_SECONDS = 2.0
+
+
+@contextmanager
+def wall_clock_timeout(seconds: float):
+    """Interrupt all work in this single-purpose process at one deadline."""
+
+    if seconds <= 0:
+        raise TimeoutError("calendar operation timed out")
+
+    def deadline_reached(signum, frame):
+        raise TimeoutError("calendar operation timed out")
+
+    started = time.monotonic()
+    previous_handler = signal.getsignal(signal.SIGALRM)
+    signal.signal(signal.SIGALRM, deadline_reached)
+    previous_delay, previous_interval = signal.setitimer(signal.ITIMER_REAL, seconds)
+    try:
+        yield
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, 0)
+        signal.signal(signal.SIGALRM, previous_handler)
+        if previous_delay > 0:
+            elapsed = time.monotonic() - started
+            signal.setitimer(
+                signal.ITIMER_REAL,
+                max(previous_delay - elapsed, 0.000001),
+                previous_interval,
+            )
 
 
 class PinnedHTTPSConnection(http.client.HTTPSConnection):
@@ -182,6 +218,41 @@ def load_proof(original: bytes) -> DetachedTimestampFile:
     return detached
 
 
+def read_proof_bytes(path: Path) -> bytes:
+    with path.open("rb") as proof_file:
+        original = proof_file.read(MAX_PROOF_BYTES + 1)
+    if len(original) > MAX_PROOF_BYTES:
+        raise DeserializationError("invalid proof size")
+    return original
+
+
+def atomic_replace(path: Path, upgraded: bytes) -> None:
+    staged_path = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="wb",
+            dir=path.parent,
+            prefix=f".{path.name}.",
+            delete=False,
+        ) as staged_file:
+            staged_path = Path(staged_file.name)
+            if staged_file.write(upgraded) != len(upgraded):
+                raise OSError("short proof write")
+            staged_file.flush()
+            os.fsync(staged_file.fileno())
+
+        os.replace(staged_path, path)
+        directory_fd = os.open(path.parent, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
+        staged_path = None
+    finally:
+        if staged_path is not None:
+            staged_path.unlink(missing_ok=True)
+
+
 def upgrade(detached: DetachedTimestampFile) -> bool:
     started = time.monotonic()
     requests = 0
@@ -208,10 +279,16 @@ def upgrade(detached: DetachedTimestampFile) -> bool:
         original_urlopen, safe_urlopen = calendar_urlopen(expected_url)
         requests += 1
         try:
-            urllib.request.urlopen = safe_urlopen
-            remote = opentimestamps.calendar.RemoteCalendar(uri)
-            upgraded = remote.get_timestamp(timestamp.msg, timeout=timeout)
-        except (opentimestamps.calendar.CommitmentNotFoundError, OSError, ValueError):
+            with wall_clock_timeout(timeout):
+                urllib.request.urlopen = safe_urlopen
+                remote = opentimestamps.calendar.RemoteCalendar(uri)
+                upgraded = remote.get_timestamp(timestamp.msg, timeout=timeout)
+        except (
+            opentimestamps.calendar.CommitmentNotFoundError,
+            DeserializationError,
+            OSError,
+            ValueError,
+        ):
             continue
         finally:
             urllib.request.urlopen = original_urlopen
@@ -236,10 +313,13 @@ def main() -> int:
 
     path = Path(sys.argv[1])
     try:
-        original = path.read_bytes()
+        original = read_proof_bytes(path)
         detached = load_proof(original)
-    except (OSError, ValueError, DeserializationError):
+    except (ValueError, DeserializationError):
         print("INVALID_PROOF", file=sys.stderr)
+        return 2
+    except OSError:
+        print("EXECUTION_ERROR", file=sys.stderr)
         return 2
 
     try:
@@ -252,11 +332,10 @@ def main() -> int:
         if upgraded == original:
             print("STILL_PENDING", file=sys.stderr)
             return 1
+        if len(upgraded) > MAX_PROOF_BYTES:
+            raise ValueError("upgraded proof exceeds size limit")
 
-        with path.open("r+b") as proof_file:
-            proof_file.write(upgraded)
-            proof_file.truncate()
-            proof_file.flush()
+        atomic_replace(path, upgraded)
         print("UPGRADED", file=sys.stderr)
         return 0
     except Exception:
