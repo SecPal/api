@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import contextlib
 import io
+import socket
 import urllib.error
 import runpy
 import sys
@@ -153,7 +154,56 @@ class OtsUpgradeTest(unittest.TestCase):
         private_result = [(2, 1, 6, "", ("127.0.0.1", 443))]
         with patch("socket.getaddrinfo", return_value=private_result):
             with self.assertRaises(urllib.error.URLError):
-                runtime["require_public_address"]("alice.calendar.opentimestamps.org", 443)
+                runtime["resolve_public_addresses"]("alice.calendar.opentimestamps.org", 443)
+
+    def test_https_transport_connects_only_to_the_validated_public_address(self):
+        runtime = runpy.run_path(str(SCRIPT), run_name="ots_upgrade_test")
+        public_address = ("93.184.216.34", 443)
+        public_result = [
+            (socket.AF_INET, socket.SOCK_STREAM, socket.IPPROTO_TCP, "", public_address),
+        ]
+        private_result = [
+            (socket.AF_INET, socket.SOCK_STREAM, socket.IPPROTO_TCP, "", ("127.0.0.1", 443)),
+        ]
+        connected = []
+        server_names = []
+
+        class FakeSocket:
+            def settimeout(self, timeout):
+                self.timeout = timeout
+
+            def connect(self, address):
+                connected.append(address)
+
+            def close(self):
+                pass
+
+        class FakeTlsContext:
+            def wrap_socket(self, transport, server_hostname=None):
+                server_names.append(server_hostname)
+                return transport
+
+        with (
+            patch("socket.getaddrinfo", side_effect=[public_result, private_result]) as resolver,
+            patch("socket.socket", return_value=FakeSocket()),
+            patch("ssl.create_default_context", return_value=FakeTlsContext()),
+        ):
+            addresses = runtime["resolve_public_addresses"](
+                "alice.calendar.opentimestamps.org",
+                443,
+            )
+            connection = runtime["PinnedHTTPSConnection"](
+                "alice.calendar.opentimestamps.org",
+                443,
+                addresses,
+                timeout=2,
+            )
+            connection.connect()
+
+        self.assertEqual(1, resolver.call_count)
+        self.assertEqual([public_address], connected)
+        self.assertNotIn(("127.0.0.1", 443), connected)
+        self.assertEqual(["alice.calendar.opentimestamps.org"], server_names)
 
     def test_approved_calendar_is_bound_to_expected_request_path(self):
         runtime = runpy.run_path(str(SCRIPT), run_name="ots_upgrade_test")
