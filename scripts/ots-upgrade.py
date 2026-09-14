@@ -227,6 +227,7 @@ def read_proof_bytes(path: Path) -> bytes:
 
 
 def atomic_replace(path: Path, upgraded: bytes) -> None:
+    """Commit a complete proof atomically, then sync its directory best-effort."""
     staged_path = None
     try:
         with tempfile.NamedTemporaryFile(
@@ -242,12 +243,25 @@ def atomic_replace(path: Path, upgraded: bytes) -> None:
             os.fsync(staged_file.fileno())
 
         os.replace(staged_path, path)
-        directory_fd = os.open(path.parent, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
-        try:
-            os.fsync(directory_fd)
-        finally:
-            os.close(directory_fd)
         staged_path = None
+
+        directory_fd = None
+        try:
+            directory_fd = os.open(
+                path.parent,
+                os.O_RDONLY | getattr(os, "O_DIRECTORY", 0),
+            )
+            os.fsync(directory_fd)
+        except OSError:
+            # The atomic replacement is already committed. A durability-sync
+            # failure must not report that the complete upgraded proof failed.
+            pass
+        finally:
+            if directory_fd is not None:
+                try:
+                    os.close(directory_fd)
+                except OSError:
+                    pass
     finally:
         if staged_path is not None:
             staged_path.unlink(missing_ok=True)

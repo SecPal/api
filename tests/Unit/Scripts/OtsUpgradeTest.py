@@ -290,6 +290,17 @@ class OtsUpgradeTest(unittest.TestCase):
             self.assertEqual(b"original", path.read_bytes())
             self.assertEqual([path], list(Path(directory).iterdir()))
 
+    def test_directory_fsync_failure_does_not_contradict_committed_upgrade(self):
+        runtime = runpy.run_path(str(SCRIPT), run_name="ots_upgrade_test")
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "proof.ots"
+            path.write_bytes(b"original")
+            with patch("os.fsync", side_effect=[None, OSError("directory fsync failed")]):
+                runtime["atomic_replace"](path, b"upgraded")
+
+            self.assertEqual(b"upgraded", path.read_bytes())
+            self.assertEqual([path], list(Path(directory).iterdir()))
+
     def test_missing_core_dependency_returns_deterministic_execution_error(self):
         with tempfile.TemporaryDirectory() as directory:
             Path(directory, "opentimestamps.py").write_text(
