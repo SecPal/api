@@ -32,14 +32,14 @@ beforeEach(function (): void {
 
     $executor->shouldReceive('commandExists')->byDefault()->andReturnUsing(
         static fn (string $command): bool => match ($command) {
-            'python3', 'ots', 'pip' => true,
+            'python3', 'pip' => true,
             'pip3' => false,
             default => false,
         }
     );
 });
 
-test('command checks installed client and calendar health without package-index discovery', function () {
+test('command checks installed core and calendar health without package-index discovery', function () {
     $this->executor
         ->shouldReceive('execute')
         ->with(['python3', '--version'], null, 5)
@@ -115,27 +115,6 @@ test('command fails fast when python3 is missing', function () {
         ->assertExitCode(1);
 });
 
-test('command fails fast when ots cli is missing', function () {
-    $this->executor
-        ->shouldReceive('execute')
-        ->with(['python3', '--version'], null, 5)
-        ->andReturn(['exitCode' => 0, 'stdout' => 'Python 3.11.2', 'stderr' => '']);
-
-    $this->executor
-        ->shouldReceive('execute')
-        ->with(['python3', '-c', 'import opentimestamps; print(opentimestamps.__version__)'], null, 5)
-        ->andReturn(['exitCode' => 0, 'stdout' => '0.4.5', 'stderr' => '']);
-
-    $this->executor
-        ->shouldReceive('commandExists')
-        ->with('ots')
-        ->andReturn(false);
-
-    $this->artisan(CheckOpenTimestampStatus::class)
-        ->expectsOutputToContain('ots')
-        ->assertExitCode(1);
-});
-
 test('command fails fast when opentimestamps python module is missing', function () {
     $this->executor
         ->shouldReceive('execute')
@@ -173,5 +152,6 @@ test('command fails fast when a required ots helper script is missing', function
         ->assertExitCode(1);
 })->with([
     'stamp script' => ['scripts/ots-stamp-hash.py'],
+    'upgrade script' => ['scripts/ots-upgrade.py'],
     'verify script' => ['scripts/ots-verify.py'],
 ]);

@@ -99,33 +99,23 @@ test('upgrade returns null if not yet confirmed', function () {
     // Arrange: Create minimal pending proof
     $pendingProof = createPendingProof();
 
-    // Mock: CLI upgrade command runs but proof not ready yet
-    $this->mockExecutor
-        ->shouldReceive('commandExists')
-        ->with('ots')
-        ->once()
-        ->andReturn(true);
-
     $this->mockExecutor
         ->shouldReceive('execute')
         ->once()
         ->withArgs(function ($command, $stdin, $timeout) {
             return count($command) === 3
-                && $command[0] === 'ots'
-                && $command[1] === 'upgrade'
+                && $command[0] === 'python3'
+                && str_ends_with($command[1], 'scripts/ots-upgrade.py')
                 && dirname($command[2]) === sys_get_temp_dir()
                 && str_starts_with(basename($command[2]), 'ots_upgrade_')
                 && $stdin === null
                 && $timeout === 10;
         })
-        ->andReturnUsing(function ($command) use ($pendingProof) {
-            // Simulate CLI: Proof file unchanged (no upgrade available)
-            file_put_contents($command[2], $pendingProof);
-
+        ->andReturnUsing(function ($command) {
             return [
-                'exitCode' => 0,
-                'stdout' => 'No upgrade available yet',
-                'stderr' => '',
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => 'STILL_PENDING',
             ];
         });
 
@@ -143,33 +133,25 @@ test('upgrade returns confirmed proof when available', function () {
     // Mock confirmed proof with Bitcoin attestation
     $confirmedProof = createConfirmedProof();
 
-    // Mock: CLI upgrade command succeeds and modifies file
-    $this->mockExecutor
-        ->shouldReceive('commandExists')
-        ->with('ots')
-        ->once()
-        ->andReturn(true);
-
     $this->mockExecutor
         ->shouldReceive('execute')
         ->once()
         ->withArgs(function ($command, $stdin, $timeout) {
             return count($command) === 3
-                && $command[0] === 'ots'
-                && $command[1] === 'upgrade'
+                && $command[0] === 'python3'
+                && str_ends_with($command[1], 'scripts/ots-upgrade.py')
                 && dirname($command[2]) === sys_get_temp_dir()
                 && str_starts_with(basename($command[2]), 'ots_upgrade_')
                 && $stdin === null
                 && $timeout === 10;
         })
         ->andReturnUsing(function ($command) use ($confirmedProof) {
-            // Simulate CLI: Write upgraded proof to file
             file_put_contents($command[2], $confirmedProof);
 
             return [
                 'exitCode' => 0,
-                'stdout' => 'Success! Timestamp upgraded',
-                'stderr' => '',
+                'stdout' => '',
+                'stderr' => 'UPGRADED',
             ];
         });
 
@@ -179,8 +161,46 @@ test('upgrade returns confirmed proof when available', function () {
     // Assert: Proof upgraded
     expect($upgraded)->not->toBeNull();
     expect($upgraded)->not->toBe($pendingProof);
-    // Check that proof contains Bitcoin attestation signature bytes
-    expect($upgraded)->toContain("\x05\x88\x96\x0d");
+    expect($upgraded)->toBe($confirmedProof);
+});
+
+test('upgrade reports an invalid proof as a failure and cleans its temporary proof', function () {
+    $temporaryPath = null;
+    $this->mockExecutor
+        ->shouldReceive('execute')
+        ->once()
+        ->andReturnUsing(function (array $command) use (&$temporaryPath): array {
+            $temporaryPath = $command[2];
+
+            return ['exitCode' => 2, 'stdout' => '', 'stderr' => 'INVALID_PROOF'];
+        });
+
+    expect(fn () => $this->service->upgrade('malformed'))
+        ->toThrow(RuntimeException::class, 'OpenTimestamp proof upgrade failed: INVALID_PROOF');
+
+    expect($temporaryPath)->toBeString()
+        ->and(file_exists($temporaryPath))->toBeFalse();
+});
+
+test('upgrade reports a helper execution error instead of treating it as pending', function () {
+    $this->mockExecutor
+        ->shouldReceive('execute')
+        ->once()
+        ->andReturn(['exitCode' => 2, 'stdout' => '', 'stderr' => 'EXECUTION_ERROR']);
+
+    expect(fn () => $this->service->upgrade(createPendingProof()))
+        ->toThrow(RuntimeException::class, 'OpenTimestamp proof upgrade failed: EXECUTION_ERROR');
+});
+
+test('upgrade reports a missing Python runtime as an execution failure', function () {
+    $this->mockExecutor
+        ->shouldReceive('commandExists')
+        ->with('python3')
+        ->once()
+        ->andReturn(false);
+
+    expect(fn () => $this->service->upgrade(createPendingProof()))
+        ->toThrow(RuntimeException::class, 'OpenTimestamp proof upgrade failed: EXECUTION_ERROR');
 });
 
 test('verify returns false for invalid proof', function () {

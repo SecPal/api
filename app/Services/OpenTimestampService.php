@@ -143,35 +143,41 @@ class OpenTimestampService
     }
 
     /**
-     * Upgrade pending proof to confirmed proof using OTS CLI.
-     *
-     * Uses the official `ots upgrade` CLI command to reliably upgrade proofs.
-     * This avoids commitment extraction issues with the HTTP API approach.
+     * Upgrade a pending proof through the focused Python helper.
      *
      * @param  string  $pendingProof  Binary OTS proof with pending attestations
      * @return string|null Binary upgraded proof with Bitcoin attestation, or null if pending
+     *
+     * @throws RuntimeException When the helper reports an invalid proof or execution failure
      */
     public function upgrade(string $pendingProof): ?string
     {
-        // Check if ots CLI is installed
-        if (! $this->processExecutor->commandExists('ots')) {
-            Log::error('OpenTimestamp: ots CLI not installed for upgrade', [
+        if (! $this->processExecutor->commandExists('python3')) {
+            Log::error('OpenTimestamp: python3 not installed for upgrade', [
                 'message' => 'Rebuild the image with the reviewed, pinned OpenTimestamp dependency.',
             ]);
 
-            return null;
+            throw new RuntimeException('OpenTimestamp proof upgrade failed: EXECUTION_ERROR');
         }
 
-        Log::debug('OpenTimestamp: Attempting upgrade via CLI', [
+        $scriptPath = base_path('scripts/ots-upgrade.py');
+        if (! file_exists($scriptPath)) {
+            Log::error('OpenTimestamp: Upgrade script not found', [
+                'script_path' => $scriptPath,
+            ]);
+
+            throw new RuntimeException('OpenTimestamp proof upgrade failed: EXECUTION_ERROR');
+        }
+
+        Log::debug('OpenTimestamp: Attempting proof upgrade', [
             'proof_size' => strlen($pendingProof),
         ]);
 
-        // Write proof to temporary file (ots CLI requires file input)
         $tempFile = $this->createSecureTempFile('ots_upgrade_');
         if ($tempFile === null) {
             Log::error('OpenTimestamp: Cannot create temp file for upgrade');
 
-            return null;
+            throw new RuntimeException('OpenTimestamp proof upgrade failed: EXECUTION_ERROR');
         }
 
         try {
@@ -181,50 +187,50 @@ class OpenTimestampService
                     'proof_size' => strlen($pendingProof),
                 ]);
 
-                return null;
+                throw new RuntimeException('OpenTimestamp proof upgrade failed: EXECUTION_ERROR');
             }
 
-            // Execute: ots upgrade <file>
-            // This modifies the file in-place if upgrade is available
             $result = $this->processExecutor->execute(
-                ['ots', 'upgrade', $tempFile],
-                null, // No stdin
-                10 // 10 second timeout
+                ['python3', $scriptPath, $tempFile],
+                null,
+                10
             );
 
-            // Read the (potentially upgraded) proof back
-            $upgradedProofBinary = file_get_contents($tempFile);
-            if ($upgradedProofBinary === false) {
-                Log::error('OpenTimestamp: Cannot read upgraded proof from temp file');
+            $helperStatus = trim((string) ($result['stderr'] ?? ''));
+            if ($result['exitCode'] === 1 && $helperStatus === 'STILL_PENDING') {
+                Log::debug('OpenTimestamp: No proof upgrade available', [
+                    'exit_code' => $result['exitCode'],
+                    'result' => 'STILL_PENDING',
+                ]);
 
                 return null;
             }
 
-            // Check if proof was actually upgraded (size should increase)
-            $proofChanged = ($pendingProof !== $upgradedProofBinary);
+            if ($result['exitCode'] !== 0) {
+                $failureStatus = in_array($helperStatus, ['INVALID_PROOF', 'EXECUTION_ERROR'], true)
+                    ? $helperStatus
+                    : 'EXECUTION_ERROR';
+                Log::error('OpenTimestamp: Proof upgrade helper failed', [
+                    'exit_code' => $result['exitCode'],
+                    'result' => $failureStatus,
+                ]);
 
-            if ($result['exitCode'] === 0 && $proofChanged) {
-                // Verify it has Bitcoin attestation
-                if ($this->hasAttestation($upgradedProofBinary, 'bitcoin')) {
-                    Log::info('OpenTimestamp: Proof upgraded via CLI', [
-                        'old_size' => strlen($pendingProof),
-                        'new_size' => strlen($upgradedProofBinary),
-                        'output' => trim($result['stdout']),
-                    ]);
-
-                    // Return binary proof (matches Activity model accessor/mutator)
-                    return $upgradedProofBinary;
-                }
+                throw new RuntimeException("OpenTimestamp proof upgrade failed: {$failureStatus}");
             }
 
-            // Upgrade not yet available or failed
-            Log::debug('OpenTimestamp: No upgrade available yet (CLI)', [
-                'exit_code' => $result['exitCode'],
-                'proof_changed' => $proofChanged,
-                'output' => trim($result['stdout']),
+            $upgradedProofBinary = file_get_contents($tempFile);
+            if ($upgradedProofBinary === false || $pendingProof === $upgradedProofBinary) {
+                Log::error('OpenTimestamp: Upgrade helper returned no changed proof');
+
+                return null;
+            }
+
+            Log::info('OpenTimestamp: Proof upgraded', [
+                'old_size' => strlen($pendingProof),
+                'new_size' => strlen($upgradedProofBinary),
             ]);
 
-            return null;
+            return $upgradedProofBinary;
         } finally {
             $this->cleanupTempFile($tempFile);
         }
@@ -532,27 +538,5 @@ class OpenTimestampService
         }
 
         return $sanitized;
-    }
-
-    /**
-     * Check if proof contains specific attestation type.
-     *
-     * @param  string  $proof  Binary OTS proof
-     * @param  string  $type  Attestation type ('bitcoin', 'litecoin', 'pending')
-     */
-    private function hasAttestation(string $proof, string $type): bool
-    {
-        // Bitcoin attestation: OpCode 0x05 0x88 0x96 0x0d 0x73 0xd7 0x19 0x01 0x03
-        // Simplified check - looks for full 9-byte Bitcoin attestation signature
-        if ($type === 'bitcoin') {
-            return str_contains($proof, "\x05\x88\x96\x0d\x73\xd7\x19\x01\x03");
-        }
-
-        // Pending attestation: OpCode 0x83
-        if ($type === 'pending') {
-            return str_contains($proof, "\x83");
-        }
-
-        return false;
     }
 }

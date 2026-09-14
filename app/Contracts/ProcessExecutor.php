@@ -22,7 +22,7 @@ interface ProcessExecutor
     /**
      * Execute a command and return exit code and output.
      *
-     * @param  array<string>  $command  Command with arguments (e.g., ['ots', 'verify', '-f', '/path/file'])
+     * @param  array<string>  $command  Command with arguments (e.g., ['python3', '/app/scripts/ots-verify.py', '/path/proof', 'digest'])
      * @param  string|null  $stdin  Optional stdin input
      * @param  int  $timeout  Timeout in seconds
      * @param  array<string, string>|null  $environment  Additional process environment variables
@@ -38,7 +38,7 @@ interface ProcessExecutor
     /**
      * Check if a command is available in PATH.
      *
-     * @param  string  $command  Command name (e.g., 'ots')
+     * @param  string  $command  Command name (e.g., 'python3')
      * @return bool True if command exists
      */
     public function commandExists(string $command): bool;

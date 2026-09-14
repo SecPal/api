@@ -13,7 +13,7 @@ The pinned base is `dunglas/frankenphp:1.12.6-php8.4.23-bookworm` at multi-archi
 
 FrankenPHP serves only `/app/public` in Classic Mode on HTTP port `8080`. Worker Mode, Octane, automatic HTTPS, ACME, and Caddy's admin API are disabled. The base image's OCI metadata still declares ports 80, 443, and 2019, but no process listens there. The `secpal` user (UID/GID `10001`) runs without extra capabilities; root owns source, while `storage` and `bootstrap/cache` are writable by that UID/GID.
 
-Extensions are `bcmath`, `curl`, `gettext`, `intl`, `mbstring`, `opcache`, `pcntl`, `pdo_pgsql`, `pgsql`, `sodium`, XML, and `zip`. Python 3 and hash-locked `opentimestamps-client` 0.7.2 support the existing queue. Node.js and Redis-compatible clients or servers are absent.
+Extensions are `bcmath`, `curl`, `gettext`, `intl`, `mbstring`, `opcache`, `pcntl`, `pdo_pgsql`, `pgsql`, `sodium`, XML, and `zip`. Python 3 and the hash-locked `opentimestamps` 0.4.5 core library support the existing queue without the OpenTimestamps CLI or GitPython. Node.js and Redis-compatible clients or servers are absent.
 
 ## Build and HTTP
 

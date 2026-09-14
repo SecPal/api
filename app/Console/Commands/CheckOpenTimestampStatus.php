@@ -43,13 +43,6 @@ class CheckOpenTimestampStatus extends Command
 
         $pythonVersion = trim($pythonResult['stdout'] ?: $pythonResult['stderr'] ?: '');
 
-        if (! $executor->commandExists('ots')) {
-            $this->error('  ✗ Missing required command: ots');
-            $this->line('    Hint: Rebuild the image with the reviewed, pinned OpenTimestamp dependency.');
-
-            return self::FAILURE;
-        }
-
         $otsResult = $executor->execute(['python3', '-c', 'import opentimestamps; print(opentimestamps.__version__)'], null, 5);
 
         if ($otsResult['exitCode'] !== 0) {
@@ -71,7 +64,7 @@ class CheckOpenTimestampStatus extends Command
 
         $otsVersion = trim($otsResult['stdout'] ?: '');
 
-        foreach (['scripts/ots-stamp-hash.py', 'scripts/ots-verify.py'] as $scriptPath) {
+        foreach (['scripts/ots-stamp-hash.py', 'scripts/ots-upgrade.py', 'scripts/ots-verify.py'] as $scriptPath) {
             $absolutePath = base_path($scriptPath);
 
             if (! File::exists($absolutePath)) {

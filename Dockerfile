@@ -50,7 +50,7 @@ COPY lang ./lang
 COPY public ./public
 COPY resources ./resources
 COPY routes ./routes
-COPY scripts/ots-stamp-hash.py scripts/ots-verify.py ./scripts/
+COPY scripts/ots-stamp-hash.py scripts/ots-upgrade.py scripts/ots-verify.py ./scripts/
 COPY storage ./storage
 COPY artisan LICENSE THIRD-PARTY-NOTICES.md ./
 COPY LICENSES ./LICENSES
