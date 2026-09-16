@@ -14,6 +14,29 @@ function containerPublishingWorkflowPath(): string
     return dirname(__DIR__, 2).'/.github/workflows/publish-container.yml';
 }
 
+/** @return list<string> */
+function containerPublishingAutomationFiles(): array
+{
+    $root = dirname(__DIR__, 2);
+    $files = [];
+
+    foreach (['.github/workflows', 'scripts'] as $directory) {
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($root.'/'.$directory, FilesystemIterator::SKIP_DOTS),
+        );
+
+        foreach ($iterator as $file) {
+            if ($file->isFile() && ! $file->isLink()) {
+                $files[] = $file->getPathname();
+            }
+        }
+    }
+
+    sort($files);
+
+    return $files;
+}
+
 /** @return array<string, mixed> */
 function containerPublishingWorkflow(): array
 {
@@ -133,7 +156,7 @@ function containerPublishingForbiddenCommandPattern(): string
 
 function containerPublishingForbiddenDeletionPattern(): string
 {
-    return '/(?:\bdocker\h+buildx\h+imagetools\h+rm\b|\boras\h+manifest\h+delete\b|\bcrane\h+delete\b|\bskopeo\h+delete\b|\bregctl\h+(?:(?:image|manifest)\h+(?:delete|rm)|tag\h+rm)\b|\bgh\h+api\b[^\r\n]*(?:-X(?:=|\h*)|--method(?:=|\h+))DELETE\b)/i';
+    return '/(?:\bdocker\h+buildx\h+imagetools\h+rm\b|\boras\h+manifest\h+delete\b|\bcrane\h+delete\b|\bskopeo\h+delete\b|\bregctl\h+(?:(?:image|manifest)\h+(?:delete|rm)|tag\h+rm)\b|\bgh\h+api\b(?:(?:[^\r\n]|\\\\\r?\n)*?(?:-X(?:=|\h*)|--method(?:=|\h+))DELETE\b|\h+graphql\b[\s\S]*?\bdeletePackageVersion\b))/i';
 }
 
 function secPalApiImageReferenceIsCanonical(string $reference): bool
@@ -370,6 +393,21 @@ it('permits only the build and attestation registry writes', function (): void {
         ->and($serialized)->not->toMatch(containerPublishingForbiddenCommandPattern())
         ->and($serialized)->not->toMatch(containerPublishingForbiddenDeletionPattern());
     expectContainerPublishingNotToContain($serialized, 'package delete', 'tag delete');
+});
+
+it('forbids registry deletion commands across workflows and repository scripts', function (): void {
+    $root = dirname(__DIR__, 2).'/';
+    $files = containerPublishingAutomationFiles();
+
+    expect($files)->not->toBeEmpty();
+
+    foreach ($files as $file) {
+        $relativePath = str_replace($root, '', $file);
+        $contents = (string) file_get_contents($file);
+
+        expect($contents, $relativePath)
+            ->not->toMatch(containerPublishingForbiddenDeletionPattern());
+    }
 });
 
 it('derives the complete platform inventory from the exact verified index bytes', function (): void {
@@ -672,6 +710,8 @@ it('recognizes prohibited registry deletion commands', function (string $command
     'gh api --method=DELETE /orgs/SecPal/packages/container/api/versions/123',
     'gh api -X DELETE /orgs/SecPal/packages/container/api/versions/123',
     'gh api -XDELETE /orgs/SecPal/packages/container/api/versions/123',
+    "gh api \\\n+  --method DELETE /orgs/SecPal/packages/container/api/versions/123",
+    "gh api graphql -f query='mutation { deletePackageVersion(input: {}) { success } }'",
     'oras manifest delete ghcr.io/secpal/api:build-deadbeef-1-1',
     'crane delete ghcr.io/secpal/api:build-deadbeef-1-1',
     'skopeo delete docker://ghcr.io/secpal/api:build-deadbeef-1-1',
