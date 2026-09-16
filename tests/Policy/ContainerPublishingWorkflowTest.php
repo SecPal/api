@@ -15,23 +15,107 @@ function containerPublishingWorkflowPath(): string
 }
 
 /** @return list<string> */
-function containerPublishingAutomationFiles(): array
+function containerPublishingWorkflowFiles(): array
 {
     $root = dirname(__DIR__, 2);
     $files = [];
 
-    foreach (['.github/workflows', 'scripts'] as $directory) {
-        $iterator = new RecursiveIteratorIterator(
-            new RecursiveDirectoryIterator($root.'/'.$directory, FilesystemIterator::SKIP_DOTS),
-        );
+    $iterator = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($root.'/.github/workflows', FilesystemIterator::SKIP_DOTS),
+    );
 
-        foreach ($iterator as $file) {
-            if ($file->isFile() && ! $file->isLink()) {
-                $files[] = $file->getPathname();
+    foreach ($iterator as $file) {
+        if ($file->isFile() && ! $file->isLink()) {
+            $files[] = $file->getPathname();
+        }
+    }
+
+    sort($files);
+
+    return $files;
+}
+
+/** @param array<array-key, mixed> $node
+ * @return list<string>
+ */
+function containerPublishingWorkflowRunCommands(array $node): array
+{
+    $commands = [];
+
+    foreach ($node as $key => $value) {
+        if ($key === 'run' && is_string($value)) {
+            $commands[] = $value;
+        }
+
+        if (is_array($value)) {
+            array_push($commands, ...containerPublishingWorkflowRunCommands($value));
+        }
+    }
+
+    return $commands;
+}
+
+/** @return array<array-key, mixed> */
+function containerPublishingParsedWorkflowFile(string $workflowFile): array
+{
+    $source = (string) file_get_contents($workflowFile);
+    $source = preg_replace('/^---\h*$/m', '', $source, 1) ?? $source;
+    $workflow = Yaml::parse($source);
+
+    expect($workflow)->toBeArray();
+
+    return $workflow;
+}
+
+/** @return list<string> */
+function containerPublishingInvokedRepositoryScripts(): array
+{
+    $root = dirname(__DIR__, 2);
+    $scripts = [];
+
+    foreach (containerPublishingWorkflowFiles() as $workflowFile) {
+        $workflow = containerPublishingParsedWorkflowFile($workflowFile);
+
+        foreach (containerPublishingWorkflowRunCommands($workflow) as $command) {
+            preg_match_all(
+                '~(?<![\w./-])(?:\./)?(?:[\w.-]+/)+[\w.-]+\.(?:php|py|sh)\b~',
+                $command,
+                $matches,
+            );
+
+            foreach ($matches[0] as $path) {
+                $absolutePath = $root.'/'.ltrim($path, './');
+
+                if (is_file($absolutePath) && ! is_link($absolutePath)) {
+                    $scripts[] = $absolutePath;
+                }
             }
         }
     }
 
+    $scripts = array_values(array_unique($scripts));
+    sort($scripts);
+
+    return $scripts;
+}
+
+/** @return list<string> */
+function containerPublishingAutomationFiles(): array
+{
+    $root = dirname(__DIR__, 2);
+    $files = containerPublishingWorkflowFiles();
+    $iterator = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($root.'/scripts', FilesystemIterator::SKIP_DOTS),
+    );
+
+    foreach ($iterator as $file) {
+        if ($file->isFile() && ! $file->isLink()) {
+            $files[] = $file->getPathname();
+        }
+    }
+
+    array_push($files, ...containerPublishingInvokedRepositoryScripts());
+    $files = array_values(array_unique($files));
     sort($files);
 
     return $files;
@@ -156,7 +240,39 @@ function containerPublishingForbiddenCommandPattern(): string
 
 function containerPublishingForbiddenDeletionPattern(): string
 {
-    return '/(?:\bdocker\h+buildx\h+imagetools\h+rm\b|\boras\h+manifest\h+delete\b|\bcrane\h+delete\b|\bskopeo\h+delete\b|\bregctl\h+(?:(?:image|manifest)\h+(?:delete|rm)|tag\h+rm)\b|\bgh\h+api\b(?:(?:[^\r\n]|\\\\\r?\n)*?(?:-X(?:=|\h*)|--method(?:=|\h+))DELETE\b|\h+graphql\b[\s\S]*?\bdeletePackageVersion\b))/i';
+    return '/(?:\bdocker\h+buildx\h+imagetools\h+rm\b|\boras\h+manifest\h+delete\b|\bcrane\h+delete\b|\bskopeo\h+delete\b|\bregctl\h+(?:(?:image|manifest)\h+(?:delete|rm)|tag\h+rm)\b)/i';
+}
+
+function containerPublishingContainsForbiddenDeletion(string $source): bool
+{
+    if (preg_match(containerPublishingForbiddenDeletionPattern(), $source) === 1) {
+        return true;
+    }
+
+    $normalized = preg_replace('/\\\\\r?\n\h*/', ' ', $source);
+    $commands = preg_split('/\r?\n|&&|\|\||;/', $normalized ?? $source);
+
+    foreach ($commands ?: [] as $command) {
+        if (preg_match('/\bgh\h+api\b/i', $command) !== 1) {
+            continue;
+        }
+
+        if (preg_match(
+            '/\bgh\h+api\b.*?(?:-X(?:=|\h*)|--method(?:=|\h+))DELETE\b/i',
+            $command,
+        ) === 1) {
+            return true;
+        }
+
+        if (preg_match(
+            '/\bgh\h+api\b.*?\bgraphql\b.*?\bdeletePackageVersion\b/i',
+            $command,
+        ) === 1) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 function secPalApiImageReferenceIsCanonical(string $reference): bool
@@ -391,22 +507,46 @@ it('permits only the build and attestation registry writes', function (): void {
         ->and(substr_count($serialized, 'push: true'))->toBe(1)
         ->and(substr_count($serialized, 'push-to-registry: true'))->toBe(1)
         ->and($serialized)->not->toMatch(containerPublishingForbiddenCommandPattern())
-        ->and($serialized)->not->toMatch(containerPublishingForbiddenDeletionPattern());
+        ->and(containerPublishingContainsForbiddenDeletion(implode(
+            "\n",
+            containerPublishingWorkflowRunCommands($workflow),
+        )))->toBeFalse();
     expectContainerPublishingNotToContain($serialized, 'package delete', 'tag delete');
 });
 
 it('forbids registry deletion commands across workflows and repository scripts', function (): void {
     $root = dirname(__DIR__, 2).'/';
     $files = containerPublishingAutomationFiles();
+    $relativePaths = array_map(
+        static fn (string $file): string => str_replace($root, '', $file),
+        $files,
+    );
+    $invokedScripts = array_map(
+        static fn (string $file): string => str_replace($root, '', $file),
+        containerPublishingInvokedRepositoryScripts(),
+    );
 
-    expect($files)->not->toBeEmpty();
+    expect($files)->not->toBeEmpty()
+        ->and($relativePaths)->toContain(
+            'tests/docker/smoke.sh',
+            'docker/healthchecks/http-live.sh',
+        )->and($invokedScripts)->toBe([
+            'docker/healthchecks/http-live.sh',
+            'scripts/check-license-compatibility.sh',
+            'scripts/check-live-cors-health.sh',
+            'tests/docker/smoke.sh',
+        ]);
 
     foreach ($files as $file) {
         $relativePath = str_replace($root, '', $file);
-        $contents = (string) file_get_contents($file);
+        $contents = str_starts_with($relativePath, '.github/workflows/')
+            ? implode("\n", containerPublishingWorkflowRunCommands(
+                containerPublishingParsedWorkflowFile($file),
+            ))
+            : (string) file_get_contents($file);
 
-        expect($contents, $relativePath)
-            ->not->toMatch(containerPublishingForbiddenDeletionPattern());
+        expect(containerPublishingContainsForbiddenDeletion($contents), $relativePath)
+            ->toBeFalse();
     }
 });
 
@@ -704,14 +844,17 @@ it('recognizes prohibited registry writes and every Docker prune family', functi
 ]);
 
 it('recognizes prohibited registry deletion commands', function (string $command): void {
-    expect($command)->toMatch(containerPublishingForbiddenDeletionPattern());
+    expect(containerPublishingContainsForbiddenDeletion($command))->toBeTrue();
 })->with([
     'gh api --method DELETE /orgs/SecPal/packages/container/api/versions/123',
     'gh api --method=DELETE /orgs/SecPal/packages/container/api/versions/123',
     'gh api -X DELETE /orgs/SecPal/packages/container/api/versions/123',
     'gh api -XDELETE /orgs/SecPal/packages/container/api/versions/123',
-    "gh api \\\n+  --method DELETE /orgs/SecPal/packages/container/api/versions/123",
+    "gh api \\\n  --method DELETE /orgs/SecPal/packages/container/api/versions/123",
+    "gh api --method \\\n  DELETE /orgs/SecPal/packages/container/api/versions/123",
+    "gh api \\\n  graphql -f query='mutation { deletePackageVersion(input: {}) { success } }'",
     "gh api graphql -f query='mutation { deletePackageVersion(input: {}) { success } }'",
+    "gh api graphql -f query='mutation { remove: deletePackageVersion(input: {}) { success } }'",
     'oras manifest delete ghcr.io/secpal/api:build-deadbeef-1-1',
     'crane delete ghcr.io/secpal/api:build-deadbeef-1-1',
     'skopeo delete docker://ghcr.io/secpal/api:build-deadbeef-1-1',
@@ -720,3 +863,27 @@ it('recognizes prohibited registry deletion commands', function (string $command
     'regctl tag rm ghcr.io/secpal/api:build-deadbeef-1-1',
     'docker buildx imagetools rm ghcr.io/secpal/api:build-deadbeef-1-1',
 ]);
+
+it('recognizes a prohibited folded YAML registry deletion command', function (): void {
+    $workflow = Yaml::parse(<<<'YAML'
+        steps:
+          - run: >-
+              gh api
+              --method DELETE
+              /orgs/SecPal/packages/container/api/versions/123
+        YAML);
+
+    expect($workflow['steps'][0]['run'])
+        ->not->toBeNull();
+    expect(containerPublishingContainsForbiddenDeletion($workflow['steps'][0]['run']))
+        ->toBeTrue();
+});
+
+it('bounds GraphQL deletion detection to the gh api command', function (): void {
+    $commands = <<<'SHELL'
+        gh api graphql -f query='query { viewer { login } }'
+        printf '%s\n' 'deletePackageVersion is forbidden by policy'
+        SHELL;
+
+    expect(containerPublishingContainsForbiddenDeletion($commands))->toBeFalse();
+});
