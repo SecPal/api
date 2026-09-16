@@ -106,8 +106,8 @@ authoritative SBOM, build evidence, and GitHub Artifact Attestations across
 success, interruption, repetition, and concurrent publication. Missing,
 ambiguous, or changed provider semantics fail closed by retaining the tag. This
 policy protects the current evidence model without making BuildKit attachments
-a future architecture requirement; the builder-independent evidence delivered
-by #1444 remains bound to the same canonical digest.
+a future architecture requirement. #1444 owns any future builder-independent
+replacement evidence, which must remain bound to the same canonical digest.
 
 Before attestation, the workflow reads the exact OCI index bytes through the
 run tag and proves that their SHA-256 digest, the registry digest header, the

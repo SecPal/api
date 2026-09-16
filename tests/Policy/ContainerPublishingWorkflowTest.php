@@ -243,16 +243,62 @@ function containerPublishingForbiddenDeletionPattern(): string
     return '/(?:\bdocker\h+buildx\h+imagetools\h+rm\b|\boras\h+manifest\h+delete\b|\bcrane\h+delete\b|\bskopeo\h+delete\b|\bregctl\h+(?:(?:image|manifest)\h+(?:delete|rm)|tag\h+rm)\b)/i';
 }
 
-function containerPublishingContainsForbiddenDeletion(string $source): bool
+function containerPublishingWithoutShellComment(string $command): string
 {
-    if (preg_match(containerPublishingForbiddenDeletionPattern(), $source) === 1) {
-        return true;
+    $inSingleQuote = false;
+    $inDoubleQuote = false;
+    $escaped = false;
+
+    for ($offset = 0, $length = strlen($command); $offset < $length; $offset++) {
+        $character = $command[$offset];
+
+        if ($escaped) {
+            $escaped = false;
+
+            continue;
+        }
+
+        if ($character === '\\' && ! $inSingleQuote) {
+            $escaped = true;
+
+            continue;
+        }
+
+        if ($character === "'" && ! $inDoubleQuote) {
+            $inSingleQuote = ! $inSingleQuote;
+
+            continue;
+        }
+
+        if ($character === '"' && ! $inSingleQuote) {
+            $inDoubleQuote = ! $inDoubleQuote;
+
+            continue;
+        }
+
+        if ($character === '#'
+            && ! $inSingleQuote
+            && ! $inDoubleQuote
+            && ($offset === 0 || str_contains(" \t", $command[$offset - 1]))) {
+            return rtrim(substr($command, 0, $offset));
+        }
     }
 
+    return $command;
+}
+
+function containerPublishingContainsForbiddenDeletion(string $source): bool
+{
     $normalized = preg_replace('/\\\\\r?\n\h*/', ' ', $source);
     $commands = preg_split('/\r?\n|&&|\|\||;/', $normalized ?? $source);
 
     foreach ($commands ?: [] as $command) {
+        $command = containerPublishingWithoutShellComment($command);
+
+        if (preg_match(containerPublishingForbiddenDeletionPattern(), $command) === 1) {
+            return true;
+        }
+
         if (preg_match('/\bgh\h+api\b/i', $command) !== 1) {
             continue;
         }
@@ -886,4 +932,31 @@ it('bounds GraphQL deletion detection to the gh api command', function (): void 
         SHELL;
 
     expect(containerPublishingContainsForbiddenDeletion($commands))->toBeFalse();
+});
+
+it('ignores a prohibited GraphQL field named only in an inline shell comment', function (): void {
+    $command = "gh api graphql -f query='query { viewer { login } }' "
+        .'# deletePackageVersion is forbidden by policy';
+
+    expect(containerPublishingContainsForbiddenDeletion($command))->toBeFalse();
+});
+
+it('ignores a prohibited GraphQL field named only in a folded shell comment', function (): void {
+    $workflow = Yaml::parse(<<<'YAML'
+        steps:
+          - run: >-
+              gh api graphql -f query='query { viewer { login } }'
+              # deletePackageVersion is forbidden by policy
+        YAML);
+
+    expect(containerPublishingContainsForbiddenDeletion($workflow['steps'][0]['run']))
+        ->toBeFalse();
+});
+
+it('preserves hash characters inside a quoted destructive GraphQL query', function (): void {
+    $command = <<<'SHELL'
+        gh api graphql -f query='mutation { audit(value: "#") deletePackageVersion(input: {}) { success } }'
+        SHELL;
+
+    expect(containerPublishingContainsForbiddenDeletion($command))->toBeTrue();
 });
