@@ -327,6 +327,11 @@ SLSA provenance, the registry-backed GitHub Artifact Attestation, workflow-run
 metadata, and the job summary. The recorded digest remains canonical even if a
 registry tag later changes.
 
+Run-scoped discovery tags are retained because GHCR tag-only deletion has not
+been proven safe for the shared digest and evidence. No publisher or scheduled
+workflow has cleanup authority; see the
+[run-tag retention policy](docs/containers.md#run-tag-retention).
+
 Remote verification runs the complete container smoke contract against both
 runtime manifests selected from the verified index by digest; the `arm64`
 execution uses the pinned QEMU helper.

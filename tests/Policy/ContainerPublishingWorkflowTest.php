@@ -131,6 +131,11 @@ function containerPublishingForbiddenCommandPattern(): string
     return '/(?:\bdocker\h+(?:[a-z-]+\h+)*prune\b|\bdocker\h+(?:push|manifest\h+push|buildx\h+(?:(?:build|bake)\b[^\r\n]*(?:--push\b|(?:--output|-o)(?:=|\h+)type=registry\b)|imagetools\h+create))\b|\b(?:oras|podman)\h+(?:push|cp|copy)\b|\bcrane\h+(?:push|copy)\b|\bskopeo\h+(?:copy|sync)\b|\bregctl\h+(?:image|manifest)\h+(?:copy|put)\b|\bcurl\b[^\r\n]*(?:(?:-X|--request)\h*(?:PUT|POST|PATCH|DELETE)\b|(?:-T|--upload-file|--form|-F)\b))/i';
 }
 
+function containerPublishingForbiddenDeletionPattern(): string
+{
+    return '/(?:\bdocker\h+buildx\h+imagetools\h+rm\b|\boras\h+manifest\h+delete\b|\bcrane\h+delete\b|\bskopeo\h+delete\b|\bregctl\h+(?:(?:image|manifest)\h+(?:delete|rm)|tag\h+rm)\b|\bgh\h+api\b[^\r\n]*(?:-X(?:=|\h*)|--method(?:=|\h+))DELETE\b)/i';
+}
+
 function secPalApiImageReferenceIsCanonical(string $reference): bool
 {
     return preg_match('/\Aghcr\.io\/secpal\/api@sha256:[0-9a-f]{64}\z/', $reference) === 1;
@@ -232,6 +237,27 @@ it('publishes every workflow run under a unique non-canonical discovery tag', fu
             'image_created' => '${{ steps.metadata.outputs.created }}',
             'published_tag' => '${{ steps.published_tag.outputs.tag }}',
         ]);
+});
+
+it('retains run tags across interruption repetition and publication races', function (): void {
+    $workflow = containerPublishingWorkflow();
+    $publishedTag = containerPublishingStep($workflow['jobs']['publish'], 'published_tag');
+    $documentation = (string) file_get_contents(dirname(__DIR__, 2).'/docs/containers.md');
+
+    expect(array_keys($workflow['jobs']))->toBe(['validate', 'publish', 'verify', 'attest'])
+        ->and($workflow['concurrency'])->toBe([
+            'group' => 'publish-container-${{ github.repository }}-${{ github.sha }}',
+            'cancel-in-progress' => false,
+        ])->and($publishedTag['run'])->toContain(
+            '"$GITHUB_SHA" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT"',
+        )->and($workflow['jobs']['verify']['needs'])->toBe('publish')
+        ->and($workflow['jobs']['attest']['needs'])->toBe(['publish', 'verify'])
+        ->and($documentation)->toContain(
+            '## Run-tag retention',
+            'GHCR does not provide a proven tag-only deletion operation',
+            'No publisher job or scheduled workflow has cleanup authority',
+            'Interrupted, repeated, and concurrent runs do not share a discovery tag',
+        );
 });
 
 it('uses the OCI index digest as the only canonical image identity', function (): void {
@@ -341,7 +367,8 @@ it('permits only the build and attestation registry writes', function (): void {
         ->and($actionNames['actions/attest'] ?? 0)->toBe(1)
         ->and(substr_count($serialized, 'push: true'))->toBe(1)
         ->and(substr_count($serialized, 'push-to-registry: true'))->toBe(1)
-        ->and($serialized)->not->toMatch(containerPublishingForbiddenCommandPattern());
+        ->and($serialized)->not->toMatch(containerPublishingForbiddenCommandPattern())
+        ->and($serialized)->not->toMatch(containerPublishingForbiddenDeletionPattern());
     expectContainerPublishingNotToContain($serialized, 'package delete', 'tag delete');
 });
 
@@ -636,4 +663,20 @@ it('recognizes prohibited registry writes and every Docker prune family', functi
     'docker volume prune --force',
     'docker builder prune --force',
     'docker buildx prune --force',
+]);
+
+it('recognizes prohibited registry deletion commands', function (string $command): void {
+    expect($command)->toMatch(containerPublishingForbiddenDeletionPattern());
+})->with([
+    'gh api --method DELETE /orgs/SecPal/packages/container/api/versions/123',
+    'gh api --method=DELETE /orgs/SecPal/packages/container/api/versions/123',
+    'gh api -X DELETE /orgs/SecPal/packages/container/api/versions/123',
+    'gh api -XDELETE /orgs/SecPal/packages/container/api/versions/123',
+    'oras manifest delete ghcr.io/secpal/api:build-deadbeef-1-1',
+    'crane delete ghcr.io/secpal/api:build-deadbeef-1-1',
+    'skopeo delete docker://ghcr.io/secpal/api:build-deadbeef-1-1',
+    'regctl manifest delete ghcr.io/secpal/api:build-deadbeef-1-1',
+    'regctl image rm ghcr.io/secpal/api:build-deadbeef-1-1',
+    'regctl tag rm ghcr.io/secpal/api:build-deadbeef-1-1',
+    'docker buildx imagetools rm ghcr.io/secpal/api:build-deadbeef-1-1',
 ]);

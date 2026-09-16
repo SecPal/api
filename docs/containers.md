@@ -81,6 +81,34 @@ new GitHub Artifact Attestation. The publisher performs no registry lookup to
 reuse a previous image, never adopts a registry-sourced digest, and never skips
 the build because another tag exists.
 
+## Run-tag retention
+
+GHCR does not provide a proven tag-only deletion operation for this package.
+GitHub's supported deletion API removes a package version, while OCI manifest
+deletion targets registry content; neither operation has been proven to remove
+only a run-scoped pointer while preserving the shared index digest and all
+associated evidence. SecPal therefore retains every run-scoped discovery tag.
+
+No publisher job or scheduled workflow has cleanup authority. The publisher
+uses its `packages: write` grants only to publish the newly built image and its
+GitHub Artifact Attestation, and the workflow policy rejects registry deletion
+commands. Cleanup is outside the publication critical path.
+
+Interrupted, repeated, and concurrent runs do not share a discovery tag. A run
+that stops at any stage may leave its tag in place; a retry uses a distinct run
+or attempt identity and verifies a new digest independently. Retention is
+idempotent and has no race with another run because it performs no registry
+mutation.
+
+Tag cleanup remains unsupported unless an isolated disposable package proves
+that a tag-only operation preserves digest pulls, platform manifests, the
+authoritative SBOM, build evidence, and GitHub Artifact Attestations across
+success, interruption, repetition, and concurrent publication. Missing,
+ambiguous, or changed provider semantics fail closed by retaining the tag. This
+policy protects the current evidence model without making BuildKit attachments
+a future architecture requirement; the builder-independent evidence delivered
+by #1444 remains bound to the same canonical digest.
+
 Before attestation, the workflow reads the exact OCI index bytes through the
 run tag and proves that their SHA-256 digest, the registry digest header, the
 run-tag target, and the build action's reported digest all match. It verifies
