@@ -14,6 +14,113 @@ function containerPublishingWorkflowPath(): string
     return dirname(__DIR__, 2).'/.github/workflows/publish-container.yml';
 }
 
+/** @return list<string> */
+function containerPublishingWorkflowFiles(): array
+{
+    $root = dirname(__DIR__, 2);
+    $files = [];
+
+    $iterator = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($root.'/.github/workflows', FilesystemIterator::SKIP_DOTS),
+    );
+
+    foreach ($iterator as $file) {
+        if ($file->isFile() && ! $file->isLink()) {
+            $files[] = $file->getPathname();
+        }
+    }
+
+    sort($files);
+
+    return $files;
+}
+
+/** @param array<array-key, mixed> $node
+ * @return list<string>
+ */
+function containerPublishingWorkflowRunCommands(array $node): array
+{
+    $commands = [];
+
+    foreach ($node as $key => $value) {
+        if ($key === 'run' && is_string($value)) {
+            $commands[] = $value;
+        }
+
+        if (is_array($value)) {
+            array_push($commands, ...containerPublishingWorkflowRunCommands($value));
+        }
+    }
+
+    return $commands;
+}
+
+/** @return array<array-key, mixed> */
+function containerPublishingParsedWorkflowFile(string $workflowFile): array
+{
+    $source = (string) file_get_contents($workflowFile);
+    $source = preg_replace('/^---\h*$/m', '', $source, 1) ?? $source;
+    $workflow = Yaml::parse($source);
+
+    expect($workflow)->toBeArray();
+
+    return $workflow;
+}
+
+/** @return list<string> */
+function containerPublishingInvokedRepositoryScripts(): array
+{
+    $root = dirname(__DIR__, 2);
+    $scripts = [];
+
+    foreach (containerPublishingWorkflowFiles() as $workflowFile) {
+        $workflow = containerPublishingParsedWorkflowFile($workflowFile);
+
+        foreach (containerPublishingWorkflowRunCommands($workflow) as $command) {
+            preg_match_all(
+                '~(?<![\w./-])(?:\./)?(?:[\w.-]+/)+[\w.-]+\.(?:php|py|sh)\b~',
+                $command,
+                $matches,
+            );
+
+            foreach ($matches[0] as $path) {
+                $absolutePath = $root.'/'.ltrim($path, './');
+
+                if (is_file($absolutePath) && ! is_link($absolutePath)) {
+                    $scripts[] = $absolutePath;
+                }
+            }
+        }
+    }
+
+    $scripts = array_values(array_unique($scripts));
+    sort($scripts);
+
+    return $scripts;
+}
+
+/** @return list<string> */
+function containerPublishingAutomationFiles(): array
+{
+    $root = dirname(__DIR__, 2);
+    $files = containerPublishingWorkflowFiles();
+    $iterator = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($root.'/scripts', FilesystemIterator::SKIP_DOTS),
+    );
+
+    foreach ($iterator as $file) {
+        if ($file->isFile() && ! $file->isLink()) {
+            $files[] = $file->getPathname();
+        }
+    }
+
+    array_push($files, ...containerPublishingInvokedRepositoryScripts());
+    $files = array_values(array_unique($files));
+    sort($files);
+
+    return $files;
+}
+
 /** @return array<string, mixed> */
 function containerPublishingWorkflow(): array
 {
@@ -131,6 +238,89 @@ function containerPublishingForbiddenCommandPattern(): string
     return '/(?:\bdocker\h+(?:[a-z-]+\h+)*prune\b|\bdocker\h+(?:push|manifest\h+push|buildx\h+(?:(?:build|bake)\b[^\r\n]*(?:--push\b|(?:--output|-o)(?:=|\h+)type=registry\b)|imagetools\h+create))\b|\b(?:oras|podman)\h+(?:push|cp|copy)\b|\bcrane\h+(?:push|copy)\b|\bskopeo\h+(?:copy|sync)\b|\bregctl\h+(?:image|manifest)\h+(?:copy|put)\b|\bcurl\b[^\r\n]*(?:(?:-X|--request)\h*(?:PUT|POST|PATCH|DELETE)\b|(?:-T|--upload-file|--form|-F)\b))/i';
 }
 
+function containerPublishingForbiddenDeletionPattern(): string
+{
+    return '/(?:\bdocker\h+buildx\h+imagetools\h+rm\b|\boras\h+manifest\h+delete\b|\bcrane\h+delete\b|\bskopeo\h+delete\b|\bregctl\h+(?:(?:image|manifest)\h+(?:delete|rm)|tag\h+rm)\b)/i';
+}
+
+function containerPublishingWithoutShellComment(string $command): string
+{
+    $inSingleQuote = false;
+    $inDoubleQuote = false;
+    $escaped = false;
+
+    for ($offset = 0, $length = strlen($command); $offset < $length; $offset++) {
+        $character = $command[$offset];
+
+        if ($escaped) {
+            $escaped = false;
+
+            continue;
+        }
+
+        if ($character === '\\' && ! $inSingleQuote) {
+            $escaped = true;
+
+            continue;
+        }
+
+        if ($character === "'" && ! $inDoubleQuote) {
+            $inSingleQuote = ! $inSingleQuote;
+
+            continue;
+        }
+
+        if ($character === '"' && ! $inSingleQuote) {
+            $inDoubleQuote = ! $inDoubleQuote;
+
+            continue;
+        }
+
+        if ($character === '#'
+            && ! $inSingleQuote
+            && ! $inDoubleQuote
+            && ($offset === 0 || str_contains(" \t", $command[$offset - 1]))) {
+            return rtrim(substr($command, 0, $offset));
+        }
+    }
+
+    return $command;
+}
+
+function containerPublishingContainsForbiddenDeletion(string $source): bool
+{
+    $normalized = preg_replace('/\\\\\r?\n\h*/', ' ', $source);
+    $commands = preg_split('/\r?\n|&&|\|\||;/', $normalized ?? $source);
+
+    foreach ($commands ?: [] as $command) {
+        $command = containerPublishingWithoutShellComment($command);
+
+        if (preg_match(containerPublishingForbiddenDeletionPattern(), $command) === 1) {
+            return true;
+        }
+
+        if (preg_match('/\bgh\h+api\b/i', $command) !== 1) {
+            continue;
+        }
+
+        if (preg_match(
+            '/\bgh\h+api\b.*?(?:-X(?:=|\h*)|--method(?:=|\h+))DELETE\b/i',
+            $command,
+        ) === 1) {
+            return true;
+        }
+
+        if (preg_match(
+            '/\bgh\h+api\b.*?\bgraphql\b.*?\bdeletePackageVersion\b/i',
+            $command,
+        ) === 1) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 function secPalApiImageReferenceIsCanonical(string $reference): bool
 {
     return preg_match('/\Aghcr\.io\/secpal\/api@sha256:[0-9a-f]{64}\z/', $reference) === 1;
@@ -232,6 +422,27 @@ it('publishes every workflow run under a unique non-canonical discovery tag', fu
             'image_created' => '${{ steps.metadata.outputs.created }}',
             'published_tag' => '${{ steps.published_tag.outputs.tag }}',
         ]);
+});
+
+it('retains run tags across interruption repetition and publication races', function (): void {
+    $workflow = containerPublishingWorkflow();
+    $publishedTag = containerPublishingStep($workflow['jobs']['publish'], 'published_tag');
+    $documentation = (string) file_get_contents(dirname(__DIR__, 2).'/docs/containers.md');
+
+    expect(array_keys($workflow['jobs']))->toBe(['validate', 'publish', 'verify', 'attest'])
+        ->and($workflow['concurrency'])->toBe([
+            'group' => 'publish-container-${{ github.repository }}-${{ github.sha }}',
+            'cancel-in-progress' => false,
+        ])->and($publishedTag['run'])->toContain(
+            '"$GITHUB_SHA" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT"',
+        )->and($workflow['jobs']['verify']['needs'])->toBe('publish')
+        ->and($workflow['jobs']['attest']['needs'])->toBe(['publish', 'verify'])
+        ->and($documentation)->toContain(
+            '## Run-tag retention',
+            'GHCR does not provide a proven tag-only deletion operation',
+            'No publisher job or scheduled workflow has cleanup authority',
+            'Interrupted, repeated, and concurrent runs do not share a discovery tag',
+        );
 });
 
 it('uses the OCI index digest as the only canonical image identity', function (): void {
@@ -341,8 +552,48 @@ it('permits only the build and attestation registry writes', function (): void {
         ->and($actionNames['actions/attest'] ?? 0)->toBe(1)
         ->and(substr_count($serialized, 'push: true'))->toBe(1)
         ->and(substr_count($serialized, 'push-to-registry: true'))->toBe(1)
-        ->and($serialized)->not->toMatch(containerPublishingForbiddenCommandPattern());
+        ->and($serialized)->not->toMatch(containerPublishingForbiddenCommandPattern())
+        ->and(containerPublishingContainsForbiddenDeletion(implode(
+            "\n",
+            containerPublishingWorkflowRunCommands($workflow),
+        )))->toBeFalse();
     expectContainerPublishingNotToContain($serialized, 'package delete', 'tag delete');
+});
+
+it('forbids registry deletion commands across workflows and repository scripts', function (): void {
+    $root = dirname(__DIR__, 2).'/';
+    $files = containerPublishingAutomationFiles();
+    $relativePaths = array_map(
+        static fn (string $file): string => str_replace($root, '', $file),
+        $files,
+    );
+    $invokedScripts = array_map(
+        static fn (string $file): string => str_replace($root, '', $file),
+        containerPublishingInvokedRepositoryScripts(),
+    );
+
+    expect($files)->not->toBeEmpty()
+        ->and($relativePaths)->toContain(
+            'tests/docker/smoke.sh',
+            'docker/healthchecks/http-live.sh',
+        )->and($invokedScripts)->toBe([
+            'docker/healthchecks/http-live.sh',
+            'scripts/check-license-compatibility.sh',
+            'scripts/check-live-cors-health.sh',
+            'tests/docker/smoke.sh',
+        ]);
+
+    foreach ($files as $file) {
+        $relativePath = str_replace($root, '', $file);
+        $contents = str_starts_with($relativePath, '.github/workflows/')
+            ? implode("\n", containerPublishingWorkflowRunCommands(
+                containerPublishingParsedWorkflowFile($file),
+            ))
+            : (string) file_get_contents($file);
+
+        expect(containerPublishingContainsForbiddenDeletion($contents), $relativePath)
+            ->toBeFalse();
+    }
 });
 
 it('derives the complete platform inventory from the exact verified index bytes', function (): void {
@@ -637,3 +888,75 @@ it('recognizes prohibited registry writes and every Docker prune family', functi
     'docker builder prune --force',
     'docker buildx prune --force',
 ]);
+
+it('recognizes prohibited registry deletion commands', function (string $command): void {
+    expect(containerPublishingContainsForbiddenDeletion($command))->toBeTrue();
+})->with([
+    'gh api --method DELETE /orgs/SecPal/packages/container/api/versions/123',
+    'gh api --method=DELETE /orgs/SecPal/packages/container/api/versions/123',
+    'gh api -X DELETE /orgs/SecPal/packages/container/api/versions/123',
+    'gh api -XDELETE /orgs/SecPal/packages/container/api/versions/123',
+    "gh api \\\n  --method DELETE /orgs/SecPal/packages/container/api/versions/123",
+    "gh api --method \\\n  DELETE /orgs/SecPal/packages/container/api/versions/123",
+    "gh api \\\n  graphql -f query='mutation { deletePackageVersion(input: {}) { success } }'",
+    "gh api graphql -f query='mutation { deletePackageVersion(input: {}) { success } }'",
+    "gh api graphql -f query='mutation { remove: deletePackageVersion(input: {}) { success } }'",
+    'oras manifest delete ghcr.io/secpal/api:build-deadbeef-1-1',
+    'crane delete ghcr.io/secpal/api:build-deadbeef-1-1',
+    'skopeo delete docker://ghcr.io/secpal/api:build-deadbeef-1-1',
+    'regctl manifest delete ghcr.io/secpal/api:build-deadbeef-1-1',
+    'regctl image rm ghcr.io/secpal/api:build-deadbeef-1-1',
+    'regctl tag rm ghcr.io/secpal/api:build-deadbeef-1-1',
+    'docker buildx imagetools rm ghcr.io/secpal/api:build-deadbeef-1-1',
+]);
+
+it('recognizes a prohibited folded YAML registry deletion command', function (): void {
+    $workflow = Yaml::parse(<<<'YAML'
+        steps:
+          - run: >-
+              gh api
+              --method DELETE
+              /orgs/SecPal/packages/container/api/versions/123
+        YAML);
+
+    expect($workflow['steps'][0]['run'])
+        ->not->toBeNull();
+    expect(containerPublishingContainsForbiddenDeletion($workflow['steps'][0]['run']))
+        ->toBeTrue();
+});
+
+it('bounds GraphQL deletion detection to the gh api command', function (): void {
+    $commands = <<<'SHELL'
+        gh api graphql -f query='query { viewer { login } }'
+        printf '%s\n' 'deletePackageVersion is forbidden by policy'
+        SHELL;
+
+    expect(containerPublishingContainsForbiddenDeletion($commands))->toBeFalse();
+});
+
+it('ignores a prohibited GraphQL field named only in an inline shell comment', function (): void {
+    $command = "gh api graphql -f query='query { viewer { login } }' "
+        .'# deletePackageVersion is forbidden by policy';
+
+    expect(containerPublishingContainsForbiddenDeletion($command))->toBeFalse();
+});
+
+it('ignores a prohibited GraphQL field named only in a folded shell comment', function (): void {
+    $workflow = Yaml::parse(<<<'YAML'
+        steps:
+          - run: >-
+              gh api graphql -f query='query { viewer { login } }'
+              # deletePackageVersion is forbidden by policy
+        YAML);
+
+    expect(containerPublishingContainsForbiddenDeletion($workflow['steps'][0]['run']))
+        ->toBeFalse();
+});
+
+it('preserves hash characters inside a quoted destructive GraphQL query', function (): void {
+    $command = <<<'SHELL'
+        gh api graphql -f query='mutation { audit(value: "#") deletePackageVersion(input: {}) { success } }'
+        SHELL;
+
+    expect(containerPublishingContainsForbiddenDeletion($command))->toBeTrue();
+});

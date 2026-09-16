@@ -14,6 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- defined fail-closed GHCR run-tag retention: run-scoped tags remain
+  non-authoritative discovery pointers, no workflow receives cleanup authority,
+  and tags are retained unless isolated evidence proves tag-only removal leaves
+  the canonical OCI digest, SBOM, build evidence, and GitHub Artifact
+  Attestations unaffected (fixes `api#1387`)
 - removed the vulnerable GitPython runtime path by replacing the OpenTimestamps
   client CLI upgrade with a bounded core-library helper that accepts only
   maintained calendar origins, and removed the client and Git dependency chain
