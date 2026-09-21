@@ -148,7 +148,7 @@ jobs:
 
       - name: Upload coverage to Codecov
         # v7.0.0
-        uses: codecov/codecov-action@0b35c9ecc4f0529d0eb674914510c22f85b196b4
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5
         with:
           # Token is optional for public repos (tokenless uploads supported)
           # Dependabot PRs cannot access secrets, so token may be empty
