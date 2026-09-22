@@ -597,7 +597,7 @@ test('blind index enables case-insensitive search', function () {
 
 ## Related Documentation
 
-- [GUARD_ARCHITECTURE.md](../GUARD_ARCHITECTURE.md) - Authentication guards and API design
+- [Authentication boundaries](../api/authentication.md) - Current authentication contexts and trust boundaries
 - [TenantKey Model](../../app/Models/TenantKey.php) - Key management implementation
 - [EncryptedWithDek Cast](../../app/Casts/EncryptedWithDek.php) - Custom cast implementation
 - [EmployeeObserver](../../app/Observers/EmployeeObserver.php) - Blind index generation
