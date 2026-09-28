@@ -29,7 +29,7 @@ permissions:
 
 jobs:
   auto-merge:
-    uses: SecPal/.github/.github/workflows/reusable-dependabot-auto-merge.yml@ca696fb760c86ec9117fdf49fa38a59195580829
+    uses: SecPal/.github/.github/workflows/reusable-dependabot-auto-merge.yml@dd8139ced2efb02c20ff7302f44907b5b62719b2
     with:
       phase: "1" # Phase 1: Only PATCH updates auto-merge
       merge-method: "squash" # Use squash merge for cleaner history
