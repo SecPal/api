@@ -722,19 +722,24 @@ it('registers QEMU before Buildx and pins every action to a full SHA', function 
     ];
 
     foreach (['publish', 'verify'] as $jobId) {
-        $uses = array_column($workflow['jobs'][$jobId]['steps'], 'uses');
+        $actionNamesInJob = array_map(
+            static fn (string $uses): string => explode('@', $uses, 2)[0],
+            array_column($workflow['jobs'][$jobId]['steps'], 'uses'),
+        );
         $qemu = array_search(
-            'docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8',
-            $uses,
+            'docker/setup-qemu-action',
+            $actionNamesInJob,
             true,
         );
         $buildx = array_search(
-            'docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e',
-            $uses,
+            'docker/setup-buildx-action',
+            $actionNamesInJob,
             true,
         );
 
-        expect($qemu)->toBeInt()->toBeLessThan($buildx);
+        expect($qemu)->toBeInt()
+            ->and($buildx)->toBeInt()
+            ->and($qemu)->toBeLessThan($buildx);
     }
 
     foreach ($workflow['jobs'] as $job) {
