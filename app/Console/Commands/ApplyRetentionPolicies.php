@@ -73,6 +73,7 @@ class ApplyRetentionPolicies extends Command
 
         // Get tenants to process
         $tenantFilter = $this->option('tenant');
+        /** @var \Illuminate\Support\Collection<int, int|string> $tenantIds */
         $tenantIds = $tenantFilter
             ? collect([$tenantFilter])
             : Activity::distinct('tenant_id')->pluck('tenant_id');
