@@ -24,7 +24,10 @@ jobs:
         # v7.0.0
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
-          node-version: "22"
+          node-version: "26.10.0"
 
       - name: Run Prettier check
-        run: npx --yes prettier@4.0.0-alpha.8 --check '**/*.{md,yml,yaml,json}'
+        run: |
+          node --version
+          test "$(node --version)" = "v26.10.0"
+          npx --yes prettier@4.0.0-alpha.8 --check '**/*.{md,yml,yaml,json}'

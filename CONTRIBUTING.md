@@ -14,8 +14,8 @@ We welcome contributions to SecPal! Please read our [Code of Conduct](CODE_OF_CO
 Ensure you have the following tools installed:
 
 - **Git** with cryptographic commit signing configured (SSH or OpenPGP)
-- **Node.js** (v22.x) and npm/pnpm/yarn
-- **PHP** 8.4 and Composer (for backend projects)
+- **Node.js** 26.10.0 and npm for repository formatting and hooks
+- **PHP** 8.4 and Composer for the Laravel API runtime
 - **Pre-commit** hooks tool (optional but recommended)
 
 ### Local Setup
@@ -91,7 +91,7 @@ This script runs automatically before every `git push` via the pre-push hook.
 - REUSE compliance
 - PHP linting (Pint, PHPStan) - always runs
 - Tests (Pest/PHPUnit) - **skipped by default for speed** ⚡
-- Node.js linting and tests (if applicable)
+- Node-based formatting hooks
 - OpenAPI validation (if applicable)
 - PR size (< 600 lines recommended, excluding lock files and license files)
 
@@ -422,8 +422,8 @@ GitHub also shows whether a commit is verified after the corresponding SSH or Op
 
 ## Code Style
 
-- **Formatting:** We use Prettier for all code formatting. Run `npx prettier --write .` before committing.
-- **Linting:** ESLint (JavaScript/TypeScript) and PHPStan (PHP) are enforced.
+- **Formatting:** Run `npx --yes prettier@4.0.0-alpha.8 --check '**/*.{md,yml,yaml,json}'` before committing.
+- **Linting:** Markdownlint and PHPStan are enforced.
 - **Testing:** All new features should include tests.
 
 ## REUSE Compliance
