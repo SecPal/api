@@ -14,6 +14,6 @@ permissions:
 jobs:
   pr-size:
     name: Check PR Size
-    uses: SecPal/.github/.github/workflows/reusable-pr-size.yml@ca8b03aa0f81e1663fc1f5f4c2e73376e64bc755
+    uses: SecPal/.github/.github/workflows/reusable-pr-size.yml@a2be12f23ba9d692a19d3b58ba99425f88193c7a
     with:
       max-lines: 600
