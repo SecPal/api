@@ -87,32 +87,12 @@ governs API-specific technical detail.
 
 ### Initial Automated Review
 
-The following declarations govern ordinary delivery PR review acquisition;
-they do not grant readiness or review authority beyond the maintained lifecycle.
+Apply the [canonical review-acquisition rule](https://github.com/SecPal/.github/blob/main/docs/work-graph-contract.md#531-initial-automated-review).
+These runtime assertions consume that owner; they define no separate lifecycle.
 
 - `PRIMARY_AUTOMATED_REVIEW_TRIGGER: DRAFT_TO_READY`
 - `PRIMARY_CODEX_COMMENT_TRIGGER_ALLOWED: NO`
 - `POST_READY_BOUNDED_COMMENT_FALLBACK: YES`
-
-Create every ordinary delivery PR as Draft. When the maintained lifecycle and
-current authority permit external review, perform the authenticated
-`Draft -> Ready for Review` transition. That transition is the canonical primary
-trigger for configured automatic Code and Security reviews. After Ready, observe
-automatic provider startup and terminality.
-
-Agents MUST NOT use `@codex review` or `@codex security review` as the primary
-initial review trigger, post either command while an ordinary delivery PR is
-still Draft merely because review is needed, or substitute a review-request
-comment for the required Ready transition. The ordinary delivery lifecycle MUST
-NOT require a human review-request comment.
-
-Either command is permitted only as a bounded post-Ready fallback when ALL are
-true: the PR is already authentically Ready; automatic startup for that exact
-review type has not appeared within the maintained observation window; current
-lifecycle authority permits the fallback; and no fallback for that review type
-has already been consumed. Allow at most one Code fallback request and one
-Security fallback request. A fallback creates neither another review cycle nor
-new authority.
 
 ## Laravel Architecture
 
@@ -179,7 +159,10 @@ on the first failed item:
   but not automatically for governance-only prose;
 - verify that changed observable behavior, security constraints, state
   lifecycle, and error handling have corresponding evidence;
-- verify commits are cryptographically signed and no bypass was used.
+- `SECPAL_SIGNING_FORMAT: SSH`; apply the [canonical signing authority](https://github.com/SecPal/.github/blob/main/docs/work-graph-contract.md#532-signing-authority).
+  Preserve existing SSH keys and signing configuration. GitHub-generated
+  signatures are provider evidence, not SecPal OpenPGP signing authority.
+  Every PR commit must have GitHub `verification.verified == true`.
 
 Use a body file for multiline `gh pr create` or `gh pr edit` content. Follow the
 canonical work-graph contract for pull-request delivery, issue-closing, and

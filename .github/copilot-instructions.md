@@ -5,6 +5,12 @@ SPDX-License-Identifier: CC0-1.0
 
 # SecPal/api Copilot Instructions
 
+## Canonical Review And Signing
+
+Apply `AGENTS.md` and the organization-wide [review-acquisition rule](https://github.com/SecPal/.github/blob/main/docs/work-graph-contract.md#531-initial-automated-review)
+and [SSH signing authority](https://github.com/SecPal/.github/blob/main/docs/work-graph-contract.md#532-signing-authority).
+This compatibility mirror defines no separate lifecycle or signing authority.
+
 `AGENTS.md` is the authoritative API runtime baseline. This compatibility mirror
 summarizes the same authority boundary for tools that load this path.
 
@@ -68,7 +74,8 @@ contract and security detail, not graph sequence, readiness, or progress.
   and `git diff --check`.
 - Update `CHANGELOG.md` for real product changes, not automatically for
   governance-only prose.
-- Keep commits cryptographically signed.
+- Keep new SecPal commits SSH-signed with the existing identity; verify every
+  PR commit through GitHub. Provider-generated signatures are provider evidence.
 - Follow the canonical work-graph contract for pull-request delivery and
   reference semantics.
 - Keep GitHub communication in English, SPDX years current, and project
