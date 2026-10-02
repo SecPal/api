@@ -85,6 +85,15 @@ governs API-specific technical detail.
   derived from mutable display names, and compatibility shims without a proven
   live caller.
 
+### Initial Automated Review
+
+Apply the [canonical review-acquisition rule](https://github.com/SecPal/.github/blob/main/docs/work-graph-contract.md#531-initial-automated-review).
+These runtime assertions consume that owner; they define no separate lifecycle.
+
+- `PRIMARY_AUTOMATED_REVIEW_TRIGGER: DRAFT_TO_READY`
+- `PRIMARY_CODEX_COMMENT_TRIGGER_ALLOWED: NO`
+- `POST_READY_BOUNDED_COMMENT_FALLBACK: YES`
+
 ## Laravel Architecture
 
 - Stack: Laravel 13, PHP 8.4, Pest 4, PostgreSQL 18, and native PHP shell usage.
@@ -150,7 +159,10 @@ on the first failed item:
   but not automatically for governance-only prose;
 - verify that changed observable behavior, security constraints, state
   lifecycle, and error handling have corresponding evidence;
-- verify commits are cryptographically signed and no bypass was used.
+- `SECPAL_SIGNING_FORMAT: SSH`; apply the [canonical signing authority](https://github.com/SecPal/.github/blob/main/docs/work-graph-contract.md#532-signing-authority).
+  Preserve existing SSH keys and signing configuration. GitHub-generated
+  signatures are provider evidence, not SecPal OpenPGP signing authority.
+  Every PR commit must have GitHub `verification.verified == true`.
 
 Use a body file for multiline `gh pr create` or `gh pr edit` content. Follow the
 canonical work-graph contract for pull-request delivery, issue-closing, and
