@@ -13,7 +13,7 @@ require dirname(__DIR__, 2).'/vendor/autoload.php';
 
 // Run the reviewed action itself; scanner implementation remains upstream.
 $upstream = realpath($argv[1] ?? '') ?: throw new RuntimeException('Provide the reviewed organization checkout.');
-$pin = '1dedfc2147390dd4dd42cb8ff50d4576ce8e461d';
+$pin = '05c31b343bce1cc94c48560a8eb887c05495ed8c';
 $identity = new Process(['git', '-C', $upstream, 'rev-parse', 'HEAD']);
 $identity->mustRun();
 $clean = new Process(['git', '-C', $upstream, 'status', '--porcelain']);
