@@ -1,0 +1,38 @@
+---
+# SPDX-FileCopyrightText: 2026 SecPal Contributors
+# SPDX-License-Identifier: CC0-1.0
+
+name: API Repository Security
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  repository-security:
+    name: Accept API Repository Security
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout exact API commit
+        # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Scan the checked-out API repository
+        id: repository-scan
+        uses: SecPal/.github/.github/actions/trivy-repository-scan@1dedfc2147390dd4dd42cb8ff50d4576ce8e461d
+
+      - name: Require CLEAN repository evidence
+        shell: bash
+        env:
+          GATE_STATE: ${{ steps.repository-scan.outputs.gate-state }}
+        run: |
+          set -euo pipefail
+          test "${GATE_STATE:-}" = CLEAN

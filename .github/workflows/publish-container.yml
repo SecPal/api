@@ -61,9 +61,15 @@ jobs:
           docker/healthchecks/http-live.sh
           tests/docker/smoke.sh
 
+  repository-security:
+    name: Repository Security
+    permissions:
+      contents: read
+    uses: ./.github/workflows/reusable-repository-security.yml
+
   publish:
     name: Publish API Image
-    needs: validate
+    needs: [validate, repository-security]
     runs-on: ubuntu-latest
     timeout-minutes: 90
     permissions:

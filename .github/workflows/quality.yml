@@ -15,6 +15,12 @@ permissions:
   pull-requests: read
 
 jobs:
+  repository-security:
+    name: Repository Security
+    permissions:
+      contents: read
+    uses: ./.github/workflows/reusable-repository-security.yml
+
   reuse:
     name: Check REUSE Compliance
     uses: SecPal/.github/.github/workflows/reusable-reuse.yml@9ed2d54addb03cfb52ba38d7e4844eef2aa7f7cd
