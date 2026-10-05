@@ -182,7 +182,7 @@ function containerPublishingActionNames(array $workflow): array
     $names = [];
 
     foreach ($workflow['jobs'] as $job) {
-        foreach ($job['steps'] as $step) {
+        foreach ($job['steps'] ?? [] as $step) {
             if (isset($step['uses'])) {
                 $names[] = explode('@', $step['uses'], 2)[0];
             }
@@ -343,7 +343,7 @@ it('defines a main-only publish workflow with isolated least-privilege jobs', fu
             'GHCR_HOST' => 'ghcr.io',
             'GHCR_REPOSITORY_PATH' => 'secpal/api',
             'CANONICAL_IMAGE' => 'ghcr.io/secpal/api',
-        ])->and(array_keys($workflow['jobs']))->toBe(['validate', 'publish', 'verify', 'attest'])
+        ])->and(array_keys($workflow['jobs']))->toBe(['validate', 'repository-security', 'publish', 'verify', 'attest'])
         ->and($validate['permissions'])->toBe(['contents' => 'read'])
         ->and($publish['permissions'])->toBe(['contents' => 'read', 'packages' => 'write'])
         ->and($verify['permissions'])->toBe(['contents' => 'read', 'packages' => 'read'])
@@ -429,7 +429,7 @@ it('retains run tags across interruption repetition and publication races', func
     $publishedTag = containerPublishingStep($workflow['jobs']['publish'], 'published_tag');
     $documentation = (string) file_get_contents(dirname(__DIR__, 2).'/docs/containers.md');
 
-    expect(array_keys($workflow['jobs']))->toBe(['validate', 'publish', 'verify', 'attest'])
+    expect(array_keys($workflow['jobs']))->toBe(['validate', 'repository-security', 'publish', 'verify', 'attest'])
         ->and($workflow['concurrency'])->toBe([
             'group' => 'publish-container-${{ github.repository }}-${{ github.sha }}',
             'cancel-in-progress' => false,
@@ -743,7 +743,7 @@ it('registers QEMU before Buildx and pins every action to a full SHA', function 
     }
 
     foreach ($workflow['jobs'] as $job) {
-        foreach ($job['steps'] as $step) {
+        foreach ($job['steps'] ?? [] as $step) {
             if (! isset($step['uses'])) {
                 continue;
             }

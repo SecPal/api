@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- require accepted repository security evidence before API container publication
+  and provide pull-request feedback through the shared pinned organization
+  Trivy action; only `CLEAN` passes, while repository/source evidence remains
+  separate from released OCI artifact scanning (fixes `api#1450`)
 - defined fail-closed GHCR run-tag retention: run-scoped tags remain
   non-authoritative discovery pointers, no workflow receives cleanup authority,
   and tags are retained unless isolated evidence proves tag-only removal leaves

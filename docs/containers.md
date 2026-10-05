@@ -55,6 +55,44 @@ database test case and runs without PostgreSQL. Pull-request validation runs
 the same database-free policy command used by the post-merge publisher before
 any registry write is permitted.
 
+### Pre-build repository security
+
+Quality Checks on pull requests and `main` invoke the same API-local reusable
+workflow as the mandatory `repository-security` publisher predecessor. The
+publisher requires both image validation and repository security acceptance.
+Each invocation checks out `${{ github.sha }}` with credentials disabled and
+calls the input-free organization action at
+`05c31b343bce1cc94c48560a8eb887c05495ed8c` with only `contents: read`.
+
+Only `CLEAN` satisfies API acceptance. `ACTIONABLE`, `REVIEW_REQUIRED`,
+`UNKNOWN_STALE`, missing and unknown states block publication. Failed or skipped
+scans cannot bypass the job dependency. The organization action owns scanner,
+database, exact commit and policy identity, freshness, redaction, and bounded
+evidence; API callers provide no ignores, overrides or exceptions. Scanning has
+no source, dependency-fix, image-publish or deployment authority.
+
+This repository/source evidence is distinct from exact released OCI artifact
+Grype/Trivy evidence owned by `api#1383` and `api#1448`. It does not establish the
+security of the built image or replace any artifact-level acceptance.
+
+The database-free `tests/Policy/RepositorySecurityWorkflowTest.php` proves
+workflow identity, least privilege, publisher dependencies and fail-closed API
+acceptance. On Linux x64, run the real scanner integration with a clean local
+organization checkout at the accepted revision:
+
+```bash
+php tests/repository-security/replay.php /path/to/SecPal/.github
+```
+
+The replay executes the reviewed action itself against one temporary exact Git
+commit containing a vulnerable Composer development dependency, an insecure PHP
+Dockerfile and a generated synthetic `.env` secret. It asserts fresh API-bound
+evidence, all three finding classes, redaction across retained action output and
+evidence, and API rejection of `ACTIONABLE`, then deletes the fixtures. It never
+installs fixture dependencies, copies scanner implementation or publishes an
+image. Scanner-health and invalid-checkout failure semantics remain owned and
+tested by the pinned organization action.
+
 The canonical consumption reference is always the returned index digest:
 
 ```text
