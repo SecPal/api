@@ -62,7 +62,7 @@ workflow as the mandatory `repository-security` publisher predecessor. The
 publisher requires both image validation and repository security acceptance.
 Each invocation checks out `${{ github.sha }}` with credentials disabled and
 calls the input-free organization action at
-`1dedfc2147390dd4dd42cb8ff50d4576ce8e461d` with only `contents: read`.
+`05c31b343bce1cc94c48560a8eb887c05495ed8c` with only `contents: read`.
 
 Only `CLEAN` satisfies API acceptance. `ACTIONABLE`, `REVIEW_REQUIRED`,
 `UNKNOWN_STALE`, missing and unknown states block publication. Failed or skipped
@@ -72,7 +72,7 @@ evidence; API callers provide no ignores, overrides or exceptions. Scanning has
 no source, dependency-fix, image-publish or deployment authority.
 
 This repository/source evidence is distinct from exact released OCI artifact
-Grype/Trivy evidence owned by `api#1383` and `api#636`. It does not establish the
+Grype/Trivy evidence owned by `api#1383` and `api#1448`. It does not establish the
 security of the built image or replace any artifact-level acceptance.
 
 The database-free `tests/Policy/RepositorySecurityWorkflowTest.php` proves
