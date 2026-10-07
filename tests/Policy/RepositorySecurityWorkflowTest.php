@@ -52,7 +52,7 @@ it('scans the exact commit through the immutable input-free organization action 
         ])->and($job['steps'][1])->toBe([
             'name' => 'Scan the checked-out API repository',
             'id' => 'repository-scan',
-            'uses' => 'SecPal/.github/.github/actions/trivy-repository-scan@05c31b343bce1cc94c48560a8eb887c05495ed8c',
+            'uses' => 'SecPal/.github/.github/actions/trivy-repository-scan@1e0e05ba7ee20e1598172889e942a55d23b0782d',
         ])->and($job['steps'][2]['env'])->toBe([
             'GATE_STATE' => '${{ steps.repository-scan.outputs.gate-state }}',
         ])->and($job['steps'][2])->not->toHaveKeys(['if', 'continue-on-error']);
