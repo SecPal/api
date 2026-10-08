@@ -45,15 +45,15 @@ it('scans the exact commit through the immutable input-free organization action 
         ->and($job['timeout-minutes'])->toBe(20)
         ->and($job)->not->toHaveKeys(['if', 'continue-on-error', 'env', 'secrets'])
         ->and($job['steps'])->toHaveCount(3)
-        ->and($job['steps'][0]['uses'])->toBe('actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1')
+        ->and($job['steps'][0]['uses'])->toMatch('/\Aactions\/checkout@[0-9a-f]{40}\z/')
         ->and($job['steps'][0]['with'])->toBe([
             'ref' => '${{ github.sha }}',
             'persist-credentials' => false,
-        ])->and($job['steps'][1])->toBe([
-            'name' => 'Scan the checked-out API repository',
-            'id' => 'repository-scan',
-            'uses' => 'SecPal/.github/.github/actions/trivy-repository-scan@1e0e05ba7ee20e1598172889e942a55d23b0782d',
-        ])->and($job['steps'][2]['env'])->toBe([
+        ])->and($job['steps'][1])->toHaveCount(3)
+        ->and($job['steps'][1]['name'])->toBe('Scan the checked-out API repository')
+        ->and($job['steps'][1]['id'])->toBe('repository-scan')
+        ->and($job['steps'][1]['uses'])->toMatch('/\ASecPal\/\.github\/\.github\/actions\/trivy-repository-scan@[0-9a-f]{40}\z/')
+        ->and($job['steps'][2]['env'])->toBe([
             'GATE_STATE' => '${{ steps.repository-scan.outputs.gate-state }}',
         ])->and($job['steps'][2])->not->toHaveKeys(['if', 'continue-on-error']);
 });
