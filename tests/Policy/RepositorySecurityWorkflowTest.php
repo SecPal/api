@@ -52,10 +52,17 @@ it('scans the exact commit through the immutable input-free organization action 
         ])->and($job['steps'][1])->toHaveCount(3)
         ->and($job['steps'][1]['name'])->toBe('Scan the checked-out API repository')
         ->and($job['steps'][1]['id'])->toBe('repository-scan')
-        ->and($job['steps'][1]['uses'])->toMatch('/\ASecPal\/\.github\/\.github\/actions\/trivy-repository-scan@[0-9a-f]{40}\z/')
+        ->and($job['steps'][1]['uses'])->toBe('SecPal/.github/.github/actions/trivy-repository-scan@0c9430aa4743f7ba4281f7fb51098dc4899a128f')
         ->and($job['steps'][2]['env'])->toBe([
             'GATE_STATE' => '${{ steps.repository-scan.outputs.gate-state }}',
         ])->and($job['steps'][2])->not->toHaveKeys(['if', 'continue-on-error']);
+});
+
+it('binds the maintained action replay to the production scanner revision', function (): void {
+    $replay = (string) file_get_contents(dirname(__DIR__).'/repository-security/replay.php');
+    preg_match('/\$pin = \'([a-f0-9]{40})\';/', $replay, $match);
+
+    expect($match[1] ?? null)->toBe('0c9430aa4743f7ba4281f7fb51098dc4899a128f');
 });
 
 it('accepts only CLEAN without exposing untrusted state in output', function (?string $state, bool $accepted): void {
