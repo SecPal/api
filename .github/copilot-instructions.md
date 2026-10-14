@@ -5,40 +5,39 @@ SPDX-License-Identifier: CC0-1.0
 
 # SecPal/api Copilot Instructions
 
-## Canonical Review And Signing
+## Review And Signing
 
-Apply `AGENTS.md` and the organization-wide [review-acquisition rule](https://github.com/SecPal/.github/blob/main/docs/work-graph-contract.md#531-initial-automated-review)
-and [SSH signing authority](https://github.com/SecPal/.github/blob/main/docs/work-graph-contract.md#532-signing-authority).
-This compatibility mirror defines no separate lifecycle or signing authority.
+Apply `AGENTS.md` for repository guidance. Use GitHub pull requests, reviews,
+checks, and merge protections. Preserve the existing SSH signing identity and
+verify every PR commit through GitHub.
 
-`AGENTS.md` is the authoritative API runtime baseline. This compatibility mirror
-summarizes the same authority boundary for tools that load this path.
+## Pull Requests And Review
 
-## Governance Authority
-
-[`SecPal/.github/docs/work-graph-contract.md`](https://github.com/SecPal/.github/blob/main/docs/work-graph-contract.md)
-is the single organization-wide owner of generic work-graph and engineering
-governance semantics. Follow it for native hierarchy and dependencies, delivery
-contracts, primary pull requests, canonical finding classification, replanning,
-review, evidence, and stop conditions. Do not redefine those semantics locally.
-
-GitHub-native issue state and relationships are authoritative. API prose owns
-contract and security detail, not graph sequence, readiness, or progress.
+- Use GitHub pull requests, review threads, checks, and merge protections for
+  delivery. Keep each pull request focused on a coherent change.
+- Open a draft while preparing the change; mark it ready when self-review and
+  relevant validation are complete. Request review through GitHub. If more
+  review is needed after a revision, request it directly on the existing pull
+  request.
+- Assess feedback by the reported defect, its evidence, and its impact. Fix
+  relevant defects and use review threads to explain or resolve feedback.
+- Use native issue relationships when planning requires them. Issue planning
+  guidance is available in
+  [`SecPal/.github/docs/work-graph-contract.md`](https://github.com/SecPal/.github/blob/main/docs/work-graph-contract.md).
+- Run the smallest relevant existing stack checks. Behavior changes require
+  failing-first behavior evidence; behavior-preserving changes may use existing
+  tests, characterization, structural evidence, or security equivalence.
 
 ## API Runtime Constraints
 
 - Run `git status --short --branch` before writing; preserve existing topic work.
 - Never bypass hooks, force-push, or push directly from a protected branch.
-- Keep work inside the current contract and use canonical replanning for a real
-  prerequisite or independent responsibility.
 - For observable behavior, security, authorization, lifecycle, or API-contract
   changes, write the smallest relevant failing Pest/contract test first.
 - For schema work, use meaningful migration/schema evidence. For a
   behavior-preserving refactor, characterization, structural, or equivalence
   evidence may suffice. For governance/docs-only work, focused structural
   evidence is sufficient.
-- Apply the canonical review and evidence stop conditions; do not require
-  unbounded observation or proof.
 - Invalid findings and immaterial observations may be dispositioned with concise
   evidence. Do not mutate code or create an issue merely because a reviewer,
   warning, audit, or deprecation exists.
@@ -76,8 +75,6 @@ contract and security detail, not graph sequence, readiness, or progress.
   governance-only prose.
 - Keep new SecPal commits SSH-signed with the existing identity; verify every
   PR commit through GitHub. Provider-generated signatures are provider evidence.
-- Follow the canonical work-graph contract for pull-request delivery and
-  reference semantics.
 - Keep GitHub communication in English, SPDX years current, and project
   artifacts free of AI attribution or generated-by wording unless explicitly
   required.
