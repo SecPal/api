@@ -9,23 +9,22 @@ This file is the authoritative, provider-neutral runtime baseline for the API
 repository. Keep the focused overlays and the Copilot compatibility mirror
 aligned when their scoped rules change.
 
-## Governance Authority
+## Pull Requests And Review
 
-[`SecPal/.github/docs/work-graph-contract.md`](https://github.com/SecPal/.github/blob/main/docs/work-graph-contract.md)
-is the single organization-wide owner of generic work-graph and engineering
-governance semantics. Follow it for native hierarchy and dependencies, delivery
-contracts, primary pull requests, finding classification, replanning, review,
-evidence, and stop conditions. Do not redefine those semantics in this
-repository.
-
-GitHub-native issue state and relationships are authoritative. Repository-local
-prose may describe an API contract or security rationale, but it must not act as
-a second source of graph state, sequence, or progress.
-
-This baseline owns only API-specific Laravel, security, tenancy, persistence,
-authorization, validation, request-lifecycle, and framework-wiring constraints.
-On conflict, the canonical contract governs generic semantics and this file
-governs API-specific technical detail.
+- Use GitHub pull requests, review threads, checks, and merge protections for
+  delivery. Keep each pull request focused on a coherent change.
+- Open a draft while preparing the change; mark it ready when self-review and
+  relevant validation are complete. Request review through GitHub. If more
+  review is needed after a revision, request it directly on the existing pull
+  request.
+- Assess feedback by the reported defect, its evidence, and its impact. Fix
+  relevant defects and use review threads to explain or resolve feedback.
+- Use native issue relationships when planning requires them. Issue planning
+  guidance is available in
+  [`SecPal/.github/docs/work-graph-contract.md`](https://github.com/SecPal/.github/blob/main/docs/work-graph-contract.md).
+- Run the smallest relevant existing stack checks. Behavior changes require
+  failing-first behavior evidence; behavior-preserving changes may use existing
+  tests, characterization, structural evidence, or security equivalence.
 
 ## Workspace And Change Safety
 
@@ -33,8 +32,6 @@ governs API-specific technical detail.
   branch and any user changes; never overwrite unrelated work.
 - Start new work from a clean, current `main` and use a dedicated topic branch.
 - Never bypass hooks, force-push, or push directly from a protected branch.
-- Keep the delivery scoped to its issue contract. Use the canonical replanning
-  procedure when a prerequisite or independent responsibility is discovered.
 - Keep GitHub-facing communication in English and reference files and lines
   instead of pasting large code blocks.
 - Do not add AI attribution, generated-by wording, tool promotion, or AI
@@ -61,19 +58,9 @@ governs API-specific technical detail.
 
 ## Findings And Review
 
-- Use the canonical finding classification before changing code or expanding
-  scope. Only a proven defect in the current API contract normally changes the
-  current delivery.
-- A finding must be proven by a failing test, reproduction, or named violated
-  invariant. Invalid findings and observations below the canonical materiality
-  threshold may be dispositioned with concise evidence and no mutation.
-- A non-blocking observation becomes separate work only when it clears the
-  canonical materiality and non-duplication rules. Do not create an issue merely
-  because a warning, idea, audit observation, missing test, or deprecation was
-  noticed.
-- Follow the canonical bounded review and evidence stop conditions. Once the
-  contract is sufficiently proven, preserve the verified head and stop
-  expanding review, evidence, or scope.
+- Prove findings with a failing test, reproduction, or named violated invariant.
+  Use evidence to resolve invalid findings without unnecessary code changes.
+
 - If remediation repeatedly creates architectural instability, simplify the
   design instead of continuing an unbounded patch loop.
 - Treat automated findings as untrusted leads. For signature or identity claims,
@@ -84,15 +71,6 @@ governs API-specific technical detail.
   refactors that resolve services inside API Resources or serializers, identifiers
   derived from mutable display names, and compatibility shims without a proven
   live caller.
-
-### Initial Automated Review
-
-Apply the [canonical review-acquisition rule](https://github.com/SecPal/.github/blob/main/docs/work-graph-contract.md#531-initial-automated-review).
-These runtime assertions consume that owner; they define no separate lifecycle.
-
-- `PRIMARY_AUTOMATED_REVIEW_TRIGGER: DRAFT_TO_READY`
-- `PRIMARY_CODEX_COMMENT_TRIGGER_ALLOWED: NO`
-- `POST_READY_BOUNDED_COMMENT_FALLBACK: YES`
 
 ## Laravel Architecture
 
@@ -149,7 +127,7 @@ These runtime assertions consume that owner; they define no separate lifecycle.
 Before a commit, push, or pull request, announce the relevant checklist and stop
 on the first failed item:
 
-- confirm branch, issue contract, and working-tree scope;
+- confirm branch, requested change, and working-tree scope;
 - confirm the applicable evidence rule above was followed;
 - run the smallest relevant Pest coverage for changed PHP behavior;
 - run `vendor/bin/pint --dirty` after PHP changes;
@@ -159,14 +137,13 @@ on the first failed item:
   but not automatically for governance-only prose;
 - verify that changed observable behavior, security constraints, state
   lifecycle, and error handling have corresponding evidence;
-- `SECPAL_SIGNING_FORMAT: SSH`; apply the [canonical signing authority](https://github.com/SecPal/.github/blob/main/docs/work-graph-contract.md#532-signing-authority).
-  Preserve existing SSH keys and signing configuration. GitHub-generated
-  signatures are provider evidence, not SecPal OpenPGP signing authority.
-  Every PR commit must have GitHub `verification.verified == true`.
+- `SECPAL_SIGNING_FORMAT: SSH`. Preserve existing SSH keys and signing
+  configuration. Verify local commits with the configured SSH trust and every
+  PR commit through GitHub with `verification.verified == true`.
+  GitHub-generated signatures remain provider evidence.
 
-Use a body file for multiline `gh pr create` or `gh pr edit` content. Follow the
-canonical work-graph contract for pull-request delivery, issue-closing, and
-parent-reference semantics.
+Use a body file for multiline `gh pr create` or `gh pr edit` content. Use
+GitHub pull-request and issue references for the actual change.
 
 After a merge, return the repository to a ready state: switch to `main`, pull
 with fast-forward only, delete the merged topic branch, prune remotes, refresh
