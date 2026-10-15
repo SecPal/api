@@ -62,7 +62,7 @@ workflow as the mandatory `repository-security` publisher predecessor. The
 publisher requires both image validation and repository security acceptance.
 Each invocation checks out `${{ github.sha }}` with credentials disabled and
 calls the input-free organization action at
-`05c31b343bce1cc94c48560a8eb887c05495ed8c` with only `contents: read`.
+`63896dd16e521b46092597ced5e7f76fb1d9faeb` with only `contents: read`.
 
 Only `CLEAN` satisfies API acceptance. `ACTIONABLE`, `REVIEW_REQUIRED`,
 `UNKNOWN_STALE`, missing and unknown states block publication. Failed or skipped
@@ -84,7 +84,8 @@ organization checkout at the accepted revision:
 php tests/repository-security/replay.php /path/to/SecPal/.github
 ```
 
-The replay executes the reviewed action itself against one temporary exact Git
+The replay rejects workflow/replay pin divergence before scanning, then executes
+the reviewed action itself against one temporary exact Git
 commit containing a vulnerable Composer development dependency, an insecure PHP
 Dockerfile and a generated synthetic `.env` secret. It asserts fresh API-bound
 evidence, all three finding classes, redaction across retained action output and

@@ -58,6 +58,15 @@ it('scans the exact commit through the immutable input-free organization action 
         ])->and($job['steps'][2])->not->toHaveKeys(['if', 'continue-on-error']);
 });
 
+it('keeps the real replay bound to the workflow scanner revision', function (): void {
+    $replay = (string) file_get_contents(dirname(__DIR__).'/repository-security/replay.php');
+    preg_match('/^\$pin = \'([a-f0-9]{40})\';$/m', $replay, $matches);
+
+    expect($matches)->toHaveCount(2)
+        ->and(repositorySecurityWorkflow('reusable-repository-security')['jobs']['repository-security']['steps'][1]['uses'])
+        ->toBe('SecPal/.github/.github/actions/trivy-repository-scan@'.$matches[1]);
+});
+
 it('accepts only CLEAN without exposing untrusted state in output', function (?string $state, bool $accepted): void {
     $step = repositorySecurityWorkflow('reusable-repository-security')['jobs']['repository-security']['steps'][2];
     $process = new Process(['bash', '-c', $step['run']], null, ['GATE_STATE' => $state ?? false]);
