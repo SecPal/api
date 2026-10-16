@@ -19,7 +19,6 @@ test('organization reusable workflow references use expected paths and immutable
         '.github/workflows/dependabot-auto-merge.yml' => ['reusable-dependabot-auto-merge.yml'],
         '.github/workflows/php-ci.yml' => ['reusable-php-lint.yml', 'reusable-php-stan.yml'],
         '.github/workflows/pr-size.yml' => ['reusable-pr-size.yml'],
-        '.github/workflows/project-automation.yml' => ['project-automation-core.yml', 'draft-pr-reminder.yml'],
         '.github/workflows/quality.yml' => [
             'reusable-reuse.yml',
             'reusable-markdown-lint.yml',
