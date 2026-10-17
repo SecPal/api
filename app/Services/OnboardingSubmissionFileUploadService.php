@@ -11,7 +11,6 @@ use App\Repositories\OnboardingSubmissionFileRepository;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 
 class OnboardingSubmissionFileUploadService
@@ -60,8 +59,6 @@ class OnboardingSubmissionFileUploadService
             ]);
         }
 
-        $storedFilePath = null;
-
         try {
             $preparedFile = $this->storageService->prepare($file, $submission);
 
@@ -73,7 +70,6 @@ class OnboardingSubmissionFileUploadService
                 $tenantId,
                 $uploadedBy,
                 $validated,
-                &$storedFilePath,
             ): OnboardingSubmissionFile {
                 $uploadedFile = $this->submissionFileRepository->create([
                     'tenant_id' => $tenantId,
@@ -89,14 +85,11 @@ class OnboardingSubmissionFileUploadService
                     'file_size' => $preparedFile['file_size'],
                 ]);
 
-                $storedFilePath = $preparedFile['file_path'];
                 $this->storageService->persist($preparedFile);
 
                 return $uploadedFile;
             });
         } catch (QueryException $exception) {
-            $this->deleteStoredFile($storedFilePath, $exception);
-
             if (
                 is_string($idempotencyKey)
                 && $this->isIdempotencyUniqueViolation($exception)
@@ -113,10 +106,6 @@ class OnboardingSubmissionFileUploadService
                     );
                 }
             }
-
-            throw $exception;
-        } catch (\Throwable $exception) {
-            $this->deleteStoredFile($storedFilePath, $exception);
 
             throw $exception;
         }
@@ -147,19 +136,6 @@ class OnboardingSubmissionFileUploadService
         return $conflict
             ? ['file' => null, 'replayed' => false, 'conflict' => true]
             : ['file' => $uploadedFile, 'replayed' => true, 'conflict' => false];
-    }
-
-    private function deleteStoredFile(?string $storedFilePath, \Throwable $previous): void
-    {
-        if (
-            $storedFilePath !== null
-            && Storage::disk('local')->delete($storedFilePath) === false
-        ) {
-            throw new \RuntimeException(
-                'Failed to delete stored onboarding submission file after upload failure',
-                previous: $previous,
-            );
-        }
     }
 
     private function isIdempotencyUniqueViolation(QueryException $exception): bool

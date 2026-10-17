@@ -15,6 +15,7 @@ use App\Services\EmployeeDocumentStorageService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\DB;
 
 /**
  * EmployeeDocumentController handles employee document management.
@@ -61,7 +62,7 @@ class EmployeeDocumentController extends Controller
      *
      * POST /api/v1/employees/{employee}/documents
      *
-     * Stores file in storage/app/employees/{employee_id}/documents/
+     * Publishes encrypted immutable Objects through the configured private backend.
      */
     public function store(UploadEmployeeDocumentRequest $request, Employee $employee): JsonResponse
     {
@@ -77,20 +78,26 @@ class EmployeeDocumentController extends Controller
         /** @var \App\Models\User $user */
         $user = $request->user();
 
-        $document = EmployeeDocument::create([
-            'employee_id' => $employee->id,
-            'uploaded_by' => $user->id,
-            'title' => $validated['title'],
-            'description' => $validated['description'] ?? null,
-            'document_type' => $validated['document_type'],
-            'file_path' => $storedFile['file_path'],
-            'file_name' => $this->sanitizeDocumentFilename($storedFile['file_name']),
-            'mime_type' => $storedFile['mime_type'],
-            'file_size' => $storedFile['file_size'],
-            'expiry_date' => $validated['expiry_date'] ?? null,
-            'status' => 'valid',
-            'visible_to_employee' => $validated['visible_to_employee'],
-        ]);
+        $document = DB::transaction(function () use ($employee, $user, $validated, $storedFile): EmployeeDocument {
+            $document = EmployeeDocument::create([
+                'employee_id' => $employee->id,
+                'uploaded_by' => $user->id,
+                'title' => $validated['title'],
+                'description' => $validated['description'] ?? null,
+                'document_type' => $validated['document_type'],
+                'file_path' => $storedFile['file_path'],
+                'file_name' => $this->sanitizeDocumentFilename($storedFile['file_name']),
+                'mime_type' => $storedFile['mime_type'],
+                'file_size' => $storedFile['file_size'],
+                'expiry_date' => $validated['expiry_date'] ?? null,
+                'status' => 'valid',
+                'visible_to_employee' => $validated['visible_to_employee'],
+            ]);
+
+            $this->storageService->publish($storedFile, $document);
+
+            return $document;
+        });
 
         $document->load('uploader');
 
@@ -144,16 +151,16 @@ class EmployeeDocumentController extends Controller
      *
      * DELETE /api/v1/employees/{employee}/documents/{document}
      *
-     * Deletes file from storage and database record (soft delete).
+     * Tombstones Object authority and soft-deletes the business record; bytes are retained.
      */
     public function destroy(Employee $employee, EmployeeDocument $document): Response
     {
         $this->authorize('delete', $document);
 
-        $this->storageService->delete($document);
-
-        // Soft delete database record
-        $document->delete();
+        DB::transaction(function () use ($document): void {
+            $this->storageService->delete($document);
+            $document->delete();
+        });
 
         return response()->noContent();
     }

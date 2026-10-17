@@ -22,6 +22,7 @@ use App\Services\OnboardingCompletionService;
 use App\Services\OnboardingFormDataSchemaValidationService;
 use App\Services\OnboardingResidentialAddressHistorySyncService;
 use App\Services\OnboardingSchemaLocalizationService;
+use App\Services\OnboardingSubmissionFileStorageService;
 use App\Services\OnboardingSubmissionFileUploadService;
 use App\Services\OnboardingTaxIdentificationSyncService;
 use Illuminate\Auth\Events\Verified;
@@ -32,7 +33,6 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rules\Password;
 use Illuminate\Validation\ValidationException;
 
@@ -985,14 +985,9 @@ class OnboardingController extends Controller
             ], Response::HTTP_NOT_FOUND);
         }
 
-        $filePath = $submissionFile->file_path;
-
-        DB::transaction(function () use ($submissionFile, $filePath): void {
+        DB::transaction(function () use ($submissionFile): void {
+            app(OnboardingSubmissionFileStorageService::class)->delete($submissionFile);
             $submissionFile->delete();
-
-            DB::afterCommit(static function () use ($filePath): void {
-                Storage::disk('local')->delete($filePath);
-            });
         });
 
         return response()->noContent();

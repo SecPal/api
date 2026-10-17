@@ -84,7 +84,7 @@ test('resolves the winning upload when the tenant idempotency constraint loses a
     ]);
 });
 
-test('fails instead of reporting success when a persisted blob cannot be cleaned up', function (): void {
+test('preserves the publication failure without destructive blob cleanup', function (): void {
     $submission = new OnboardingFormSubmission(['status' => 'draft']);
     $submission->id = 'submission-1';
     $file = UploadedFile::fake()->createWithContent('contract.pdf', 'same-contract');
@@ -117,8 +117,8 @@ test('fails instead of reporting success when a persisted blob cannot be cleaned
         throw onboardingUploadQueryException('40001', 'serialization_failure');
     });
     $disk = Mockery::mock();
-    $disk->shouldReceive('delete')->once()->with($storedPath)->andReturnFalse();
-    Storage::shouldReceive('disk')->once()->with('local')->andReturn($disk);
+    $disk->shouldNotReceive('delete');
+    Storage::shouldReceive('disk')->zeroOrMoreTimes()->andReturn($disk);
 
     expect(fn () => (new OnboardingSubmissionFileUploadService($storageService, $repository))->upload(
         $file,
@@ -128,7 +128,7 @@ test('fails instead of reporting success when a persisted blob cannot be cleaned
             'document_type' => 'contract',
             'idempotency_key' => str_repeat('a', 32),
         ],
-    ))->toThrow(RuntimeException::class, 'Failed to delete stored onboarding submission file');
+    ))->toThrow(QueryException::class);
 });
 
 test('does not treat unrelated database failures as upload races', function (): void {

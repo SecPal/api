@@ -16,6 +16,7 @@ use App\Services\EmployeeDocumentStorageService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Spatie\Permission\PermissionRegistrar;
 
@@ -61,7 +62,7 @@ beforeEach(function (): void {
         'tenant_id' => $this->tenant->id,
     ]);
 
-    Storage::fake('local');
+    fakePrivateObjects();
 });
 
 afterEach(function (): void {
@@ -258,9 +259,9 @@ describe('POST /v1/employees/{employee}/documents', function () {
         expect(array_key_exists('file_path', $response->json('data')))->toBeFalse();
 
         $document = EmployeeDocument::query()->findOrFail($response->json('data.id'));
-        Storage::disk('local')->assertExists($document->file_path);
+        Storage::disk('private_objects')->assertExists($document->file_path);
 
-        $storedBlob = Storage::disk('local')->get($document->file_path);
+        $storedBlob = Storage::disk('private_objects')->get($document->file_path);
         expect($storedBlob)->not->toBe('Employment contract payload');
 
         $decodedBlob = json_decode($storedBlob, true);
@@ -420,7 +421,7 @@ describe('GET /v1/employees/{employee}/documents/{document}/download', function 
             'file_path' => 'employees/1/documents/test.pdf',
         ]);
 
-        Storage::disk('local')->put($document->file_path, 'test content');
+        Storage::disk('private_objects')->put($document->file_path, 'test content');
 
         $response = $this->getJson("/v1/employees/{$this->employee->id}/documents/{$document->id}/download");
         $response->assertStatus(401);
@@ -432,7 +433,7 @@ describe('GET /v1/employees/{employee}/documents/{document}/download', function 
             'file_path' => 'employees/1/documents/test.pdf',
         ]);
 
-        Storage::disk('local')->put($document->file_path, 'test content');
+        Storage::disk('private_objects')->put($document->file_path, 'test content');
 
         $response = $this->withToken($this->token)
             ->getJson("/v1/employees/{$this->employee->id}/documents/{$document->id}/download");
@@ -457,6 +458,7 @@ describe('GET /v1/employees/{employee}/documents/{document}/download', function 
             'mime_type' => $storedFile['mime_type'],
             'file_size' => $storedFile['file_size'],
         ]);
+        DB::transaction(fn () => app(EmployeeDocumentStorageService::class)->publish($storedFile, $document));
 
         $response = $this->withToken($this->token)
             ->getJson("/v1/employees/{$this->employee->id}/documents/{$document->id}/download");
@@ -483,6 +485,7 @@ describe('GET /v1/employees/{employee}/documents/{document}/download', function 
             'mime_type' => 'application/pdf',
             'file_size' => $storedFile['file_size'],
         ]);
+        DB::transaction(fn () => app(EmployeeDocumentStorageService::class)->publish($storedFile, $document));
 
         $response = $this->withToken($this->token)
             ->getJson("/v1/employees/{$this->employee->id}/documents/{$document->id}/download");
@@ -514,16 +517,18 @@ describe('GET /v1/employees/{employee}/documents/{document}/download', function 
     test('returns 500 when encrypted document blob is invalid', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'employee_document.read');
 
+        $storedFile = app(EmployeeDocumentStorageService::class)->store(fakePdfUpload('invalid.pdf'), $this->employee);
         $document = EmployeeDocument::factory()->create([
             'employee_id' => $this->employee->id,
             'uploaded_by' => $this->user->id,
-            'file_path' => 'employees/1/documents/invalid.enc',
+            'file_path' => $storedFile['file_path'],
             'file_name' => 'invalid.pdf',
             'mime_type' => 'application/pdf',
             'file_size' => 123,
         ]);
 
-        Storage::disk('local')->put($document->file_path, '{"ciphertext":"broken"}');
+        DB::transaction(fn () => app(EmployeeDocumentStorageService::class)->publish($storedFile, $document));
+        Storage::disk('private_objects')->put($document->file_path, '{"ciphertext":"broken"}');
 
         $response = $this->withToken($this->token)
             ->getJson("/v1/employees/{$this->employee->id}/documents/{$document->id}/download");
@@ -553,7 +558,7 @@ describe('DELETE /v1/employees/{employee}/documents/{document}', function () {
         $response->assertStatus(403);
     });
 
-    test('deletes document and file with valid permission', function (): void {
+    test('tombstones document while retaining encrypted bytes with valid permission', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'employee_document.write');
 
         $storageService = app(EmployeeDocumentStorageService::class);
@@ -570,12 +575,14 @@ describe('DELETE /v1/employees/{employee}/documents/{document}', function () {
             'mime_type' => $storedFile['mime_type'],
             'file_size' => $storedFile['file_size'],
         ]);
+        DB::transaction(fn () => app(EmployeeDocumentStorageService::class)->publish($storedFile, $document));
 
         $response = $this->withToken($this->token)
             ->deleteJson("/v1/employees/{$this->employee->id}/documents/{$document->id}");
 
         $response->assertNoContent();
-        Storage::disk('local')->assertMissing($document->file_path);
+        Storage::disk('private_objects')->assertExists($document->file_path);
+        $this->assertDatabaseHas('private_objects', ['id' => $storedFile['private_object_id'], 'state' => 'TOMBSTONED']);
         expect(EmployeeDocument::withTrashed()->find($document->id)->deleted_at)->not->toBeNull();
     });
 });

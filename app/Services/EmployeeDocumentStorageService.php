@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 namespace App\Services;
@@ -9,18 +9,19 @@ use App\Exceptions\EmployeeDocumentFileNotFoundException;
 use App\Models\Employee;
 use App\Models\EmployeeDocument;
 use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Stores employee document binaries encrypted at rest.
  */
 class EmployeeDocumentStorageService
 {
+    public function __construct(private readonly PrivateObjectService $objects) {}
+
     /**
      * Store an uploaded employee document in encrypted form.
      *
-     * @return array{file_path: string, file_name: string, mime_type: string, file_size: int}
+     * @return array{file_path: string, file_name: string, mime_type: string, file_size: int, private_object_id: string}
      */
     public function store(UploadedFile $file, Employee $employee): array
     {
@@ -44,18 +45,11 @@ class EmployeeDocumentStorageService
             throw new \RuntimeException('Failed to determine employee document size');
         }
 
-        $encrypted = $tenant->encrypt($content);
-        $path = sprintf('employees/%s/documents/%s.enc', $employee->id, Str::uuid()->toString());
-
-        $blob = json_encode([
-            'ciphertext' => base64_encode($encrypted['ciphertext']),
-            'nonce' => base64_encode($encrypted['nonce']),
-        ], JSON_THROW_ON_ERROR);
-
-        Storage::disk('local')->put($path, $blob);
+        $object = $this->objects->stage($tenant, 'employee-document', $content);
 
         return [
-            'file_path' => $path,
+            'file_path' => $object['object_key'],
+            'private_object_id' => $object['id'],
             'file_name' => $file->getClientOriginalName(),
             'mime_type' => $mimeType,
             'file_size' => $fileSize,
@@ -67,54 +61,33 @@ class EmployeeDocumentStorageService
      */
     public function retrieve(EmployeeDocument $document): string
     {
-        $storage = Storage::disk('local');
-
-        if (! $storage->exists($document->file_path)) {
+        if (! DB::table('private_object_references')->where('employee_document_id', $document->id)->exists()) {
             throw new EmployeeDocumentFileNotFoundException('Employee document not found in storage');
         }
-
-        $encryptedBlob = $storage->get($document->file_path);
-        if (! is_string($encryptedBlob)) {
-            throw new \RuntimeException('Failed to read encrypted employee document blob');
-        }
-
-        $decoded = json_decode($encryptedBlob, true);
-        if (! is_array($decoded) || ! isset($decoded['ciphertext'], $decoded['nonce'])) {
-            throw new \RuntimeException('Invalid encrypted employee document blob');
-        }
-
-        if (! is_string($decoded['ciphertext']) || ! is_string($decoded['nonce'])) {
-            throw new \RuntimeException('Invalid encrypted employee document data types');
-        }
-
-        $employee = $document->employee;
-        if ($employee === null) {
-            throw new \RuntimeException('Employee document is missing its employee relation');
-        }
-
-        $tenant = $employee->tenant;
+        $tenant = $document->employee?->tenant;
         if ($tenant === null) {
-            throw new \RuntimeException('Employee document employee must belong to a tenant');
+            throw new \RuntimeException('Employee document tenant is unavailable');
         }
 
-        $ciphertext = base64_decode($decoded['ciphertext'], true);
-        $nonce = base64_decode($decoded['nonce'], true);
-        if ($ciphertext === false || $nonce === false) {
-            throw new \RuntimeException('Employee document blob is not valid base64 data');
-        }
-
-        return $tenant->decrypt($ciphertext, $nonce);
+        return $this->objects->read($tenant, 'employee-document', $document->id);
     }
 
-    /**
-     * Delete the stored employee document binary.
-     */
+    /** @param array{private_object_id: string} $stored */
+    public function publish(array $stored, EmployeeDocument $document): void
+    {
+        $tenant = $document->employee?->tenant;
+        if ($tenant === null) {
+            throw new \RuntimeException('Employee document tenant is unavailable');
+        }
+        $this->objects->publish($stored['private_object_id'], $tenant, 'employee-document', $document->id);
+    }
+
     public function delete(EmployeeDocument $document): void
     {
-        $storage = Storage::disk('local');
-
-        if ($storage->exists($document->file_path)) {
-            $storage->delete($document->file_path);
+        $tenant = $document->employee?->tenant;
+        if ($tenant === null) {
+            throw new \RuntimeException('Employee document tenant is unavailable');
         }
+        $this->objects->tombstone($tenant, 'employee-document', $document->id);
     }
 }

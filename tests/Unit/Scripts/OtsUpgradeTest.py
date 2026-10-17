@@ -351,6 +351,9 @@ class OtsUpgradeTest(unittest.TestCase):
                 pass
 
         class FakeTlsContext:
+            verify_mode = 2  # ssl.CERT_REQUIRED, matching create_default_context
+            check_hostname = True
+
             def wrap_socket(self, transport, server_hostname=None):
                 server_names.append(server_hostname)
                 return transport

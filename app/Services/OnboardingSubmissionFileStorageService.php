@@ -6,15 +6,16 @@
 namespace App\Services;
 
 use App\Models\OnboardingFormSubmission;
+use App\Models\OnboardingSubmissionFile;
 use App\Models\TenantKey;
 use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
 
 class OnboardingSubmissionFileStorageService
 {
+    public function __construct(private readonly PrivateObjectService $objects) {}
+
     /**
-     * @return array{file_path: string, file_name: string, mime_type: string, file_size: int, blob: string}
+     * @return array{file_path: string, file_name: string, mime_type: string, file_size: int, private_object_id: string}
      */
     public function prepare(UploadedFile $file, OnboardingFormSubmission $submission): array
     {
@@ -35,31 +36,35 @@ class OnboardingSubmissionFileStorageService
             throw new \RuntimeException('Failed to determine onboarding submission file size');
         }
 
-        $encrypted = $tenant->encrypt($content);
-        $path = sprintf('employees/%s/onboarding-submissions/%s/%s.enc', $employee->id, $submission->id, Str::uuid()->toString());
-
-        $blob = json_encode([
-            'ciphertext' => base64_encode($encrypted['ciphertext']),
-            'nonce' => base64_encode($encrypted['nonce']),
-        ], JSON_THROW_ON_ERROR);
+        $object = $this->objects->stage($tenant, 'onboarding-file', $content);
 
         return [
-            'file_path' => $path,
+            'file_path' => $object['object_key'],
+            'private_object_id' => $object['id'],
             'file_name' => $this->sanitizedFilename($file),
             'mime_type' => $mimeType,
             'file_size' => $fileSize,
-            'blob' => $blob,
         ];
     }
 
     /**
-     * @param  array{file_path: string, file_name: string, mime_type: string, file_size: int, blob: string}  $preparedFile
+     * @param  array{file_path: string, file_name: string, mime_type: string, file_size: int, private_object_id: string}  $preparedFile
      */
     public function persist(array $preparedFile): void
     {
-        if (Storage::disk('local')->put($preparedFile['file_path'], $preparedFile['blob']) === false) {
-            throw new \RuntimeException('Failed to store encrypted onboarding submission file blob');
-        }
+        $record = OnboardingSubmissionFile::query()->where('file_path', $preparedFile['file_path'])->sole();
+        $tenant = $this->resolveTenant($record->submission);
+        $this->objects->publish($preparedFile['private_object_id'], $tenant, 'onboarding-file', $record->id);
+    }
+
+    public function retrieve(OnboardingSubmissionFile $file): string
+    {
+        return $this->objects->read($this->resolveTenant($file->submission), 'onboarding-file', $file->id);
+    }
+
+    public function delete(OnboardingSubmissionFile $file): void
+    {
+        $this->objects->tombstone($this->resolveTenant($file->submission), 'onboarding-file', $file->id);
     }
 
     public function fingerprint(
@@ -108,9 +113,9 @@ class OnboardingSubmissionFileStorageService
         return $payload;
     }
 
-    private function resolveTenant(OnboardingFormSubmission $submission): TenantKey
+    private function resolveTenant(?OnboardingFormSubmission $submission): TenantKey
     {
-        $employee = $submission->employee;
+        $employee = $submission?->employee;
         if ($employee === null) {
             throw new \RuntimeException('Onboarding submission is missing its employee relation');
         }

@@ -21,7 +21,7 @@ uses(RefreshDatabase::class);
  * @property EmployeeDocumentStorageService $service
  */
 beforeEach(function (): void {
-    Storage::fake('local');
+    fakePrivateObjects();
 
     incrementTestKekCounter();
     TenantKey::setKekPath(getTestKekPath());
@@ -38,7 +38,7 @@ beforeEach(function (): void {
         'tenant_id' => $this->tenant->id,
     ]);
 
-    $this->service = new EmployeeDocumentStorageService;
+    $this->service = app(EmployeeDocumentStorageService::class);
 });
 
 afterEach(function (): void {
@@ -55,9 +55,9 @@ test('service stores employee document with encryption', function (): void {
     expect($storedFile['mime_type'])->toBe('application/pdf');
     expect($storedFile['file_size'])->toBeGreaterThan(0);
 
-    Storage::disk('local')->assertExists($storedFile['file_path']);
+    Storage::disk('private_objects')->assertExists($storedFile['file_path']);
 
-    $storedBlob = Storage::disk('local')->get($storedFile['file_path']);
+    $storedBlob = Storage::disk('private_objects')->get($storedFile['file_path']);
     expect($storedBlob)->not->toContain('confidential content');
 });
 
@@ -70,7 +70,7 @@ test('service does not persist blob when mime type cannot be determined', functi
     expect(fn () => $this->service->store($file, $this->employee))
         ->toThrow(RuntimeException::class, 'Failed to determine employee document MIME type');
 
-    expect(Storage::disk('local')->allFiles())->toBe([]);
+    expect(Storage::disk('private_objects')->allFiles())->toBe([]);
 });
 
 test('service throws dedicated not found exception for missing stored blob', function (): void {
