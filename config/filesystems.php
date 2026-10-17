@@ -33,6 +33,22 @@ return [
 
     'disks' => [
 
+        'private_objects' => [
+            'driver' => env('PRIVATE_OBJECT_DRIVER', 'local'),
+            'root' => env('PRIVATE_OBJECT_DRIVER', 'local') === 'local'
+                ? env('PRIVATE_OBJECT_DIRECTORY', storage_path('app/objects')) : '',
+            'region' => env('PRIVATE_OBJECT_REGION'),
+            'bucket' => env('PRIVATE_OBJECT_BUCKET'),
+            'endpoint' => env('PRIVATE_OBJECT_ENDPOINT'),
+            'use_path_style_endpoint' => env('PRIVATE_OBJECT_PATH_STYLE', false),
+            'credentials' => [App\Storage\PrivateObjectCredentials::class, 'load'],
+            'version' => '2006-03-01',
+            'retries' => 0,
+            'http' => ['connect_timeout' => 3, 'timeout' => 15, 'verify' => true, 'allow_redirects' => false],
+            'visibility' => 'private',
+            'throw' => true,
+        ],
+
         'local' => [
             'driver' => 'local',
             'root' => storage_path('app/private'),

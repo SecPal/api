@@ -14,6 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- publish employee and onboarding private files as encrypted immutable Objects with
+  one PostgreSQL READY/reference/replication transaction; require explicit backend
+  configuration, preserve retained bytes on business deletion, and provide an
+  exact-record ciphertext import for existing local files (#1598)
+
 - require accepted repository security evidence before API container publication
   and provide pull-request feedback through the shared pinned organization
   Trivy action; only `CLEAN` passes, while repository/source evidence remains

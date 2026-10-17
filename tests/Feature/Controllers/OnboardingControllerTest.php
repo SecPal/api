@@ -2353,7 +2353,7 @@ describe('POST /v1/onboarding/submissions/{submission}/files', function () {
     });
 
     test('allows self-service upload for an own draft submission without onboarding.write permission', function (): void {
-        Storage::fake('local');
+        fakePrivateObjects();
 
         $submission = OnboardingFormSubmission::factory()->create([
             'employee_id' => $this->employee->id,
@@ -2383,7 +2383,7 @@ describe('POST /v1/onboarding/submissions/{submission}/files', function () {
     });
 
     test('uploads a file for an employee draft submission', function (): void {
-        Storage::fake('local');
+        fakePrivateObjects();
         givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
 
         $submission = OnboardingFormSubmission::factory()->create([
@@ -2418,9 +2418,9 @@ describe('POST /v1/onboarding/submissions/{submission}/files', function () {
         $this->assertNotNull($record);
         $this->assertNotNull($record->file_path ?? null);
 
-        Storage::disk('local')->assertExists($record->file_path);
+        Storage::disk('private_objects')->assertExists($record->file_path);
 
-        $raw = Storage::disk('local')->get($record->file_path);
+        $raw = Storage::disk('private_objects')->get($record->file_path);
         $decoded = json_decode($raw, true);
 
         $this->assertIsArray($decoded);
@@ -2431,7 +2431,7 @@ describe('POST /v1/onboarding/submissions/{submission}/files', function () {
     });
 
     test('returns the original upload when an idempotency key is retried', function (): void {
-        Storage::fake('local');
+        fakePrivateObjects();
         givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
 
         $submission = OnboardingFormSubmission::factory()->create([
@@ -2459,7 +2459,7 @@ describe('POST /v1/onboarding/submissions/{submission}/files', function () {
         $first->assertCreated();
         $retry->assertOk()->assertJsonPath('data.id', $first->json('data.id'));
         expect(OnboardingSubmissionFile::query()->count())->toBe(1);
-        expect(Storage::disk('local')->allFiles())->toHaveCount(1);
+        expect(Storage::disk('private_objects')->allFiles())->toHaveCount(1);
         $storedFile = OnboardingSubmissionFile::query()->sole();
         expect($storedFile->content_fingerprint)
             ->toBeString()
@@ -2468,7 +2468,7 @@ describe('POST /v1/onboarding/submissions/{submission}/files', function () {
     });
 
     test('does not expose equal content fingerprints across distinct upload operations', function (): void {
-        Storage::fake('local');
+        fakePrivateObjects();
         givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
 
         $submission = OnboardingFormSubmission::factory()->create([
@@ -2497,7 +2497,7 @@ describe('POST /v1/onboarding/submissions/{submission}/files', function () {
     });
 
     test('returns the original upload when a retry arrives after the submission is no longer editable', function (): void {
-        Storage::fake('local');
+        fakePrivateObjects();
         givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
 
         $submission = OnboardingFormSubmission::factory()->create([
@@ -2528,11 +2528,11 @@ describe('POST /v1/onboarding/submissions/{submission}/files', function () {
             ->assertJsonPath('data.id', $first->json('data.id'));
 
         expect(OnboardingSubmissionFile::query()->count())->toBe(1);
-        expect(Storage::disk('local')->allFiles())->toHaveCount(1);
+        expect(Storage::disk('private_objects')->allFiles())->toHaveCount(1);
     });
 
     test('rejects reuse of an idempotency key after the original upload is deleted', function (): void {
-        Storage::fake('local');
+        fakePrivateObjects();
         givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
 
         $submission = OnboardingFormSubmission::factory()->create([
@@ -2567,11 +2567,11 @@ describe('POST /v1/onboarding/submissions/{submission}/files', function () {
 
         expect(OnboardingSubmissionFile::query()->count())->toBe(0)
             ->and(OnboardingSubmissionFile::withTrashed()->count())->toBe(1)
-            ->and(Storage::disk('local')->allFiles())->toHaveCount(0);
+            ->and(Storage::disk('private_objects')->allFiles())->toHaveCount(1);
     });
 
     test('rejects reuse of an idempotency key for a different upload', function (): void {
-        Storage::fake('local');
+        fakePrivateObjects();
         givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
 
         $submission = OnboardingFormSubmission::factory()->create([
@@ -2601,11 +2601,11 @@ describe('POST /v1/onboarding/submissions/{submission}/files', function () {
             ->assertJsonPath('message', 'The upload idempotency key was already used for a different upload.');
 
         expect(OnboardingSubmissionFile::query()->count())->toBe(1);
-        expect(Storage::disk('local')->allFiles())->toHaveCount(1);
+        expect(Storage::disk('private_objects')->allFiles())->toHaveCount(1);
     });
 
     test('rejects reuse of an idempotency key for a differently named upload', function (): void {
-        Storage::fake('local');
+        fakePrivateObjects();
         givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
 
         $submission = OnboardingFormSubmission::factory()->create([
@@ -2634,11 +2634,11 @@ describe('POST /v1/onboarding/submissions/{submission}/files', function () {
             ->assertStatus(409);
 
         expect(OnboardingSubmissionFile::query()->count())->toBe(1);
-        expect(Storage::disk('local')->allFiles())->toHaveCount(1);
+        expect(Storage::disk('private_objects')->allFiles())->toHaveCount(1);
     });
 
     test('rejects reuse of an idempotency key when distinct original filenames sanitize identically', function (): void {
-        Storage::fake('local');
+        fakePrivateObjects();
         givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
 
         $submission = OnboardingFormSubmission::factory()->create([
@@ -2669,11 +2669,11 @@ describe('POST /v1/onboarding/submissions/{submission}/files', function () {
             ->assertJsonPath('message', 'The upload idempotency key was already used for a different upload.');
 
         expect(OnboardingSubmissionFile::query()->count())->toBe(1);
-        expect(Storage::disk('local')->allFiles())->toHaveCount(1);
+        expect(Storage::disk('private_objects')->allFiles())->toHaveCount(1);
     });
 
     test('rejects reuse of an idempotency key for a different submission in the same tenant', function (): void {
-        Storage::fake('local');
+        fakePrivateObjects();
         givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
 
         $firstSubmission = OnboardingFormSubmission::factory()->create([
@@ -2710,11 +2710,11 @@ describe('POST /v1/onboarding/submissions/{submission}/files', function () {
             ->assertStatus(409);
 
         expect(OnboardingSubmissionFile::query()->count())->toBe(1);
-        expect(Storage::disk('local')->allFiles())->toHaveCount(1);
+        expect(Storage::disk('private_objects')->allFiles())->toHaveCount(1);
     });
 
     test('requires a document_subtype when uploading id_document files', function (): void {
-        Storage::fake('local');
+        fakePrivateObjects();
         givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
 
         $submission = OnboardingFormSubmission::factory()->create([
@@ -2735,7 +2735,7 @@ describe('POST /v1/onboarding/submissions/{submission}/files', function () {
     });
 
     test('stores document_subtype for id_document uploads', function (): void {
-        Storage::fake('local');
+        fakePrivateObjects();
         givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
 
         $submission = OnboardingFormSubmission::factory()->create([
@@ -2849,7 +2849,7 @@ describe('POST /v1/onboarding/submissions/{submission}/files', function () {
 
 describe('DELETE /v1/onboarding/submissions/{submission}/files/{file}', function () {
     test('deletes an uploaded file for an editable own submission', function (): void {
-        Storage::fake('local');
+        fakePrivateObjects();
 
         $submission = OnboardingFormSubmission::factory()->create([
             'employee_id' => $this->employee->id,
@@ -2857,8 +2857,9 @@ describe('DELETE /v1/onboarding/submissions/{submission}/files/{file}', function
             'status' => 'draft',
         ]);
 
-        $path = "employees/{$this->employee->id}/onboarding-submissions/{$submission->id}/test.enc";
-        Storage::disk('local')->put($path, '{"ciphertext":"abc","nonce":"def"}');
+        $objects = app(App\Services\PrivateObjectService::class);
+        $object = $objects->stage($this->tenant, 'onboarding-file', 'synthetic onboarding file');
+        $path = $object['object_key'];
 
         $uploadedFile = OnboardingSubmissionFile::create([
             'tenant_id' => $this->tenant->id,
@@ -2872,17 +2873,19 @@ describe('DELETE /v1/onboarding/submissions/{submission}/files/{file}', function
             'file_size' => 1024,
         ]);
 
+        DB::transaction(fn () => $objects->publish($object['id'], $this->tenant, 'onboarding-file', $uploadedFile->id));
         $response = $this->withToken($this->token)
             ->delete("/v1/onboarding/submissions/{$submission->id}/files/{$uploadedFile->id}");
 
         $response->assertNoContent();
 
-        Storage::disk('local')->assertMissing($path);
+        Storage::disk('private_objects')->assertExists($path);
+        $this->assertDatabaseHas('private_objects', ['id' => $object['id'], 'state' => 'TOMBSTONED']);
         expect(OnboardingSubmissionFile::withTrashed()->find($uploadedFile->id)?->deleted_at)->not->toBeNull();
     });
 
     test('returns 404 when file does not belong to the submission', function (): void {
-        Storage::fake('local');
+        fakePrivateObjects();
 
         $submission = OnboardingFormSubmission::factory()->create([
             'employee_id' => $this->employee->id,

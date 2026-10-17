@@ -11,6 +11,7 @@ use App\Models\OnboardingFormSubmission;
 use App\Models\OnboardingSubmissionFile;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -23,6 +24,7 @@ class ExpiredEmployeeDeletionService
     public function __construct(
         private readonly ActivityCauserContextService $activityCauserContextService,
         private readonly UserDeviceAccessCleanupService $userDeviceAccessCleanupService,
+        private readonly PrivateObjectService $privateObjects,
     ) {}
 
     /**
@@ -95,6 +97,7 @@ class ExpiredEmployeeDeletionService
             }
 
             $filePaths = $this->collectStoredPaths($employee);
+            $this->privateObjects->tombstoneEmployee($employee);
             $usersAnonymized = 0;
 
             $user = $employee->user;
@@ -153,6 +156,8 @@ class ExpiredEmployeeDeletionService
         $documentPaths = EmployeeDocument::query()
             ->withTrashed()
             ->where('employee_id', $employee->id)
+            ->whereNotExists(fn (QueryBuilder $query) => $query->selectRaw('1')->from('private_object_references')
+                ->whereColumn('employee_document_id', 'employee_documents.id'))
             ->pluck('file_path')
             ->filter(fn (mixed $path): bool => is_string($path) && $path !== '')
             ->all();
@@ -165,6 +170,8 @@ class ExpiredEmployeeDeletionService
         $submissionFilePaths = OnboardingSubmissionFile::query()
             ->withTrashed()
             ->whereIn('onboarding_form_submission_id', $submissionIds)
+            ->whereNotExists(fn (QueryBuilder $query) => $query->selectRaw('1')->from('private_object_references')
+                ->whereColumn('onboarding_submission_file_id', 'onboarding_submission_files.id'))
             ->pluck('file_path')
             ->filter(fn (mixed $path): bool => is_string($path) && $path !== '')
             ->all();

@@ -476,9 +476,15 @@ it('never promotes or conditionally creates a stable registry tag', function ():
     expect(is_file($root.'/scripts/'.$promotionScript))->toBeFalse()
         ->and(is_file($root.'/tests/container/'.$promotionContract))->toBeFalse()
         ->and(is_file($root.'/tests/fixtures/'.$fakeRegistry))->toBeFalse();
+    // Conditional Object PUT is legitimate application behavior. Registry
+    // publication automation must not create a stable tag conditionally.
+    $automation = implode("\n", array_map(
+        static fn (string $path): string => (string) file_get_contents($path),
+        containerPublishingAutomationFiles(),
+    ));
+    expectContainerPublishingNotToContain($automation, 'If-None'.'-Match');
     expectContainerPublishingNotToContain(
         $activeFiles,
-        'If-None'.'-Match',
         'promote-ghcr'.'-index',
         'fake-ghcr'.'-curl',
         'Promote verified'.' candidate',

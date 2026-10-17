@@ -16,6 +16,7 @@ Complete guide for deploying SecPal API to production environments.
   - [2. File Permissions](#2-file-permissions)
   - [3. Public Passkey Challenge Contract](#3-public-passkey-challenge-contract)
   - [4. Passkey Enrollment Contract](#4-passkey-enrollment-contract)
+- [Authoritative Private Objects](#authoritative-private-objects)
 - [Database Setup](#database-setup)
 - [Tenant Key Initialization](#tenant-key-initialization)
 - [Health Check Verification](#health-check-verification)
@@ -414,6 +415,78 @@ requirements can also drop the `WHERE` clause and prompt **all** existing
 passkey users to re-enroll, trading a wider blast radius for a clean cutoff.
 
 ---
+
+## Authoritative Private Objects
+
+API owner: [#1598](https://github.com/SecPal/api/issues/1598).
+[Deployment #99](https://github.com/SecPal/deployment/issues/99) independently
+owns backend/provider qualification. Draft deployment implementations are not
+application trust authorities.
+
+Private uploads are disabled until construction explicitly supplies
+PRIVATE_OBJECT_MODE (self-hosted or managed), PRIVATE_OBJECT_PURPOSE (api or
+worker), the private_objects disk and required replication targets. Managed
+requires an independently qualified off-host Object namespace; it never falls
+back to a local disk. A provider's S3 label alone does not qualify durability,
+conditional writes, IAM isolation, replacement or recovery.
+
+The explicit Self-Hosted directory must be canonical, owned by the runtime
+identity and mode 0700. Its files are private regular mode-0600 files. Publication
+uses a private staging file, fsync, exclusive atomic hard-link publication and
+directory fsync; collisions and uncertain results fail without overwriting.
+Independent recovery remains an operational requirement.
+
+For S3, configure region, bucket and an HTTPS endpoint through the dedicated
+`PRIVATE_OBJECT_*` settings. `PRIVATE_OBJECT_CREDENTIAL_FILE` names a protected
+standard AWS INI file containing only the current [api] or [worker] profile and
+aws_access_key_id, aws_secret_access_key and optional aws_session_token. Do not
+put their values in environment files. The dedicated client uses this explicit
+authority, never ambient AWS credentials, metadata discovery or credential
+processes. Provider IAM must independently scope the namespace and deny
+unconditional overwrite and physical deletion. The native SDK sends
+`If-None-Match: *`; normal Flysystem put is not an immutable-publication primitive.
+Transport verification remains enabled and uncertain PUTs are not retried.
+
+The API owns one PostgreSQL catalog: private_objects,
+private_object_references and object_replication_intents. TenantKey encrypts
+before storage. Each Object retains its wrapped encryption generation, opaque
+32-hex key, exact stored-byte SHA-256, size, namespace and required targets.
+Successful durable creation and independent byte verification precede READY.
+One caller-owned transaction binds READY, the actual employee/onboarding
+reference and every required ReplicationIntent. Deferred PostgreSQL constraints
+reject incomplete or cross-tenant publication; no attachment callback owns a
+commit or rollback. Normal Laravel afterCommit dispatch keeps Worker visibility
+behind that transaction. ReplicationIntent is an outbox, not a replication worker.
+
+The public Laravel consumer is PrivateObjectService: stage/stageEncrypted returns
+the reservation, publish requires the caller's active transaction, and read and
+tombstone reauthorize the canonical business owner. Its metadata maps directly to
+deployment#99's Object key, tenant, crypto, storage_sha256, stored-byte size and
+replication-target semantics. The draft Python reference's secpal_objects tables
+are not installed alongside this API catalog. Provider/continuity qualification
+must consume this application's metadata/outbox rather than independently
+committing a second business catalog. This is an API ownership decision under API
+issue #1598, not acceptance of draft deployment source or its Managed adapter evidence.
+
+Business deletion tombstones authority and preserves bytes. API/Worker have no
+physical-delete port, retention-release authority or replication-acceptance
+grant. Retained keys cannot be reused. Physical collection and recovery horizons
+require the separately owned retention/continuity implementation; age alone
+never authorizes destruction.
+
+Existing encrypted local records require explicit exact-record adoption.
+Run php artisan private-objects:import employee-document BUSINESS_UUID;
+use onboarding-file for the other supported purpose. This preserves exact
+ciphertext and source files, handles retained soft-deleted records without
+restoring read authority, and atomically replaces the business reference.
+It is not invoked by startup or HTTP and is never a runtime local-file fallback.
+A missing historical encryption authority fails import rather than discarding
+or re-encrypting data.
+
+Native PG18, independent Laravel publishers, a real Laravel Worker and actual
+Self-Hosted filesystem operations exercise the consumer contract. SDK HTTP
+fixtures exercise request/response semantics only. They establish no Managed
+off-host, provider-IAM, multi-host, backup or recovery acceptance.
 
 ## Database Setup
 

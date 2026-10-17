@@ -280,3 +280,17 @@ function assignTemporalRole(
     // Clear relationship cache
     $user->unsetRelation('roles');
 }
+
+/** Explicit Self-Hosted native directory fixture; never Managed off-host evidence. */
+function fakePrivateObjects(): Illuminate\Filesystem\FilesystemAdapter
+{
+    $disk = Illuminate\Support\Facades\Storage::fake('private_objects');
+    chmod($disk->path(''), 0700);
+    config([
+        'private_objects.mode' => 'self-hosted',
+        'private_objects.purpose' => 'api',
+        'private_objects.replication_targets' => ['recovery-primary'],
+    ]);
+
+    return $disk;
+}
