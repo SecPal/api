@@ -53,6 +53,7 @@ COPY scripts/ots-stamp-hash.py scripts/ots-upgrade.py scripts/ots-verify.py ./sc
 COPY storage ./storage
 COPY artisan LICENSE THIRD-PARTY-NOTICES.md ./
 COPY LICENSES ./LICENSES
+COPY docs/ADDRESS_DATA.md ./docs/ADDRESS_DATA.md
 RUN rm -f bootstrap/cache/*.php && composer dump-autoload \
         --classmap-authoritative \
         --no-dev \

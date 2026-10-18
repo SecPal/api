@@ -34,6 +34,36 @@ final class AddressDataImportService
         int $keepImports,
         ?callable $onProgress = null,
     ): array {
+        // Session-scoped PostgreSQL ownership spans download, staging, activation
+        // and pruning without holding a long-running database transaction.
+        $lockKey = 'address-data:'.AddressDataConfig::string('address_data.country', 'DE');
+        /** @var object{acquired: bool} $lock */
+        $lock = DB::selectOne("SELECT pg_try_advisory_lock(hashtextextended(current_schema() || ':' || ?, 0)) AS acquired", [$lockKey]);
+        if (! $lock->acquired) {
+            return ['status' => 'failed', 'message' => 'Another address-data import is running. Retry after it finishes.'];
+        }
+
+        try {
+            return $this->runExclusively($force, $dryRun, $sourcePath, $expectedSha256, $ifEmpty, $setupOnly, $keepImports, $onProgress);
+        } finally {
+            DB::selectOne("SELECT pg_advisory_unlock(hashtextextended(current_schema() || ':' || ?, 0))", [$lockKey]);
+        }
+    }
+
+    /**
+     * @param  (callable(string): void)|null  $onProgress
+     * @return array{status: string, message: string, import_id?: int}
+     */
+    private function runExclusively(
+        bool $force,
+        bool $dryRun,
+        ?string $sourcePath,
+        ?string $expectedSha256,
+        bool $ifEmpty,
+        bool $setupOnly,
+        int $keepImports,
+        ?callable $onProgress,
+    ): array {
         $emit = static function (string $message) use ($onProgress): void {
             if ($onProgress !== null) {
                 $onProgress($message);
@@ -61,6 +91,13 @@ final class AddressDataImportService
                 : '';
         } catch (Throwable $e) {
             return ['status' => 'failed', 'message' => $e->getMessage()];
+        }
+
+        $active = $this->latestActivatedImport($countryCode);
+        if ($sourcePath === null && ! $force && ! $dryRun && $active !== null
+            && $active->status === AddressDataImport::STATUS_SUCCEEDED
+            && is_string($active->source_sha256) && hash_equals($active->source_sha256, $expectedSha256)) {
+            return ['status' => 'skipped', 'message' => 'Source unchanged (SHA-256 matches active import).'];
         }
 
         $emit('Resolving address data source (download or local file)…');
@@ -123,7 +160,7 @@ final class AddressDataImportService
         try {
             $rowCount = $this->csvImporter->importFile($path, $import, false, $onProgress);
         } catch (Throwable $e) {
-            $import->update([
+            $import->refresh()->update([
                 'status' => AddressDataImport::STATUS_FAILED,
                 'finished_at' => now(),
                 'error_message' => $e->getMessage(),
@@ -136,7 +173,7 @@ final class AddressDataImportService
 
         if ($rowCount === 0) {
             $message = 'Import aborted: CSV contained no data rows. Previous active dataset preserved.';
-            $import->update([
+            $import->refresh()->update([
                 'status' => AddressDataImport::STATUS_FAILED,
                 'finished_at' => now(),
                 'error_message' => $message,
@@ -179,7 +216,7 @@ final class AddressDataImportService
                 $this->pruneStreetRows($countryCode, $keepImports);
             });
         } catch (Throwable $e) {
-            $import->update([
+            $import->refresh()->update([
                 'status' => AddressDataImport::STATUS_FAILED,
                 'finished_at' => now(),
                 'error_message' => $e->getMessage(),
@@ -245,7 +282,7 @@ final class AddressDataImportService
             ->where('country_code', $countryCode)
             ->where('status', AddressDataImport::STATUS_SUCCEEDED)
             ->orderByDesc('id')
-            ->limit(max(1, 1 + $keepImports))
+            ->limit(1 + max(1, $keepImports))
             ->pluck('id')
             ->all();
 
