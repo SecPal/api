@@ -13,7 +13,13 @@ require dirname(__DIR__, 2).'/vendor/autoload.php';
 
 // Run the reviewed action itself; scanner implementation remains upstream.
 $upstream = realpath($argv[1] ?? '') ?: throw new RuntimeException('Provide the reviewed organization checkout.');
-$pin = '63896dd16e521b46092597ced5e7f76fb1d9faeb';
+$workflow = Yaml::parseFile(dirname(__DIR__, 2).'/.github/workflows/reusable-repository-security.yml');
+$scanner = $workflow['jobs']['repository-security']['steps'][1]['uses'] ?? null;
+if (! is_string($scanner)
+    || preg_match('/\ASecPal\/\.github\/\.github\/actions\/trivy-repository-scan@([a-f0-9]{40})\z/', $scanner, $matches) !== 1) {
+    throw new RuntimeException('API workflow must pin the organization scanner to a full commit SHA.');
+}
+$pin = $matches[1];
 $identity = new Process(['git', '-C', $upstream, 'rev-parse', 'HEAD']);
 $identity->mustRun();
 $clean = new Process(['git', '-C', $upstream, 'status', '--porcelain']);
@@ -24,11 +30,6 @@ if (trim($identity->getOutput()) !== $pin || $clean->getOutput() !== '') {
 
 $actionPath = $upstream.'/.github/actions/trivy-repository-scan';
 $action = Yaml::parseFile($actionPath.'/action.yml');
-$workflow = Yaml::parseFile(dirname(__DIR__, 2).'/.github/workflows/reusable-repository-security.yml');
-if (($workflow['jobs']['repository-security']['steps'][1]['uses'] ?? null)
-    !== 'SecPal/.github/.github/actions/trivy-repository-scan@'.$pin) {
-    throw new RuntimeException('API workflow must consume the reviewed scanner pin.');
-}
 $acceptance = $workflow['jobs']['repository-security']['steps'][2]['run'];
 $root = sys_get_temp_dir().'/secpal-api-scan-'.bin2hex(random_bytes(8));
 $workspace = $root.'/workspace';
