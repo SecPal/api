@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- temporarily admit only job-scoped GHCR credentials to the pinned OCI
+  attestation reader, preserving prior runner state with checked restoration
+  and always-path cleanup (api#1445)
+
 - use ORAS 1.3.4 destination authentication for OCI uploads and wait for the
   PostgreSQL integration fixture's TCP server before migrations; exercise the
   actual pinned registry CLI offline before native publisher builds (api#1445)
