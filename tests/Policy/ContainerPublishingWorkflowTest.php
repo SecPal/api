@@ -510,3 +510,44 @@ it('preserves hash characters inside a quoted destructive GraphQL query', functi
 
     expect(containerPublishingContainsForbiddenDeletion($command))->toBeTrue();
 });
+
+it('limits the pinned credential handoff to OCI attestation windows and always restores it', function (): void {
+    $workflow = containerPublishingParsedWorkflowFile(containerPublishingWorkflowPath());
+    $handoffJobs = [];
+
+    foreach ($workflow['jobs'] as $name => $job) {
+        $steps = $job['steps'] ?? [];
+        $installs = array_keys(array_filter($steps, fn (array $step): bool => str_contains(
+            $step['run'] ?? '', 'python3 scripts/container-attestation-auth.py install',
+        )));
+        if ($installs === []) {
+            continue;
+        }
+
+        $handoffJobs[] = $name;
+        expect($installs)->toHaveCount(1);
+        $oci = array_keys(array_filter($steps, fn (array $step): bool => ($step['with']['push-to-registry'] ?? false) === true));
+        $cleanup = array_keys(array_filter($steps, fn (array $step): bool => str_contains(
+            $step['run'] ?? '', 'python3 scripts/container-attestation-auth.py cleanup',
+        )));
+        expect($cleanup)->toHaveCount(1);
+        expect($installs[0])->toBeLessThan(min($oci));
+        expect($cleanup[0])->toBeGreaterThan(max($oci));
+        expect($steps[$cleanup[0]]['if'])->toBe('always()');
+        expect($job['permissions'])->toBe([
+            'contents' => 'read', 'packages' => 'write',
+            'attestations' => 'write', 'id-token' => 'write',
+        ]);
+
+        if ($name === 'accept') {
+            $document = array_find_key($steps, fn (array $step): bool => ($step['id'] ?? '') === 'document');
+            $publish = array_find_key($steps, fn (array $step): bool => str_contains(
+                $step['run'] ?? '', 'scripts/publish-container.sh accept',
+            ));
+            expect($document)->toBeLessThan($installs[0]);
+            expect($cleanup[0])->toBeLessThan($publish);
+        }
+    }
+
+    expect($handoffJobs)->toBe(['attest', 'accept']);
+});

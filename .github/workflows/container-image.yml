@@ -15,6 +15,7 @@ name: Container Image
       - tests/docker/**
       - tests/Policy/**
       - tests/container-publisher.py
+      - tests/container-attestation-auth.py
       - scripts/*container*
       - scripts/container-*
       - composer.json
@@ -61,6 +62,14 @@ jobs:
           path: .context/publisher-governance
           persist-credentials: false
           fetch-depth: 0
+      - name: Read exact pinned OCI attestation implementation for offline qualification
+        # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: actions/attest
+          ref: 1e69f48acb82d1966a394da916b4c1698aa569d6
+          path: .context/pinned-attestation-action
+          persist-credentials: false
       - name: Install locked accepted schema validator
         run: 'python3 -m venv "$RUNNER_TEMP/secpal-policy"
 
@@ -80,10 +89,13 @@ jobs:
         run: scripts/container-tools.sh registry "$RUNNER_TEMP/secpal-publisher-tools"
       - name: Run database-free container policy tests
         env:
+          SECPAL_TEST_ATTEST_BUNDLE: .context/pinned-attestation-action/dist/index.js
           SECPAL_TEST_ORAS: ${{ runner.temp }}/secpal-publisher-tools/oras
         run: "composer test:container-policy
 
-          python3 tests/container-publisher.py"
+          python3 tests/container-publisher.py
+
+          python3 tests/container-attestation-auth.py"
       - name: Lint Containerfile and shell
         run:
           'podman run --rm -i docker.io/hadolint/hadolint:v2.14.0-debian@sha256:158cd0184dcaa18bd8ec20b61f4c1cabdf8b32a592d062f57bdcb8e4c1d312e2

@@ -129,12 +129,14 @@ jobs:
       - name: Authenticate exact package for keyless attestations
         env:
           GH_TOKEN: ${{ github.token }}
-        run: 'install -d -m 0700 "$DOCKER_CONFIG"
+        run: 'python3 scripts/container-attestation-auth.py prepare
 
           printf ''%s'' "$GH_TOKEN" | "$RUNNER_TEMP/secpal-publisher-tools/oras" login ghcr.io --registry-config "$DOCKER_CONFIG/config.json"
           --username "$GITHUB_ACTOR" --password-stdin
 
           chmod 0600 "$DOCKER_CONFIG/config.json"'
+      - name: Admit exact job credential to pinned reader
+        run: python3 scripts/container-attestation-auth.py install
       - name: Attest exact index
         id: index
         # v4.2.1
@@ -182,9 +184,7 @@ jobs:
           create-storage-record: false
       - name: Remove exact ephemeral registry credentials
         if: always()
-        run: 'rm -f -- "$DOCKER_CONFIG/config.json"
-
-          rmdir "$DOCKER_CONFIG"'
+        run: python3 scripts/container-attestation-auth.py cleanup
   verify:
     name: Published native runtime (${{ matrix.arch }})
     needs:
@@ -389,12 +389,14 @@ jobs:
       - name: Authenticate exact package for evidence attestation
         env:
           GH_TOKEN: ${{ github.token }}
-        run: 'install -d -m 0700 "$DOCKER_CONFIG"
+        run: 'python3 scripts/container-attestation-auth.py prepare
 
           printf ''%s'' "$GH_TOKEN" | "$RUNNER_TEMP/secpal-publisher-tools/oras" login ghcr.io --registry-config "$DOCKER_CONFIG/config.json"
           --username "$GITHUB_ACTOR" --password-stdin
 
           chmod 0600 "$DOCKER_CONFIG/config.json"'
+      - name: Admit exact job credential to pinned reader
+        run: python3 scripts/container-attestation-auth.py install
       - name: Attest exact build-evidence
         id: build-evidence
         # v4.2.1
@@ -404,6 +406,9 @@ jobs:
           subject-digest: ${{ steps.retain.outputs.evidence_digest }}
           push-to-registry: true
           create-storage-record: false
+      - name: Restore and remove exact evidence attestation credentials
+        if: always()
+        run: python3 scripts/container-attestation-auth.py cleanup
       - name: Verify all subjects and publish only unique discovery tag
         env:
           GH_TOKEN: ${{ github.token }}
@@ -419,8 +424,3 @@ jobs:
           include-hidden-files: true
           if-no-files-found: error
           retention-days: 14
-      - name: Remove final attestation credentials
-        if: always()
-        run: 'rm -f -- "$DOCKER_CONFIG/config.json"
-
-          rmdir "$DOCKER_CONFIG"'
