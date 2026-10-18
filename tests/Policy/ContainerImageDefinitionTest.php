@@ -84,7 +84,12 @@ it('defines the production API image contract', function (): void {
     expect(Symfony\Component\Yaml\Yaml::parse($workflow)['on']['pull_request']['paths'])->toContain('storage/**', 'artisan', 'LICENSE', 'THIRD-PARTY-NOTICES.md', 'LICENSES/**');
     expect($documentation)->toContain('/app/storage/app/private')->toContain('persistent')->and($dockerignore)->toMatch('/^storage\/app$/m');
     expect($dockerignore)->toMatch('/^\*\*\/\*\.sqlite\*$/m');
+    expect($dockerignore)->toContain("docs/*\n!docs/ADDRESS_DATA.md")
+        ->and($dockerfile)->toContain('COPY docs/ADDRESS_DATA.md ./docs/ADDRESS_DATA.md');
+    expect(Symfony\Component\Yaml\Yaml::parse($workflow)['on']['pull_request']['paths'])->toContain('docs/ADDRESS_DATA.md');
+
     expect($smokeScript)
+        ->toContain('notice=/app/docs/ADDRESS_DATA.md', 'test -r /app/LICENSES/ODbL-1.0.txt')
         ->toContain('assert_output_contains "$php_ini_output" \'/usr/local/etc/php/conf.d/zz-secpal-production.ini\'')
         ->toContain('test -r "$ini"')
         ->toContain('test ! -w "$ini"')

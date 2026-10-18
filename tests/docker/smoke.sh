@@ -153,6 +153,13 @@ podman run --rm "$image" sh -eu -c '
     test ! -w "$healthcheck"
     test "$(stat -c "%U:%G %a" "$healthcheck")" = "root:root 755"
 '
+podman run --rm "$image" sh -eu -c '
+    notice=/app/docs/ADDRESS_DATA.md
+    test -r "$notice"
+    test ! -w "$notice"
+    test -r /app/LICENSES/ODbL-1.0.txt
+    grep -F "Machine-readable alterations offer" "$notice" >/dev/null
+'
 run_runtime_cli() {
     podman run --rm \
         -e DB_SSLMODE=verify-full \
