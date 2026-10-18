@@ -15,9 +15,9 @@ function repositorySecurityWorkflow(string $name): array
 }
 
 it('requires repository security acceptance before publication and provides PR feedback', function (): void {
-    $publisher = repositorySecurityWorkflow('publish-container')['jobs']['publish'];
+    $publisher = repositorySecurityWorkflow('publish-container')['jobs']['prepare'];
 
-    expect($publisher['needs'])->toBe(['validate', 'repository-security'])
+    expect($publisher['needs'])->toBe(['build', 'repository-security'])
         ->and($publisher)->not->toHaveKeys(['if', 'continue-on-error']);
 
     foreach (['publish-container', 'quality'] as $name) {

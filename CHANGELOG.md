@@ -14,6 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- replace the active Docker/BuildKit publisher with native Buildah AMD64/ARM64
+  builds from a sealed committed Containerfile context; bind Syft SPDX, independent
+  Grype/Trivy artifact checks, native smoke and GitHub attestations to immutable
+  OCI subjects before publishing one run-scoped discovery tag (api#1445)
+
 - require accepted repository security evidence before API container publication
   and provide pull-request feedback through the shared pinned organization
   Trivy action; only `CLEAN` passes, while repository/source evidence remains

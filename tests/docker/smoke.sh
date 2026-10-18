@@ -22,8 +22,8 @@ port_probe="${tmp_dir}/assert-port-closed.php"
 cp tests/docker/assert-port-closed.php "$port_probe"
 chmod 0444 "$port_probe"
 cleanup() {
-    docker rm -f "$api" "$postgres" >/dev/null 2>&1 || true
-    docker network rm "$network" >/dev/null 2>&1 || true
+    podman rm -f "$api" "$postgres" >/dev/null 2>&1 || true
+    podman network rm "$network" >/dev/null 2>&1 || true
     rm -f "$sqlite_probe"
     rm -rf "$tmp_dir"
 }
@@ -32,7 +32,7 @@ assert_http() {
     path=$1
     expected_status=$2
     expected_fragment=${3:-}
-    docker run --rm --network "$network" "$image" php -r '
+    podman run --rm --network "$network" "$image" php -r '
     $context = stream_context_create(["http" => ["ignore_errors" => true, "timeout" => 3, "follow_location" => 0]]);
     $body = @file_get_contents($argv[1], false, $context);
     $statusLine = $http_response_header[0] ?? "";
@@ -53,7 +53,7 @@ wait_for_http() {
         attempt=$((attempt + 1))
         sleep 1
     done
-    docker logs "$api" >&2
+    podman logs "$api" >&2
     return 1
 }
 assert_output_starts_with() {
@@ -81,36 +81,51 @@ $2
 
 printf 'container build-context exclusion probe\n' >"$sqlite_probe"
 if [ "${SKIP_BUILD:-0}" = 1 ]; then
-    docker image inspect "$image" >/dev/null
+    podman image inspect "$image" >/dev/null
 else
-    docker build --tag "$image" .
+    buildah build --format oci --file Containerfile --tag "$image" .
 fi
-php_version=$(docker run --rm "$image" php -v)
+if [ -n "${EXPECTED_ARCH:-}" ]; then
+    actual_arch=$(uname -m)
+    case "$EXPECTED_ARCH:$actual_arch" in
+        amd64:x86_64|arm64:aarch64) ;;
+        *) echo "Native runner architecture mismatch" >&2; exit 1 ;;
+    esac
+    image_arch=$(podman image inspect --format '{{.Architecture}}' "$image")
+    test "$image_arch" = "$EXPECTED_ARCH"
+    podman run --rm -e EXPECTED_ARCH="$EXPECTED_ARCH" "$image" php -r '
+        $header = file_get_contents("/usr/local/bin/php", false, null, 0, 20);
+        $expected = getenv("EXPECTED_ARCH") === "amd64" ? 62 : 183;
+        exit(substr($header, 0, 4) === "\x7fELF" && ord($header[5]) === 1
+            && unpack("v", substr($header, 18, 2))[1] === $expected ? 0 : 1);
+    '
+fi
+php_version=$(podman run --rm "$image" php -v)
 assert_output_starts_with "$php_version" 'PHP 8.4.23'
-frankenphp_version=$(docker run --rm "$image" frankenphp version)
+frankenphp_version=$(podman run --rm "$image" frankenphp version)
 assert_output_contains "$frankenphp_version" 'FrankenPHP v1.12.6'
-php_modules=$(docker run --rm "$image" php -m)
+php_modules=$(podman run --rm "$image" php -m)
 if assert_output_has_line "$php_modules" redis; then
     echo "Unsupported PhpRedis extension is installed" >&2
     exit 1
 fi
-docker run --rm "$image" php -r 'exit(extension_loaded("redis") ? 1 : 0);'
-docker run --rm "$image" php -r 'exit(ini_get("upload_max_filesize") === "10M" && ini_get("post_max_size") === "12M" ? 0 : 1);'
-php_ini_output=$(docker run --rm "$image" php --ini)
+podman run --rm "$image" php -r 'exit(extension_loaded("redis") ? 1 : 0);'
+podman run --rm "$image" php -r 'exit(ini_get("upload_max_filesize") === "10M" && ini_get("post_max_size") === "12M" ? 0 : 1);'
+php_ini_output=$(podman run --rm "$image" php --ini)
 assert_output_contains "$php_ini_output" '/usr/local/etc/php/conf.d/zz-secpal-production.ini'
-docker run --rm "$image" sh -eu -c '
+podman run --rm "$image" sh -eu -c '
     ini=/usr/local/etc/php/conf.d/zz-secpal-production.ini
     test -r "$ini"
     test ! -w "$ini"
     test "$(stat -c "%U:%G %a" "$ini")" = "root:root 644"
 '
-docker run --rm "$image" sh -eu -c '
+podman run --rm "$image" sh -eu -c '
     caddyfile=/etc/frankenphp/Caddyfile
     test -r "$caddyfile"
     test ! -w "$caddyfile"
     test "$(stat -c "%U:%G %a" "$caddyfile")" = "root:root 644"
 '
-docker run --rm "$image" sh -eu -c '
+podman run --rm "$image" sh -eu -c '
     healthcheck=/usr/local/bin/secpal-http-live
     test -r "$healthcheck"
     test -x "$healthcheck"
@@ -118,7 +133,7 @@ docker run --rm "$image" sh -eu -c '
     test "$(stat -c "%U:%G %a" "$healthcheck")" = "root:root 755"
 '
 run_runtime_cli() {
-    docker run --rm \
+    podman run --rm \
         -e DB_SSLMODE=verify-full \
         -e DB_SSLROOTCERT=/tmp/production-ca-contract.crt \
         "$image" "$@"
@@ -127,24 +142,30 @@ run_runtime_cli php artisan --version
 run_runtime_cli php artisan schedule:list
 run_runtime_cli php artisan queue:work --help >/dev/null
 run_runtime_cli php artisan schedule:work --help >/dev/null
-docker run --rm "$image" python3 -c 'import opentimestamps'
-if git_import=$(docker run --rm "$image" python3 -c 'import git' 2>&1); then exit 1; fi
+podman run --rm "$image" python3 -c 'import opentimestamps'
+if git_import=$(podman run --rm "$image" python3 -c 'import git' 2>&1); then exit 1; fi
 assert_output_contains "$git_import" 'ModuleNotFoundError'
-if docker run --rm "$image" python3 -m pip show GitPython >/dev/null 2>&1; then exit 1; fi
-if docker run --rm "$image" python3 -m pip show gitdb >/dev/null 2>&1; then exit 1; fi
-if docker run --rm "$image" python3 -m pip show smmap >/dev/null 2>&1; then exit 1; fi
-if docker run --rm "$image" python3 -m pip show opentimestamps-client >/dev/null 2>&1; then exit 1; fi
-docker run --rm "$image" python3 -m pip check
-stamp_usage=$(docker run --rm "$image" python3 /app/scripts/ots-stamp-hash.py 2>&1 || true)
+if podman run --rm "$image" python3 -m pip show GitPython >/dev/null 2>&1; then exit 1; fi
+if podman run --rm "$image" python3 -m pip show gitdb >/dev/null 2>&1; then exit 1; fi
+if podman run --rm "$image" python3 -m pip show smmap >/dev/null 2>&1; then exit 1; fi
+if podman run --rm "$image" python3 -m pip show opentimestamps-client >/dev/null 2>&1; then exit 1; fi
+podman run --rm "$image" python3 -m pip check
+stamp_usage=$(podman run --rm "$image" python3 /app/scripts/ots-stamp-hash.py 2>&1 || true)
 assert_output_contains "$stamp_usage" 'Usage:'
-upgrade_usage=$(docker run --rm "$image" python3 /app/scripts/ots-upgrade.py 2>&1 || true)
+upgrade_usage=$(podman run --rm "$image" python3 /app/scripts/ots-upgrade.py 2>&1 || true)
 assert_output_contains "$upgrade_usage" 'EXECUTION_ERROR'
-verify_usage=$(docker run --rm "$image" python3 /app/scripts/ots-verify.py 2>&1 || true)
+verify_usage=$(podman run --rm "$image" python3 /app/scripts/ots-verify.py 2>&1 || true)
 assert_output_contains "$verify_usage" 'Usage:'
-docker run --rm "$image" frankenphp fmt --diff --config /etc/frankenphp/Caddyfile >/dev/null
-docker run --rm "$image" frankenphp validate --config /etc/frankenphp/Caddyfile
-test "$(docker image inspect --format '{{index .Config.Healthcheck.Test 0}}' "$image")" = NONE
-docker run --rm "$image" sh -eu -c '
+podman run --rm "$image" frankenphp fmt --diff --config /etc/frankenphp/Caddyfile >/dev/null
+podman run --rm "$image" frankenphp validate --config /etc/frankenphp/Caddyfile
+# PHP code, not shell interpolation.
+# shellcheck disable=SC2016
+podman image inspect "$image" | php -r '
+    $image = json_decode(stream_get_contents(STDIN), true, flags: JSON_THROW_ON_ERROR)[0];
+    $test = $image["Config"]["Healthcheck"]["Test"] ?? [];
+    exit($test === [] || $test === ["NONE"] ? 0 : 1);
+'
+podman run --rm "$image" sh -eu -c '
     test "$(id -u)" -eq 10001
     test "$(id -g)" -eq 10001
     test -w /app/storage
@@ -160,14 +181,14 @@ docker run --rm "$image" sh -eu -c '
     ! command -v valkey-server >/dev/null
     test -z "$(find /app -xdev -perm -0002 -print -quit)"
 '
-docker image inspect "$image" >"${tmp_dir}/inspect.json"
-docker history --no-trunc "$image" >"${tmp_dir}/history.txt"
+podman image inspect "$image" >"${tmp_dir}/inspect.json"
+podman history --no-trunc "$image" >"${tmp_dir}/history.txt"
 if grep -Eq 'APP_KEY=|DB_PASSWORD=|KEK_PATH=' "${tmp_dir}/inspect.json" "${tmp_dir}/history.txt"; then
     echo "Image metadata contains a runtime secret setting" >&2
     exit 1
 fi
 
-docker network create "$network" >/dev/null
+podman network create "$network" >/dev/null
 db_password=$(openssl rand -hex 24)
 app_key="base64:$(openssl rand -base64 32 | tr -d '\n')"
 mkdir -m 0700 "$cert_dir"
@@ -185,11 +206,11 @@ openssl x509 -req -days 1 -sha256 \
 chmod 0755 "$cert_dir"
 chmod 0644 "${cert_dir}/ca.crt" "${cert_dir}/server.crt"
 chmod 0600 "${cert_dir}/server.key"
-docker run --rm --user 0 -v "${cert_dir}:/certs" "$postgres_image" \
+podman run --rm --user 0 -v "${cert_dir}:/certs" "$postgres_image" \
     chown postgres:postgres /certs/server.key /certs/server.crt /certs/ca.crt
 dd if=/dev/urandom of="$kek_file" bs=32 count=1 status=none
 chmod 0600 "$kek_file"
-docker run --rm --user 0 -v "${kek_file}:/kek" "$image" chown 10001:10001 /kek
+podman run --rm --user 0 -v "${kek_file}:/kek" "$image" chown 10001:10001 /kek
 {
     printf 'APP_KEY=%s\n' "$app_key"
     printf 'TRUSTED_PROXIES=0.0.0.0/0\nDB_CONNECTION=pgsql\nDB_HOST=%s\nDB_PORT=5432\n' "$postgres"
@@ -198,7 +219,7 @@ docker run --rm --user 0 -v "${kek_file}:/kek" "$image" chown 10001:10001 /kek
     printf 'KEK_PATH=/run/secrets/secpal-kek\n'
 } >"$api_env"
 chmod 0600 "$api_env"
-docker run -d --name "$postgres" --network "$network" \
+podman run -d --name "$postgres" --network "$network" \
     -e POSTGRES_DB=secpal -e POSTGRES_USER=secpal -e POSTGRES_PASSWORD="$db_password" \
     -e POSTGRES_INITDB_ARGS='--auth-host=scram-sha-256' \
     -v "${cert_dir}:/var/lib/postgresql/certs:ro" \
@@ -208,13 +229,13 @@ docker run -d --name "$postgres" --network "$network" \
     -c ssl_key_file=/var/lib/postgresql/certs/server.key \
     -c password_encryption=scram-sha-256 >/dev/null
 attempt=0
-until docker exec "$postgres" pg_isready -U secpal -d secpal >/dev/null 2>&1; do
+until podman exec "$postgres" pg_isready -U secpal -d secpal >/dev/null 2>&1; do
     attempt=$((attempt + 1))
     [ "$attempt" -lt 30 ] || exit 1
     sleep 1
 done
 run_api() {
-    docker run --rm --network "$network" --env-file "$api_env" \
+    podman run --rm --network "$network" --env-file "$api_env" \
         -v "${cert_dir}/ca.crt:/run/secrets/postgresql-ca.crt:ro" \
         -v "${kek_file}:/run/secrets/secpal-kek:ro" "$image" "$@"
 }
@@ -222,11 +243,11 @@ run_api php artisan migrate --force
 run_api php artisan tinker --execute='throw_unless(DB::scalar("SHOW password_encryption") === "scram-sha-256"); throw_unless(DB::scalar("SELECT ssl FROM pg_stat_ssl WHERE pid = pg_backend_pid()") === true);'
 run_api php artisan tenant:setup
 run_api php artisan tinker --execute='app(\App\Services\RuntimeHeartbeatService::class)->recordSchedulerHeartbeat();'
-docker run -d --name "$api" --network "$network" --env-file "$api_env" \
+podman run -d --name "$api" --network "$network" --env-file "$api_env" \
     -v "${cert_dir}/ca.crt:/run/secrets/postgresql-ca.crt:ro" \
     -v "${kek_file}:/run/secrets/secpal-kek:ro" "$image" >/dev/null
 wait_for_http
-docker exec "$api" secpal-http-live
+podman exec "$api" secpal-http-live
 assert_http /health/live 200 '"status":"alive"'
 assert_http /health/ready 200 '"status":"ready"'
 assert_http /v1/not-a-route 404 'Resource not found.'
@@ -236,7 +257,7 @@ assert_http /storage/logs/laravel.log 404
 assert_http /.git/config 404
 assert_http /.htaccess 404
 assert_http /robots.txt.license 404
-docker run --rm --network "$network" "$image" php -r '
+podman run --rm --network "$network" "$image" php -r '
 $context = stream_context_create(["http" => ["ignore_errors" => true, "timeout" => 3, "header" => "X-Forwarded-Proto: https\r\n"]]);
 @file_get_contents($argv[1], false, $context);
 foreach ($http_response_header ?? [] as $header) {
@@ -250,18 +271,18 @@ log_marker="container-log-probe-${suffix}"
 email_domain=secpal.app
 assert_http "/v1/onboarding/validate-token?token=${log_marker}&email=${log_marker}%40${email_domain}" 422
 assert_http "/v1/auth/email/verify/00000000-0000-4000-8000-000000000001/synthetic-hash?expires=2000000000&signature=${log_marker}" 403
-docker logs "$api" >"${tmp_dir}/api.log" 2>&1
+podman logs "$api" >"${tmp_dir}/api.log" 2>&1
 if grep -q "$log_marker" "${tmp_dir}/api.log" || ! grep -q REDACTED "${tmp_dir}/api.log"; then
     echo "Sensitive query credentials were not redacted from access logs" >&2
     exit 1
 fi
 for closed_port in 80 443 2019; do
-    docker run --rm --network "$network" \
+    podman run --rm --network "$network" \
         -v "${port_probe}:/tmp/assert-port-closed.php:ro" \
         "$image" php /tmp/assert-port-closed.php "$api" "$closed_port"
 done
-docker stop --time 10 "$api" >/dev/null
-test "$(docker inspect --format '{{.State.ExitCode}}' "$api")" -eq 0
-test "$(docker inspect --format '{{.State.OOMKilled}}' "$api")" = false
+podman stop --time 10 "$api" >/dev/null
+test "$(podman inspect --format '{{.State.ExitCode}}' "$api")" -eq 0
+test "$(podman inspect --format '{{.State.OOMKilled}}' "$api")" = false
 
 echo "Container smoke and integration tests passed for ${image}"

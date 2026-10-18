@@ -50,7 +50,7 @@ try {
             'require' => ['php' => '>=7.2.5'],
         ]],
     ], JSON_THROW_ON_ERROR));
-    file_put_contents($workspace.'/Dockerfile', "FROM php:8.4\nUSER root\n");
+    file_put_contents($workspace.'/Containerfile', "FROM php:8.4\nUSER root\n");
     // Never retain a complete secret value in source, output, or failure text.
     $secret = 'SECPAL_SYNTHETIC_'.'SECRET_'.strtoupper(bin2hex(random_bytes(8)));
     file_put_contents($workspace.'/.env', 'API_TEST_TOKEN='.$secret."\n");
@@ -127,7 +127,7 @@ try {
         }
         $paths[$finding['class']][] = $finding['path'];
     }
-    foreach (['VULNERABILITY' => 'composer.lock', 'MISCONFIGURATION' => 'Dockerfile', 'SECRET' => '.env'] as $class => $path) {
+    foreach (['VULNERABILITY' => 'composer.lock', 'MISCONFIGURATION' => 'Containerfile', 'SECRET' => '.env'] as $class => $path) {
         if (! in_array($path, $paths[$class] ?? [], true)) {
             throw new RuntimeException('Shared action did not detect the required API fixture class: '.$class);
         }
@@ -137,7 +137,7 @@ try {
     if ($gate->isSuccessful()) {
         throw new RuntimeException('API acceptance allowed actionable fixture evidence.');
     }
-    echo 'PASS: exact API fixture commit; Composer development dependency, Dockerfile and secret detection; fresh evidence; redacted public output; ACTIONABLE blocked.', PHP_EOL;
+    echo 'PASS: exact API fixture commit; Composer development dependency, Containerfile and secret detection; fresh evidence; redacted public output; ACTIONABLE blocked.', PHP_EOL;
     echo 'Scanner revision: '.$pin.'; target commit: '.$commit.'; configuration identity: '.$result['scanner']['configuration_sha256'], PHP_EOL;
 } finally {
     (new Filesystem)->deleteDirectory($root);

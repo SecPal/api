@@ -1,79 +1,124 @@
----
 # SPDX-FileCopyrightText: 2026 SecPal Contributors
 # SPDX-License-Identifier: CC0-1.0
 
+---
 name: Container Image
-on:
-  push:
-    branches: [main]
+"on":
   pull_request:
-    branches: [main]
+    branches:
+      - main
     paths:
-      - "Dockerfile"
-      - ".dockerignore"
-      - "docker/**"
-      - "tests/docker/**"
-      - "tests/Policy/**"
-      - "tests/Feature/Console/ScheduleListWithoutDatabaseTest.php"
-      - "tests/Regression/ContainerPolicyIsolationTest.php"
-      - "composer.json"
-      - "composer.lock"
-      - "phpunit.xml"
-      - "tests/Pest.php"
-      - "app/**"
-      - "bootstrap/**"
-      - "config/**"
-      - "database/**"
-      - "lang/**"
-      - "public/**"
-      - "resources/**"
-      - "routes/**"
-      - "storage/**"
-      - "scripts/ots-*.py"
-      - "artisan"
-      - "LICENSE"
-      - "THIRD-PARTY-NOTICES.md"
-      - "LICENSES/**"
-      - ".github/workflows/container-image.yml"
-      - ".github/workflows/publish-container.yml"
-
+      - Containerfile
+      - .containerignore
+      - docker/**
+      - tests/docker/**
+      - tests/Policy/**
+      - tests/container-publisher.py
+      - scripts/*container*
+      - scripts/container-*
+      - composer.json
+      - composer.lock
+      - phpunit.xml
+      - tests/Pest.php
+      - app/**
+      - bootstrap/**
+      - config/**
+      - database/**
+      - lang/**
+      - public/**
+      - resources/**
+      - routes/**
+      - storage/**
+      - scripts/ots-*.py
+      - artisan
+      - LICENSE
+      - THIRD-PARTY-NOTICES.md
+      - LICENSES/**
+      - .github/workflows/container-image.yml
+      - .github/workflows/publish-container.yml
+  workflow_call: {}
 permissions:
   contents: read
 jobs:
-  build-and-test:
-    name: Build and integration smoke
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
+  validate:
+    name: Validate API build contract
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
     steps:
-      - name: Checkout repository
-        # v7.0.1
+      - name: Checkout exact API commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
       - name: Set up PHP
-        # 2.37.2
         uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962
         with:
           php-version: "8.4"
           coverage: none
           tools: composer:2.10.2
-
       - name: Install PHP dependencies
         run: composer install --no-interaction --no-progress --prefer-dist
-
       - name: Run database-free container policy tests
-        run: composer test:container-policy
+        run: "composer test:container-policy
 
-      - name: Lint Dockerfile
-        run: >-
-          docker run --rm -i
-          hadolint/hadolint:v2.14.0-debian@sha256:158cd0184dcaa18bd8ec20b61f4c1cabdf8b32a592d062f57bdcb8e4c1d312e2
-          < Dockerfile
+          python3 tests/container-publisher.py"
+      - name: Lint Containerfile and shell
+        run:
+          'podman run --rm -i docker.io/hadolint/hadolint:v2.14.0-debian@sha256:158cd0184dcaa18bd8ec20b61f4c1cabdf8b32a592d062f57bdcb8e4c1d312e2
+          < Containerfile
 
-      - name: Lint container scripts
-        run: >-
-          docker run --rm -v "$PWD:/mnt:ro" -w /mnt
-          koalaman/shellcheck:v0.10.0@sha256:2097951f02e735b613f4a34de20c40f937a6c8f18ecb170612c88c34517221fb
-          docker/healthchecks/http-live.sh
-          tests/docker/smoke.sh
+          podman run --rm -v "$PWD:/mnt:ro" -w /mnt docker.io/koalaman/shellcheck:v0.10.0@sha256:2097951f02e735b613f4a34de20c40f937a6c8f18ecb170612c88c34517221fb
+          docker/healthchecks/http-live.sh tests/docker/smoke.sh scripts/build-container.sh scripts/container-tools.sh
+          scripts/publish-container.sh scripts/scan-container-artifact.sh'
+  build-and-test:
+    name: Native API (${{ matrix.arch }})
+    needs: validate
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    steps:
+      - name: Checkout exact API commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Checkout accepted supply-chain implementation
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: SecPal/.github
+          ref: a6c9ab9b3d9f71068ef33f580ccd62448ad08b7e
+          path: .context/publisher-governance
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Install native distribution container tools
+        run: "sudo apt-get update
 
-      - name: Build and test the API image
-        run: tests/docker/smoke.sh
+          sudo apt-get install --yes --no-install-recommends buildah podman skopeo uidmap slirp4netns crun
+
+          buildah --version
+
+          podman --version
+
+          dpkg-query -W buildah podman skopeo"
+      - name: Install pinned authoritative Syft
+        run: scripts/container-tools.sh build "$RUNNER_TEMP/secpal-publisher-tools"
+      - name: Build exact source and execute native runtime smoke
+        env:
+          NATIVE_ARCH: ${{ matrix.arch }}
+        run: scripts/build-container.sh "$NATIVE_ARCH" ".context/publisher-build/$NATIVE_ARCH"
+      - name: Retain exact native OCI and SBOM evidence
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: api-native-${{ matrix.arch }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .context/publisher-build/${{ matrix.arch }}
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0

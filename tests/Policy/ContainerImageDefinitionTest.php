@@ -5,15 +5,15 @@
 
 it('defines the production API image contract', function (): void {
     $root = dirname(__DIR__, 2);
-    $artifacts = ['Dockerfile', '.dockerignore', 'docker/frankenphp/Caddyfile', 'docker/php/conf.d/production.ini',
+    $artifacts = ['Containerfile', '.containerignore', 'docker/frankenphp/Caddyfile', 'docker/php/conf.d/production.ini',
         'docker/python/opentimestamps-requirements.txt', 'docker/healthchecks/http-live.sh', 'tests/docker/smoke.sh',
         'tests/docker/assert-port-closed.php', '.github/workflows/container-image.yml', 'config/trustedproxy.php'];
     foreach ($artifacts as $path) {
         expect(is_file($root.'/'.$path))->toBeTrue("Missing container artifact: {$path}");
     }
 
-    $dockerfile = file_get_contents($root.'/Dockerfile');
-    $dockerignore = file_get_contents($root.'/.dockerignore');
+    $dockerfile = file_get_contents($root.'/Containerfile');
+    $dockerignore = file_get_contents($root.'/.containerignore');
     $caddyfile = file_get_contents($root.'/docker/frankenphp/Caddyfile');
     $productionIni = file_get_contents($root.'/docker/php/conf.d/production.ini');
     $pythonRequirements = file_get_contents($root.'/docker/python/opentimestamps-requirements.txt');
@@ -26,8 +26,8 @@ it('defines the production API image contract', function (): void {
     $dependenciesStage = explode('FROM extensions AS runtime', $dependenciesStage, 2)[0];
 
     expect($dockerfile)
-        ->toContain('dunglas/frankenphp:1.12.6-php8.4.23-bookworm@sha256:')
-        ->toContain('composer:2.10.2@sha256:5946476338742b200bb9ff88f8be56275ddae4b3949c72305cb0dbf10cfcb760')
+        ->toContain('docker.io/dunglas/frankenphp:1.12.6-php8.4.23-bookworm@sha256:')
+        ->toContain('docker.io/library/composer:2.10.2@sha256:5946476338742b200bb9ff88f8be56275ddae4b3949c72305cb0dbf10cfcb760')
         ->toContain('composer install')
         ->toContain('python3 python3-pip')
         ->toContain('--no-dev')
@@ -81,7 +81,7 @@ it('defines the production API image contract', function (): void {
         ->not->toContain('worker');
 
     expect($productionIni)->toContain('upload_max_filesize=10M', 'post_max_size=12M');
-    expect($workflow)->toContain('"storage/**"', '"artisan"', '"LICENSE"', '"THIRD-PARTY-NOTICES.md"', '"LICENSES/**"');
+    expect(Symfony\Component\Yaml\Yaml::parse($workflow)['on']['pull_request']['paths'])->toContain('storage/**', 'artisan', 'LICENSE', 'THIRD-PARTY-NOTICES.md', 'LICENSES/**');
     expect($documentation)->toContain('/app/storage/app/private')->toContain('persistent')->and($dockerignore)->toMatch('/^storage\/app$/m');
     expect($dockerignore)->toMatch('/^\*\*\/\*\.sqlite\*$/m');
     expect($smokeScript)
@@ -106,16 +106,16 @@ it('checks container command output without early-terminating pipelines', functi
     $smokeScript = (string) file_get_contents(dirname(__DIR__, 2).'/tests/docker/smoke.sh');
 
     expect($smokeScript)
-        ->toContain('php_version=$(docker run --rm "$image" php -v)')
-        ->toContain('frankenphp_version=$(docker run --rm "$image" frankenphp version)')
-        ->toContain('php_modules=$(docker run --rm "$image" php -m)')
+        ->toContain('php_version=$(podman run --rm "$image" php -v)')
+        ->toContain('frankenphp_version=$(podman run --rm "$image" frankenphp version)')
+        ->toContain('php_modules=$(podman run --rm "$image" php -m)')
         ->toContain('exit(extension_loaded("redis") ? 1 : 0)')
         ->not->toContain('php --ri redis')
-        ->toContain('php_ini_output=$(docker run --rm "$image" php --ini)')
-        ->toContain('docker run --rm "$image" python3 -c \'import opentimestamps\'')
-        ->toContain('git_import=$(docker run --rm "$image" python3 -c \'import git\' 2>&1)')
+        ->toContain('php_ini_output=$(podman run --rm "$image" php --ini)')
+        ->toContain('podman run --rm "$image" python3 -c \'import opentimestamps\'')
+        ->toContain('git_import=$(podman run --rm "$image" python3 -c \'import git\' 2>&1)')
         ->toContain('assert_output_contains "$git_import" \'ModuleNotFoundError\'')
-        ->not->toMatch('/docker run[^\n]*\\|[ \t]*grep\\b/');
+        ->not->toMatch('/podman run[^\n]*\\|[ \t]*grep\\b/');
 });
 
 it('distinguishes a listening TCP port from a closed port', function (): void {
