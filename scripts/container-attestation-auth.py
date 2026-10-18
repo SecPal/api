@@ -9,7 +9,8 @@ untrusted paths. The private journal precedes publication and enables always()
 cleanup. Abrupt VM termination is not evidence that cleanup executed.
 """
 import base64
-from contextlib import contextmanager
+from contextlib import contextmanager, ExitStack
+import errno
 import hashlib
 import json
 import os
@@ -25,12 +26,37 @@ LIMIT = 65536
 
 
 class Rejected(ValueError):
-    pass
+    def __init__(self, code="STATE_REJECTED", phase=None):
+        super().__init__("ATTESTATION_CREDENTIAL_REJECTED")
+        self.code = code
+        self.phase = phase
 
 
-def require(condition):
+@contextmanager
+def boundary(phase):
+    """Classify only trusted call-site phases and fixed conditions, never values."""
+    try:
+        yield
+    except Rejected as failure:
+        if failure.phase is None:
+            failure.phase = phase
+        raise
+    except OSError as failure:
+        code = {
+            errno.EACCES: "OS_PERMISSION_DENIED", errno.EPERM: "OS_PERMISSION_DENIED",
+            errno.ENOENT: "OS_MISSING", errno.ELOOP: "OS_SYMLINK",
+            errno.ENOTDIR: "OS_NOT_DIRECTORY", errno.EEXIST: "OS_EXISTS",
+            errno.ENOSPC: "OS_CAPACITY", errno.EDQUOT: "OS_CAPACITY",
+            errno.EIO: "OS_IO", errno.EXDEV: "OS_CROSS_DEVICE",
+        }.get(failure.errno, "OS_REJECTED")
+        raise Rejected(code, phase) from None
+    except (ValueError, KeyError, TypeError, IndexError):
+        raise Rejected("INVALID_REPRESENTATION", phase) from None
+
+
+def require(condition, code="STATE_REJECTED"):
     if not condition:
-        raise Rejected("ATTESTATION_CREDENTIAL_STATE_REJECTED")
+        raise Rejected(code)
 
 
 def file_id(info):
@@ -39,9 +65,17 @@ def file_id(info):
 
 
 @contextmanager
-def directory(path):
+def directory(path, phase="TRUSTED_PATH"):
+    with ExitStack() as stack:
+        with boundary(phase):
+            fd = stack.enter_context(trusted_directory(path))
+        yield fd
+
+
+@contextmanager
+def trusted_directory(path):
     path = Path(path)
-    require(path.is_absolute() and ".." not in path.parts)
+    require(path.is_absolute() and ".." not in path.parts, "DIRECTORY_PATH")
     fd = os.open("/", FLAGS | os.O_DIRECTORY)
     try:
         for name in path.parts[1:]:
@@ -49,7 +83,8 @@ def directory(path):
             os.close(fd)
             fd = next_fd
             info = os.fstat(fd)
-            require(info.st_uid in (0, os.geteuid()) and not info.st_mode & 0o022)
+            require(info.st_uid in (0, os.geteuid()), "DIRECTORY_OWNER")
+            require(not info.st_mode & 0o022, "DIRECTORY_WRITE_ACCESS")
         yield fd
     finally:
         os.close(fd)
@@ -59,11 +94,10 @@ def read_file(fd, name):
     handle = os.open(name, FLAGS, dir_fd=fd)
     try:
         info = os.fstat(handle)
-        require(stat.S_ISREG(info.st_mode) and info.st_uid == os.geteuid()
-                and info.st_nlink == 1 and info.st_size <= LIMIT)
-        require(stat.S_IMODE(info.st_mode) in (0o400, 0o600))
+        admit_file_metadata(info)
+        require(info.st_nlink == 1, "FILE_LINKS")
         value = os.read(handle, LIMIT + 1)
-        require(len(value) <= LIMIT)
+        require(len(value) <= LIMIT, "FILE_BOUND")
         return value, info
     finally:
         os.close(handle)
@@ -74,9 +108,27 @@ def metadata(fd, name):
         info = os.stat(name, dir_fd=fd, follow_symlinks=False)
     except FileNotFoundError:
         return None
-    require(stat.S_ISREG(info.st_mode) and info.st_uid == os.geteuid()
-            and stat.S_IMODE(info.st_mode) in (0o400, 0o600) and info.st_size <= LIMIT)
+    admit_file_metadata(info)
     return info
+
+
+def admit_file_metadata(info):
+    require(stat.S_ISREG(info.st_mode), "FILE_TYPE")
+    require(info.st_uid == os.geteuid(), "FILE_OWNER")
+    require(stat.S_IMODE(info.st_mode) in (0o400, 0o600), "FILE_MODE")
+    require(info.st_size <= LIMIT, "FILE_BOUND")
+
+
+@boundary("DEFAULT_READER_STATE")
+def reader_metadata(fd):
+    info = os.fstat(fd)
+    require(info.st_uid == os.geteuid(), "DIRECTORY_OWNER")
+    require(not info.st_mode & 0o022, "DIRECTORY_WRITE_ACCESS")
+    require(stat.S_IMODE(info.st_mode) <= 0o777, "DIRECTORY_MODE")
+    original = metadata(fd, "config.json")
+    if original:
+        require(original.st_nlink == 1, "FILE_LINKS")
+    return original
 
 
 def create_file(fd, name, value):
@@ -94,6 +146,7 @@ def create_file(fd, name, value):
         os.close(handle)
 
 
+@boundary("JOURNAL")
 def save(fd, state):
     create_file(fd, MARKER + ".next", json.dumps(state, sort_keys=True).encode())
     os.replace(MARKER + ".next", MARKER, src_dir_fd=fd, dst_dir_fd=fd)
@@ -102,8 +155,8 @@ def save(fd, state):
 
 def validate_state(raw, fd, identity):
     state = json.loads(raw)
-    require(state["identity"] == identity and state["private"] == file_id(os.fstat(fd)))
-    require(state["phase"] in ("prepared", "creating", "armed", "removing"))
+    require(state["identity"] == identity and state["private"] == file_id(os.fstat(fd)), "JOURNAL_IDENTITY")
+    require(state["phase"] in ("prepared", "creating", "armed", "removing"), "JOURNAL_PHASE")
     if state["phase"] in ("armed", "removing"):
         require(state["phase"] != "removing" or state["created"] is True)
         require(re.fullmatch(r"\.secpal-attestation-[0-9a-f]{32}\.candidate", state["candidate"]))
@@ -119,6 +172,7 @@ def validate_state(raw, fd, identity):
     return state
 
 
+@boundary("JOURNAL")
 def load(fd, identity):
     raw, _ = read_file(fd, MARKER)
     state = validate_state(raw, fd, identity)
@@ -132,6 +186,7 @@ def load(fd, identity):
     return state
 
 
+@boundary("PREPARE")
 def prepare(private, identity):
     private = Path(private)
     with directory(private.parent) as parent:
@@ -143,29 +198,37 @@ def prepare(private, identity):
         os.fsync(fd)
 
 
+@boundary("SOURCE_CREDENTIAL")
 def credential(fd, actor):
     raw, _ = read_file(fd, "config.json")
     def unique(pairs):
         result = {}
         for key, value in pairs:
-            require(key not in result)
+            require(key not in result, "AUTH_DUPLICATE")
             result[key] = value
         return result
     config = json.loads(raw, object_pairs_hook=unique)
     entry = config["auths"]["ghcr.io"]
-    require(isinstance(entry, dict) and set(entry) == {"auth"})
-    value = base64.b64decode(entry["auth"], validate=True).decode("utf-8")
-    user, token = value.split(":", 1)
-    require(user == actor and token and not any(ord(c) < 32 for c in value))
+    require(isinstance(entry, dict) and set(entry) == {"auth"}, "AUTH_FIELDS")
+    require(isinstance(entry["auth"], str), "AUTH_ENCODING")
+    try:
+        value = base64.b64decode(entry["auth"], validate=True).decode("utf-8")
+        user, token = value.split(":", 1)
+    except ValueError:
+        raise Rejected("AUTH_ENCODING") from None
+    require(user == actor, "AUTH_IDENTITY")
+    require(token and not any(ord(c) < 32 for c in value), "AUTH_VALUE")
     return json.dumps({"auths": {"ghcr.io": entry}}, separators=(",", ":")).encode()
 
 
+@boundary("INSTALL")
 def install(home, private, identity, actor):
-    with directory(private) as source:
+    with directory(private, "SOURCE_PATH") as source:
         state = load(source, identity)
-        require(state["phase"] == "prepared" and stat.S_IMODE(os.fstat(source).st_mode) == 0o700)
+        require(state["phase"] == "prepared", "JOURNAL_PHASE")
+        require(stat.S_IMODE(os.fstat(source).st_mode) == 0o700, "SOURCE_DIRECTORY_MODE")
         payload = credential(source, actor)
-        with directory(home) as home_fd:
+        with directory(home, "HOME_PATH") as home_fd:
             require(file_id(os.fstat(home_fd)) != file_id(os.fstat(source)))
             try:
                 docker_fd = os.open(".docker", FLAGS | os.O_DIRECTORY, dir_fd=home_fd)
@@ -180,12 +243,8 @@ def install(home, private, identity, actor):
                 created = True
             try:
                 info = os.fstat(docker_fd)
-                require(info.st_uid == os.geteuid() and not info.st_mode & 0o022
-                        and stat.S_IMODE(info.st_mode) <= 0o777
-                        and file_id(info) != file_id(os.fstat(source)))
-                original = metadata(docker_fd, "config.json")
-                if original:
-                    require(original.st_nlink == 1)
+                original = reader_metadata(docker_fd)
+                require(file_id(info) != file_id(os.fstat(source)), "DIRECTORY_IDENTITY")
                 stem = ".secpal-attestation-" + secrets.token_hex(16)
                 state.update(phase="armed", home=file_id(os.fstat(home_fd)), docker=file_id(info),
                              created=created, mode=stat.S_IMODE(info.st_mode),
@@ -221,12 +280,14 @@ def install(home, private, identity, actor):
                     require(current.st_size == state["original_size"]
                             and current.st_mtime_ns == state["original_mtime"]
                             and stat.S_IMODE(current.st_mode) == state["original_mode"])
-                os.replace(state["candidate"], "config.json", src_dir_fd=docker_fd, dst_dir_fd=docker_fd)
-                os.fsync(docker_fd)
+                with boundary("PUBLICATION"):
+                    os.replace(state["candidate"], "config.json", src_dir_fd=docker_fd, dst_dir_fd=docker_fd)
+                    os.fsync(docker_fd)
             finally:
                 os.close(docker_fd)
 
 
+@boundary("RESTORE")
 def restore(home, private, identity):
     private = Path(private)
     if not private.exists():
@@ -234,11 +295,11 @@ def restore(home, private, identity):
         with directory(private.parent) as parent:
             require(not os.path.lexists(private))
         return
-    with directory(private) as source:
+    with directory(private, "SOURCE_PATH") as source:
         state = load(source, identity)
         if state["phase"] == "prepared":
             return
-        with directory(home) as home_fd:
+        with directory(home, "HOME_PATH") as home_fd:
             require(file_id(os.fstat(home_fd)) == state["home"])
             if state["phase"] == "creating":
                 require(not os.path.lexists(Path(home) / ".docker"))
@@ -299,6 +360,7 @@ def restore(home, private, identity):
             save(source, state)
 
 
+@boundary("CLEANUP")
 def cleanup(home, private, identity):
     restore(home, private, identity)
     private = Path(private)
@@ -317,23 +379,24 @@ def cleanup(home, private, identity):
         os.rmdir(private.name, dir_fd=parent)
 
 
+@boundary("CONTEXT")
 def main():
-    require(len(sys.argv) == 2)
+    require(len(sys.argv) == 2, "CONTEXT_ARGUMENT")
     require(os.environ.get("GITHUB_REPOSITORY") == "SecPal/api"
             and os.environ.get("GITHUB_EVENT_NAME") == "push"
             and os.environ.get("GITHUB_REF") == "refs/heads/main"
             and os.environ.get("RUNNER_ENVIRONMENT") == "github-hosted"
             and os.environ.get("GITHUB_WORKFLOW_REF") ==
-            "SecPal/api/.github/workflows/publish-container.yml@refs/heads/main")
+            "SecPal/api/.github/workflows/publish-container.yml@refs/heads/main", "CONTEXT_IDENTITY")
     job = os.environ["GITHUB_JOB"]
-    require(job in ("attest", "accept"))
+    require(job in ("attest", "accept"), "CONTEXT_JOB")
     identity = {"run": os.environ["GITHUB_RUN_ID"], "attempt": os.environ["GITHUB_RUN_ATTEMPT"], "job": job}
-    require(identity["run"].isdigit() and identity["attempt"].isdigit())
+    require(identity["run"].isdigit() and identity["attempt"].isdigit(), "CONTEXT_RUN")
     name = "secpal-attest-auth" if job == "attest" else "secpal-final-attest-auth"
     private = Path(os.environ["RUNNER_TEMP"]) / name
-    require(os.environ.get("DOCKER_CONFIG", str(private)) == str(private))
+    require(os.environ.get("DOCKER_CONFIG", str(private)) == str(private), "CONTEXT_AUTH_PATH")
     action = sys.argv[1]
-    require(action in ("prepare", "install", "cleanup"))
+    require(action in ("prepare", "install", "cleanup"), "CONTEXT_ARGUMENT")
     if action == "prepare":
         prepare(private, identity)
     elif action == "install":
@@ -346,6 +409,7 @@ def main():
 if __name__ == "__main__":
     try:
         main()
-    except (OSError, ValueError, KeyError, TypeError, IndexError):
-        print("ATTESTATION_CREDENTIAL_OPERATION_FAILED; cleanup may be incomplete", file=sys.stderr)
+    except Rejected as failure:
+        print("ATTESTATION_CREDENTIAL_OPERATION_FAILED phase=" + failure.phase
+              + " code=" + failure.code + "; cleanup may be incomplete", file=sys.stderr)
         raise SystemExit(1) from None

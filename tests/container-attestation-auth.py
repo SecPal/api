@@ -4,6 +4,8 @@
 """Exact-job credential handoff tests; synthetic credentials, no remote writes."""
 import base64
 import importlib.util
+from contextlib import redirect_stdout
+import io
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import threading
 import json
@@ -81,6 +83,70 @@ class Handoff(unittest.TestCase):
             ["node", "-e", READER, os.environ["SECPAL_TEST_ATTEST_BUNDLE"], str(self.home)],
             input=json.dumps({"username": ACTOR, "password": "synthetic-only-token"}),
             text=True, capture_output=True, check=False)
+
+    def test_diagnostics_distinguish_source_default_journal_and_atomic_failure_without_values(self):
+        self.source.chmod(0o644)
+        with self.assertRaises(handoff.Rejected) as rejected:
+            self.install()
+        self.assertEqual((rejected.exception.phase, rejected.exception.code),
+                         ("SOURCE_CREDENTIAL", "FILE_MODE"))
+        self.source.chmod(0o600)
+        self.source.write_text('{"auths":{"ghcr.io":{"auth":"private-malformed-content"}}}')
+        with self.assertRaises(handoff.Rejected) as rejected:
+            self.install()
+        self.assertEqual((rejected.exception.phase, rejected.exception.code),
+                         ("SOURCE_CREDENTIAL", "AUTH_ENCODING"))
+        self.assertNotIn("private-malformed-content", str(rejected.exception))
+        self.source.write_text(json.dumps({"auths": {"ghcr.io": {"auth": AUTH}}}))
+        self.target.parent.mkdir(mode=0o700)
+        self.target.write_text("private-existing-content")
+        self.target.chmod(0o644)
+        with self.assertRaises(handoff.Rejected) as rejected:
+            self.install()
+        self.assertEqual((rejected.exception.phase, rejected.exception.code),
+                         ("DEFAULT_READER_STATE", "FILE_MODE"))
+        self.assertNotIn(str(self.home), str(rejected.exception))
+        self.assertEqual(self.target.read_text(), "private-existing-content")
+        self.target.chmod(0o600)
+        with unittest.mock.patch.object(handoff.os, "replace",
+                                       side_effect=PermissionError(13, "private-path-and-token")):
+            with self.assertRaises(handoff.Rejected) as rejected:
+                self.install()
+        self.assertEqual((rejected.exception.phase, rejected.exception.code),
+                         ("JOURNAL", "OS_PERMISSION_DENIED"))
+        self.assertNotIn("private-path-and-token", str(rejected.exception))
+
+    def test_diagnostics_reject_wrong_journal_and_unsafe_parent_without_values(self):
+        with handoff.directory(self.private) as fd:
+            with self.assertRaises(handoff.Rejected) as rejected:
+                handoff.load(fd, dict(IDENTITY, attempt="2"))
+        self.assertEqual((rejected.exception.phase, rejected.exception.code),
+                         ("JOURNAL", "JOURNAL_IDENTITY"))
+        self.home.chmod(0o777)
+        with self.assertRaises(handoff.Rejected) as rejected:
+            self.install()
+        self.assertEqual((rejected.exception.phase, rejected.exception.code),
+                         ("HOME_PATH", "DIRECTORY_WRITE_ACCESS"))
+        self.assertNotIn(str(self.home), str(rejected.exception))
+        self.home.chmod(0o700)
+
+    def test_hosted_metadata_probe_is_read_only_and_reports_only_a_fixed_condition(self):
+        self.target.parent.mkdir(mode=0o700)
+        self.target.write_text("private-existing-content")
+        self.target.chmod(0o644)
+        before = self.target.stat()
+        output = io.StringIO()
+        with unittest.mock.patch.dict(os.environ, GITHUB_ACTIONS="true",
+                                      RUNNER_ENVIRONMENT="github-hosted"), \
+                unittest.mock.patch.object(Path, "home", return_value=self.home), \
+                unittest.mock.patch.object(handoff, "read_file") as read_file, \
+                redirect_stdout(output):
+            observe_hosted_default_metadata()
+        self.assertEqual(output.getvalue(),
+                         "HOSTED_METADATA_OBSERVATION phase=DEFAULT_READER_STATE code=FILE_MODE\n")
+        read_file.assert_not_called()
+        self.assertEqual(self.target.stat(), before)
+        self.assertEqual(self.target.read_text(), "private-existing-content")
 
     def test_actual_pinned_reader_requires_handoff_and_only_receives_ghcr(self):
         self.assertNotEqual(self.reader().returncode, 0)
@@ -204,7 +270,7 @@ class Handoff(unittest.TestCase):
                 raise OSError("synthetic interruption")
             return real_replace(src, dst, **kwargs)
         with unittest.mock.patch.object(handoff.os, "replace", side_effect=interrupted):
-            with self.assertRaises(OSError): self.install()
+            with self.assertRaises(handoff.Rejected): self.install()
         handoff.cleanup(self.home, self.private, IDENTITY)
         self.assertEqual(self.target.read_text(), "previous")
 
@@ -219,7 +285,7 @@ class Handoff(unittest.TestCase):
                     raise OSError("synthetic journal interruption after candidate inode recording")
             return real_replace(src, dst, **kwargs)
         with unittest.mock.patch.object(handoff.os, "replace", side_effect=interrupted):
-            with self.assertRaises(OSError):
+            with self.assertRaises(handoff.Rejected):
                 self.install()
         self.assertTrue((self.private / (handoff.MARKER + ".next")).exists())
         handoff.cleanup(self.home, self.private, IDENTITY)
@@ -234,7 +300,7 @@ class Handoff(unittest.TestCase):
             if path == ".docker":
                 raise OSError("synthetic lost removal acknowledgment")
         with unittest.mock.patch.object(handoff.os, "rmdir", side_effect=interrupted):
-            with self.assertRaises(OSError):
+            with self.assertRaises(handoff.Rejected):
                 handoff.cleanup(self.home, self.private, IDENTITY)
         self.assertFalse(self.target.parent.exists())
         self.assertTrue(self.source.exists())
@@ -250,7 +316,10 @@ class Handoff(unittest.TestCase):
         result = subprocess.run(["python3", str(ROOT / "scripts/container-attestation-auth.py"), "prepare"],
                                 env=env, capture_output=True, text=True, check=False)
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn("ATTESTATION_CREDENTIAL_OPERATION_FAILED", result.stderr)
+        self.assertIn("ATTESTATION_CREDENTIAL_OPERATION_FAILED phase=CONTEXT code=CONTEXT_IDENTITY",
+                      result.stderr)
+        self.assertNotIn(ACTOR, result.stdout + result.stderr)
+        self.assertNotIn(str(self.root), result.stdout + result.stderr)
         self.assertNotIn(AUTH, result.stdout + result.stderr)
         self.assertFalse((self.root / "secpal-attest-auth").exists())
 
@@ -270,11 +339,34 @@ class Handoff(unittest.TestCase):
         self.target.chmod(0o600)
         self.install()
         with unittest.mock.patch.object(handoff.os, "replace", side_effect=OSError("synthetic restoration failure")):
-            with self.assertRaises(OSError):
+            with self.assertRaises(handoff.Rejected):
                 handoff.cleanup(self.home, self.private, IDENTITY)
         self.assertTrue(self.private.exists())
         handoff.cleanup(self.home, self.private, IDENTITY)
         self.assertEqual(self.target.read_text(), "previous")
 
+def observe_hosted_default_metadata():
+    """Observation only: no registry token, credential reads, writes or admission."""
+    if (os.environ.get("GITHUB_ACTIONS") != "true"
+            or os.environ.get("RUNNER_ENVIRONMENT") != "github-hosted"):
+        return
+    try:
+        with handoff.boundary("DEFAULT_READER_STATE"):
+            with handoff.directory(Path.home(), "HOME_PATH") as home_fd:
+                try:
+                    fd = os.open(".docker", handoff.FLAGS | os.O_DIRECTORY, dir_fd=home_fd)
+                except FileNotFoundError:
+                    print("HOSTED_METADATA_OBSERVATION phase=DEFAULT_READER_STATE code=ABSENT")
+                    return
+                try:
+                    handoff.reader_metadata(fd)
+                finally:
+                    os.close(fd)
+        print("HOSTED_METADATA_OBSERVATION phase=DEFAULT_READER_STATE code=METADATA_ADMITTED")
+    except handoff.Rejected as failure:
+        print("HOSTED_METADATA_OBSERVATION phase=" + failure.phase + " code=" + failure.code)
+
+
 if __name__ == "__main__":
+    observe_hosted_default_metadata()
     unittest.main()

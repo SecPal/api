@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Classify attestation credential admission failures with bounded non-secret phase
+  and invariant codes; observe hosted default-reader metadata without reading or
+  changing runner credentials (refs `api#1445`).
+
 - temporarily admit only job-scoped GHCR credentials to the pinned OCI
   attestation reader, preserving prior runner state with checked restoration
   and always-path cleanup (api#1445)
