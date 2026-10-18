@@ -58,7 +58,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: SecPal/.github
-          ref: a6c9ab9b3d9f71068ef33f580ccd62448ad08b7e
+          ref: 6a6758681f4ebc46b4a33d442846d33d6b79785c
           path: .context/publisher-governance
           persist-credentials: false
           fetch-depth: 0
@@ -130,7 +130,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: SecPal/.github
-          ref: a6c9ab9b3d9f71068ef33f580ccd62448ad08b7e
+          ref: 6a6758681f4ebc46b4a33d442846d33d6b79785c
           path: .context/publisher-governance
           persist-credentials: false
           fetch-depth: 0

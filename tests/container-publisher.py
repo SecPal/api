@@ -54,6 +54,38 @@ def platform(arch):
     return base,config,manifest,descriptor,subject
 
 
+class AttestationEvidenceFilenameTests(unittest.TestCase):
+    def test_exact_digest_maps_to_portable_unique_filename(self):
+        first = "sha256:" + "a" * 64
+        second = "sha256:" + "b" * 64
+        self.assertEqual(publisher.attestation_filename(first),
+                         "attestation-sha256-" + "a" * 64 + ".json")
+        self.assertNotEqual(publisher.attestation_filename(first),
+                            publisher.attestation_filename(second))
+        self.assertEqual(Path(publisher.attestation_filename(first)).name,
+                         publisher.attestation_filename(first))
+        self.assertNotRegex(publisher.attestation_filename(first), r'[":<>|*?\\/]')
+
+    def test_scan_verifies_the_same_portable_file_with_original_digest(self):
+        root = Path(__file__).resolve().parents[1]
+        scan = (root / "scripts/scan-container-artifact.sh").read_text()
+        self.assertIn('attestation-filename --digest "${subject##*@}"', scan)
+        self.assertEqual(scan.count('$output/raw/${attestation_file}'), 2)
+        self.assertIn('--digest "${subject##*@}"', scan)
+        self.assertNotIn('attestation-${subject##*@}.json', scan)
+        workflow = (root / ".github/workflows/publish-container.yml").read_text()
+        # Existing always-path retention remains independent of scan acceptance.
+        self.assertIn("if: always()", workflow)
+        self.assertIn("retention-days:", workflow)
+
+    def test_invalid_security_identity_never_becomes_a_path(self):
+        for value in ("", "sha256:abc", "sha256:" + "A"*64, "sha512:" + "a"*64,
+                      "../sha256:" + "a"*64, "sha256:" + "a"*64 + "/secret",
+                      "sha256:" + "a"*64 + "\n"):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                publisher.attestation_filename(value)
+
+
 def evidence():
     records=[];sboms=[];scans=[];smokes=[]
     for arch in ['amd64','arm64']:

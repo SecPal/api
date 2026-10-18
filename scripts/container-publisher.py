@@ -29,6 +29,13 @@ def digest(raw):
     return 'sha256:' + hashlib.sha256(raw).hexdigest()
 
 
+def attestation_filename(subject_digest):
+    """Map an exact security identifier to one portable evidence basename."""
+    if not isinstance(subject_digest, str) or not re.fullmatch(r"sha256:[0-9a-f]{64}", subject_digest):
+        raise ValueError('publisher-attestation-evidence-digest')
+    return 'attestation-' + subject_digest.replace(':', '-', 1) + '.json'
+
+
 def canonical(value):
     return json.dumps(value, sort_keys=True, separators=(',', ':')).encode()
 
@@ -308,6 +315,7 @@ def complete(prepared, scan_root, smoke_root, root, output):
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     sub=parser.add_subparsers(dest='command',required=True)
+    f=sub.add_parser('attestation-filename');f.add_argument('--digest',required=True)
     v=sub.add_parser('source-security');v.add_argument('--input',required=True);v.add_argument('--commit',required=True)
     s=sub.add_parser('source');s.add_argument('--root',required=True);s.add_argument('--commit',required=True);s.add_argument('--output',required=True)
     b=sub.add_parser('bases');b.add_argument('--root',required=True);b.add_argument('--arch',required=True);b.add_argument('--output',required=True)
@@ -320,7 +328,8 @@ def main():
     e=sub.add_parser('complete')
     for key in ('prepared','scan-root','smoke-root','root','output'):e.add_argument('--'+key,required=True)
     args=parser.parse_args()
-    if args.command=='source-security':admit_source_security(read(args.input),args.commit,timestamp(datetime.now(timezone.utc).timestamp()))
+    if args.command=='attestation-filename':print(attestation_filename(args.digest))
+    elif args.command=='source-security':admit_source_security(read(args.input),args.commit,timestamp(datetime.now(timezone.utc).timestamp()))
     elif args.command=='source':write(args.output,source(args.root,args.commit))
     elif args.command=='bases':write(args.output,bases(args.root,args.arch))
     elif args.command=='record':
