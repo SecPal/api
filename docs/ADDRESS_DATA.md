@@ -35,7 +35,8 @@ review evidence, not external legal approval or a claim that addresses are curre
 `AddressDataSeeder` uses the same importer. Optional seeding is enabled by default;
 `ADDRESS_DATA_IMPORT_ON_SETUP=false` disables seeding and `--setup-only` imports
 (including in tests). It does not disable Composer setup or the explicit
-production release command below.
+production release command below. Composer disables its process timeout for
+the import; the HTTP download retains its configured timeout.
 
 After migrations on **every installation and application update**, the existing
 deployment one-shot must run, and check the exit status of:
@@ -46,7 +47,9 @@ php artisan addresses:check
 ```
 
 The importer compares the release's expected hash with the successful active
-import before any HEAD or GET request. A different hash is imported even when a
+import before any HEAD or GET request. Matching datasets refresh their source label
+and license/attribution notices while preserving acquisition provenance and
+activation time. A different hash is imported even when a
 dataset already exists. Failure returns a nonzero status; deployment must stop
 promotion and retry the same command after correcting the cause. Do not append
 `--if-empty`, which deliberately preserves any existing dataset for manual use.

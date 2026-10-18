@@ -433,6 +433,7 @@ test('concurrent import fails without downloading and can retry after the lock i
     $connection->select("SELECT pg_advisory_lock(hashtextextended(current_schema() || ':' || ?, 0))", ['address-data:DE']);
 
     try {
+        expect(DB::scalar("SELECT pg_try_advisory_lock(hashtextextended(current_schema() || ':' || ?, 0))", ['address-data:DE']))->toBeFalse();
         $this->artisan('addresses:import', [
             '--source' => base_path('tests/fixtures/address_data/sample_streets.csv'),
             '--expected-sha256' => addressFixtureSha256(),
@@ -504,7 +505,8 @@ test('release configuration pins the reviewed upstream identity and digest', fun
         ->and($release['attribution'])->toContain('https://www.openstreetmap.org/copyright', 'https://opendatacommons.org/licenses/odbl/1-0/');
     $composer = json_decode(file_get_contents(base_path('composer.json')), true, flags: JSON_THROW_ON_ERROR);
     $setup = implode("\n", $composer['scripts']['setup']);
-    expect($setup)->toContain('addresses:import --no-interaction')
+    expect($setup)->toContain('Composer\\Config::disableProcessTimeout')
+        ->toContain('addresses:import --no-interaction')
         ->not->toContain('--if-empty', '--setup-only');
 });
 
@@ -520,4 +522,39 @@ test('explicit release import honors offline input even when optional seeding is
 
     expect(AddressDataImport::query()->whereNotNull('activated_at')->value('source_sha256'))->toBe(addressFixtureSha256());
     Http::assertNothingSent();
+});
+
+test('an already-active release reconciles license metadata without downloading or reactivating', function (bool $local): void {
+    Http::fake();
+    config([
+        'address_data.source_url' => 'https://raw.githubusercontent.com/openpotato/openplzapi.data/'.str_repeat('a', 40).'/src/de/osm/streets.updated.csv',
+        'address_data.expected_sha256' => addressFixtureSha256(),
+    ]);
+    $active = createAddressImport('DE', AddressDataImport::STATUS_SUCCEEDED, now()->subDay()->toIso8601String(), addressFixtureSha256());
+    $activation = $active->activated_at;
+    $acquisitionUrl = $active->source_url;
+    $active->update(['attribution' => null, 'license' => null]);
+
+    $arguments = $local ? ['--source' => base_path('tests/fixtures/address_data/sample_streets.csv')] : [];
+    $this->artisan('addresses:import', $arguments)->assertSuccessful();
+
+    $active->refresh();
+    expect($active->attribution)->toBe(config('address_data.attribution'))
+        ->and($active->source_url)->toBe($acquisitionUrl)
+        ->and($active->source_name)->toBe('OpenPLZ API Data')
+        ->and($active->license)->toBe('ODbL-1.0')
+        ->and($active->activated_at?->equalTo($activation))->toBeTrue()
+        ->and(AddressDataImport::query()->count())->toBe(1);
+    Http::assertNothingSent();
+})->with(['remote' => [false], 'local' => [true]]);
+
+test('dry-run validates matching bytes without rewriting active metadata', function (): void {
+    $active = createAddressImport('DE', AddressDataImport::STATUS_SUCCEEDED, now()->toIso8601String(), addressFixtureSha256());
+    $this->artisan('addresses:import', [
+        '--source' => base_path('tests/fixtures/address_data/sample_streets.csv'),
+        '--expected-sha256' => addressFixtureSha256(),
+        '--dry-run' => true,
+    ])->expectsOutputToContain('Validated CSV; 3 rows would be imported.')->assertSuccessful();
+    expect($active->fresh()?->attribution)->toBe('Fixture')
+        ->and(AddressDataImport::query()->count())->toBe(1);
 });
