@@ -100,12 +100,12 @@ def save(fd, state):
     os.fsync(fd)
 
 
-def load(fd, identity):
-    raw, _ = read_file(fd, MARKER)
+def validate_state(raw, fd, identity):
     state = json.loads(raw)
     require(state["identity"] == identity and state["private"] == file_id(os.fstat(fd)))
-    require(state["phase"] in ("prepared", "creating", "armed"))
-    if state["phase"] == "armed":
+    require(state["phase"] in ("prepared", "creating", "armed", "removing"))
+    if state["phase"] in ("armed", "removing"):
+        require(state["phase"] != "removing" or state["created"] is True)
         require(re.fullmatch(r"\.secpal-attestation-[0-9a-f]{32}\.candidate", state["candidate"]))
         require(state["backup"] == state["candidate"].removesuffix(".candidate") + ".previous")
         require(re.fullmatch(r"[0-9a-f]{64}", state["digest"]))
@@ -116,6 +116,19 @@ def load(fd, identity):
             require((value is None and name in ("original", "candidate_id")) or
                     (isinstance(value, list) and len(value) == 2
                      and all(isinstance(v, int) and v >= 0 for v in value)))
+    return state
+
+
+def load(fd, identity):
+    raw, _ = read_file(fd, MARKER)
+    state = validate_state(raw, fd, identity)
+    if metadata(fd, MARKER + ".next"):
+        # A fully written intent may have lost its atomic-replace acknowledgment.
+        # Validate the exact private/job identity before recovering that intent.
+        pending, _ = read_file(fd, MARKER + ".next")
+        state = validate_state(pending, fd, identity)
+        os.replace(MARKER + ".next", MARKER, src_dir_fd=fd, dst_dir_fd=fd)
+        os.fsync(fd)
     return state
 
 
@@ -231,6 +244,19 @@ def restore(home, private, identity):
                 require(not os.path.lexists(Path(home) / ".docker"))
                 save(source, {"identity": identity, "private": state["private"], "phase": "prepared"})
                 return
+            if state["phase"] == "removing":
+                require(state["created"])
+                try:
+                    info = os.stat(".docker", dir_fd=home_fd, follow_symlinks=False)
+                except FileNotFoundError:
+                    info = None
+                if info is not None:
+                    require(file_id(info) == state["docker"])
+                    with directory(Path(home) / ".docker") as fd:
+                        require(file_id(os.fstat(fd)) == state["docker"] and not os.listdir(fd))
+                    os.rmdir(".docker", dir_fd=home_fd)
+                save(source, {"identity": identity, "private": state["private"], "phase": "prepared"})
+                return
             with directory(Path(home) / ".docker") as fd:
                 require(file_id(os.fstat(fd)) == state["docker"] and os.fstat(fd).st_uid == os.geteuid())
                 current = metadata(fd, "config.json")
@@ -260,6 +286,9 @@ def restore(home, private, identity):
                     os.unlink(state["candidate"], dir_fd=fd)
                 if state["created"]:
                     require(not os.listdir(fd))
+                    # Removal intent makes a lost successful rmdir acknowledgment recoverable.
+                    state["phase"] = "removing"
+                    save(source, state)
                 else:
                     os.fchmod(fd, state["mode"])
                 os.fsync(fd)

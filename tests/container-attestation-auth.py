@@ -12,8 +12,7 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
-import unittest
-from unittest import mock
+import unittest.mock
 
 sys.dont_write_bytecode = True
 ROOT = Path(__file__).resolve().parents[1]
@@ -61,7 +60,7 @@ try{
 
 class Handoff(unittest.TestCase):
     def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory(dir=ROOT / ".context/issue-1445")
+        self.tmp = tempfile.TemporaryDirectory(prefix=".attestation-test-", dir=ROOT)
         self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name)
         self.home = self.root / "home"
@@ -101,15 +100,15 @@ class Handoff(unittest.TestCase):
         self.source.unlink()
         accepted = []
         class Registry(BaseHTTPRequestHandler):
-            def do_GET(inner):
-                valid = inner.path == "/v2/" and inner.headers.get("Authorization") == "Basic " + AUTH
+            def do_GET(self):
+                valid = self.path == "/v2/" and self.headers.get("Authorization") == "Basic " + AUTH
                 if valid:
                     accepted.append(True)
-                inner.send_response(200 if valid else 401)
+                self.send_response(200 if valid else 401)
                 if not valid:
-                    inner.send_header("WWW-Authenticate", 'Basic realm="synthetic"')
-                inner.end_headers()
-            def log_message(inner, *_):
+                    self.send_header("WWW-Authenticate", 'Basic realm="synthetic"')
+                self.end_headers()
+            def log_message(self, *_):
                 pass
         server = HTTPServer(("127.0.0.1", 0), Registry)
         worker = threading.Thread(target=server.serve_forever, daemon=True)
@@ -168,7 +167,7 @@ class Handoff(unittest.TestCase):
         self.target.parent.symlink_to(self.root)
         with self.assertRaises((handoff.Rejected, OSError, ValueError, KeyError)): self.install()
         self.target.parent.unlink()
-        with mock.patch.object(handoff.os, "geteuid", return_value=os.geteuid() + 1):
+        with unittest.mock.patch.object(handoff.os, "geteuid", return_value=os.geteuid() + 1):
             with self.assertRaises(handoff.Rejected): self.install()
         self.assertFalse(self.target.parent.exists())
 
@@ -204,10 +203,43 @@ class Handoff(unittest.TestCase):
             if dst == "config.json":
                 raise OSError("synthetic interruption")
             return real_replace(src, dst, **kwargs)
-        with mock.patch.object(handoff.os, "replace", side_effect=interrupted):
+        with unittest.mock.patch.object(handoff.os, "replace", side_effect=interrupted):
             with self.assertRaises(OSError): self.install()
         handoff.cleanup(self.home, self.private, IDENTITY)
         self.assertEqual(self.target.read_text(), "previous")
+
+    def test_interrupted_journal_replacement_is_reconciled_before_cleanup(self):
+        real_replace = handoff.os.replace
+        replacements = 0
+        def interrupted(src, dst, **kwargs):
+            nonlocal replacements
+            if src == handoff.MARKER + ".next":
+                replacements += 1
+                if replacements == 3:
+                    raise OSError("synthetic journal interruption after candidate inode recording")
+            return real_replace(src, dst, **kwargs)
+        with unittest.mock.patch.object(handoff.os, "replace", side_effect=interrupted):
+            with self.assertRaises(OSError):
+                self.install()
+        self.assertTrue((self.private / (handoff.MARKER + ".next")).exists())
+        handoff.cleanup(self.home, self.private, IDENTITY)
+        self.assertFalse(self.private.exists())
+        self.assertFalse(self.target.parent.exists())
+
+    def test_interrupted_directory_removal_is_reconciled_before_cleanup(self):
+        self.install()
+        real_rmdir = handoff.os.rmdir
+        def interrupted(path, **kwargs):
+            real_rmdir(path, **kwargs)
+            if path == ".docker":
+                raise OSError("synthetic lost removal acknowledgment")
+        with unittest.mock.patch.object(handoff.os, "rmdir", side_effect=interrupted):
+            with self.assertRaises(OSError):
+                handoff.cleanup(self.home, self.private, IDENTITY)
+        self.assertFalse(self.target.parent.exists())
+        self.assertTrue(self.source.exists())
+        handoff.cleanup(self.home, self.private, IDENTITY)
+        self.assertFalse(self.private.exists())
 
     def test_cli_rejects_pr_context_without_accessing_default_home(self):
         env = dict(os.environ, GITHUB_REPOSITORY="SecPal/api", GITHUB_EVENT_NAME="pull_request",
@@ -237,7 +269,7 @@ class Handoff(unittest.TestCase):
         self.target.write_text("previous")
         self.target.chmod(0o600)
         self.install()
-        with mock.patch.object(handoff.os, "replace", side_effect=OSError("synthetic restoration failure")):
+        with unittest.mock.patch.object(handoff.os, "replace", side_effect=OSError("synthetic restoration failure")):
             with self.assertRaises(OSError):
                 handoff.cleanup(self.home, self.private, IDENTITY)
         self.assertTrue(self.private.exists())
