@@ -103,19 +103,22 @@ def read_file(fd, name):
         os.close(handle)
 
 
-def metadata(fd, name):
+def metadata(fd, name, *, preserve_only=False):
     try:
         info = os.stat(name, dir_fd=fd, follow_symlinks=False)
     except FileNotFoundError:
         return None
-    admit_file_metadata(info)
+    admit_file_metadata(info, preserve_only=preserve_only)
     return info
 
 
-def admit_file_metadata(info):
+def admit_file_metadata(info, *, preserve_only=False):
     require(stat.S_ISREG(info.st_mode), "FILE_TYPE")
     require(info.st_uid == os.geteuid(), "FILE_OWNER")
-    require(stat.S_IMODE(info.st_mode) in (0o400, 0o600), "FILE_MODE")
+    # Extra reads are safe only for opaque prior state, never for credentials,
+    # journal input or newly published tokens. No prior bytes are consumed.
+    modes = (0o400, 0o600, 0o444, 0o644) if preserve_only else (0o400, 0o600)
+    require(stat.S_IMODE(info.st_mode) in modes, "FILE_MODE")
     require(info.st_size <= LIMIT, "FILE_BOUND")
 
 
@@ -125,7 +128,7 @@ def reader_metadata(fd):
     require(info.st_uid == os.geteuid(), "DIRECTORY_OWNER")
     require(not info.st_mode & 0o022, "DIRECTORY_WRITE_ACCESS")
     require(stat.S_IMODE(info.st_mode) <= 0o777, "DIRECTORY_MODE")
-    original = metadata(fd, "config.json")
+    original = metadata(fd, "config.json", preserve_only=True)
     if original:
         require(original.st_nlink == 1, "FILE_LINKS")
     return original
@@ -244,6 +247,9 @@ def install(home, private, identity, actor):
             try:
                 info = os.fstat(docker_fd)
                 original = reader_metadata(docker_fd)
+                if original and stat.S_IMODE(original.st_mode) in (0o444, 0o644):
+                    print("ATTESTATION_CREDENTIAL_OBSERVATION phase=DEFAULT_READER_STATE"
+                          " code=OPAQUE_READONLY_PRIOR_STATE")
                 require(file_id(info) != file_id(os.fstat(source)), "DIRECTORY_IDENTITY")
                 stem = ".secpal-attestation-" + secrets.token_hex(16)
                 state.update(phase="armed", home=file_id(os.fstat(home_fd)), docker=file_id(info),
@@ -273,8 +279,8 @@ def install(home, private, identity, actor):
                 if original:
                     os.link("config.json", state["backup"], src_dir_fd=docker_fd,
                             dst_dir_fd=docker_fd, follow_symlinks=False)
-                    require(file_id(metadata(docker_fd, state["backup"])) == state["original"])
-                current = metadata(docker_fd, "config.json")
+                    require(file_id(metadata(docker_fd, state["backup"], preserve_only=True)) == state["original"])
+                current = metadata(docker_fd, "config.json", preserve_only=True)
                 require((file_id(current) if current else None) == state["original"])
                 if current:
                     require(current.st_size == state["original_size"]
@@ -320,10 +326,10 @@ def restore(home, private, identity):
                 return
             with directory(Path(home) / ".docker") as fd:
                 require(file_id(os.fstat(fd)) == state["docker"] and os.fstat(fd).st_uid == os.geteuid())
-                current = metadata(fd, "config.json")
+                current = metadata(fd, "config.json", preserve_only=True)
                 current_id = file_id(current) if current else None
                 require(current_id in (state["original"], state["candidate_id"]))
-                backup = metadata(fd, state["backup"])
+                backup = metadata(fd, state["backup"], preserve_only=True)
                 if state["original"]:
                     original = backup if backup else current
                     require(original is not None and file_id(original) == state["original"]
