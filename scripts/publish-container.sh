@@ -59,7 +59,7 @@ PY
     for arch in amd64 arm64; do
       native="$repo_root/.context/native/api-native-$arch-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
       manifest=$(jq -er .subject.manifest_digest "$native/record.json")
-      "$tools/oras" cp --registry-config "$REGISTRY_AUTH_FILE" --from-oci-layout \
+      "$tools/oras" cp --to-registry-config "$REGISTRY_AUTH_FILE" --from-oci-layout \
         "$native/image:api" "$repository@$manifest"
       layout="$RUNNER_TEMP/sbom-$arch"
       (
@@ -69,7 +69,7 @@ PY
           syft.spdx.json:application/spdx+json association.json:application/json
       )
       sbom_digest="sha256:$(sha256sum "$prepared/sbom-manifest-$arch.json" | cut -d ' ' -f1)"
-      "$tools/oras" cp --registry-config "$REGISTRY_AUTH_FILE" --from-oci-layout \
+      "$tools/oras" cp --to-registry-config "$REGISTRY_AUTH_FILE" --from-oci-layout \
         "$layout:sbom" "$repository@$sbom_digest"
       spdx_digest=$(jq -er .spdx_digest "$native/association.json")
       sboms=$(jq -c --arg platform "linux/$arch" --arg digest "$manifest" --arg artifact "$repository@$sbom_digest" \
@@ -124,7 +124,7 @@ PY
         build-evidence.json:application/json source-security.json:application/json build-evidence.bundle.json:application/json
     )
     evidence_digest="sha256:$(sha256sum "$prepared/build-evidence-manifest.json" | cut -d ' ' -f1)"
-    "$tools/oras" cp --registry-config "$REGISTRY_AUTH_FILE" --from-oci-layout \
+    "$tools/oras" cp --to-registry-config "$REGISTRY_AUTH_FILE" --from-oci-layout \
       "$RUNNER_TEMP/build-evidence:build" "$repository@$evidence_digest"
     printf 'evidence_digest=%s\n' "$evidence_digest" >> "$GITHUB_OUTPUT"
     ;;

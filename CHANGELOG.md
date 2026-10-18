@@ -12,6 +12,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- use ORAS 1.3.4 destination authentication for OCI uploads and wait for the
+  PostgreSQL integration fixture's TCP server before migrations; exercise the
+  actual pinned registry CLI offline before native publisher builds (api#1445)
+
 ### Changed
 
 - replace the active Docker/BuildKit publisher with native Buildah AMD64/ARM64

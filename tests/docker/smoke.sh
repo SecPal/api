@@ -250,7 +250,7 @@ podman run -d --name "$postgres" --network "$network" \
     -c ssl_key_file=/var/lib/postgresql/certs/server.key \
     -c password_encryption=scram-sha-256 >/dev/null
 attempt=0
-until podman exec "$postgres" pg_isready -U secpal -d secpal >/dev/null 2>&1; do
+until podman exec "$postgres" pg_isready -h 127.0.0.1 -U secpal -d secpal >/dev/null 2>&1; do
     attempt=$((attempt + 1))
     [ "$attempt" -lt 30 ] || exit 1
     sleep 1
