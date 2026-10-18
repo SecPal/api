@@ -143,10 +143,27 @@ class Handoff(unittest.TestCase):
                 redirect_stdout(output):
             observe_hosted_default_metadata()
         self.assertEqual(output.getvalue(),
-                         "HOSTED_METADATA_OBSERVATION phase=DEFAULT_READER_STATE code=FILE_MODE\n")
+                         "HOSTED_METADATA_OBSERVATION phase=DEFAULT_READER_STATE code=FILE_MODE\n"
+                         "HOSTED_METADATA_OBSERVATION phase=DEFAULT_READER_STATE code=INVALID_REPRESENTATION\n")
         read_file.assert_not_called()
         self.assertEqual(self.target.stat(), before)
         self.assertEqual(self.target.read_text(), "private-existing-content")
+        for raw, expected in [
+            ('{"auths":{}}', "EMPTY_AUTH_CONFIGURATION"),
+            (json.dumps({"auths": {"ghcr.io": {"auth": AUTH}}}), "OTHER_CONFIGURATION"),
+            ('{"auths":{"ghcr.io":{"auth":"' + AUTH + '"}},"auths":{}}', "OTHER_CONFIGURATION"),
+        ]:
+            self.target.write_text(raw)
+            output = io.StringIO()
+            with redirect_stdout(output):
+                observe_shared_read_default(self.home)
+            self.assertEqual(output.getvalue(),
+                             "HOSTED_METADATA_OBSERVATION phase=DEFAULT_READER_STATE code=" + expected + "\n")
+            self.assertNotIn(AUTH, output.getvalue())
+            self.assertEqual(self.target.read_text(), raw)
+        self.target.chmod(0o666)
+        with self.assertRaises(handoff.Rejected):
+            observe_shared_read_default(self.home)
 
     def test_actual_pinned_reader_requires_handoff_and_only_receives_ghcr(self):
         self.assertNotEqual(self.reader().returncode, 0)
@@ -345,8 +362,35 @@ class Handoff(unittest.TestCase):
         handoff.cleanup(self.home, self.private, IDENTITY)
         self.assertEqual(self.target.read_text(), "previous")
 
+@handoff.boundary("DEFAULT_READER_STATE")
+def observe_shared_read_default(home):
+    # Only classify closed, empty JSON shapes; never print keys or values.
+    with handoff.directory(home, "HOME_PATH") as home_fd:
+        fd = os.open(".docker", handoff.FLAGS | os.O_DIRECTORY, dir_fd=home_fd)
+        try:
+            info = os.fstat(fd)
+            handoff.require(info.st_uid == os.geteuid() and not info.st_mode & 0o022)
+            handle = os.open("config.json", handoff.FLAGS, dir_fd=fd)
+            try:
+                info = os.fstat(handle)
+                handoff.require(handoff.stat.S_ISREG(info.st_mode) and info.st_uid == os.geteuid()
+                                and info.st_nlink == 1 and info.st_size <= handoff.LIMIT
+                                and handoff.stat.S_IMODE(info.st_mode) in (0o444, 0o644))
+                raw = os.read(handle, handoff.LIMIT + 1)
+                handoff.require(len(raw) <= handoff.LIMIT)
+                value = json.loads(raw, object_pairs_hook=lambda pairs:
+                                   dict(pairs) if len(pairs) == len(dict(pairs)) else None)
+                empty = value == {} or value == {"auths": {}}
+                code = "EMPTY_AUTH_CONFIGURATION" if empty else "OTHER_CONFIGURATION"
+                print("HOSTED_METADATA_OBSERVATION phase=DEFAULT_READER_STATE code=" + code)
+            finally:
+                os.close(handle)
+        finally:
+            os.close(fd)
+
+
 def observe_hosted_default_metadata():
-    """Observation only: no registry token, credential reads, writes or admission."""
+    """Read-only observation: no registry token, emitted values, writes or admission."""
     if (os.environ.get("GITHUB_ACTIONS") != "true"
             or os.environ.get("RUNNER_ENVIRONMENT") != "github-hosted"):
         return
@@ -365,6 +409,11 @@ def observe_hosted_default_metadata():
         print("HOSTED_METADATA_OBSERVATION phase=DEFAULT_READER_STATE code=METADATA_ADMITTED")
     except handoff.Rejected as failure:
         print("HOSTED_METADATA_OBSERVATION phase=" + failure.phase + " code=" + failure.code)
+        if failure.phase == "DEFAULT_READER_STATE" and failure.code == "FILE_MODE":
+            try:
+                observe_shared_read_default(Path.home())
+            except handoff.Rejected as condition:
+                print("HOSTED_METADATA_OBSERVATION phase=" + condition.phase + " code=" + condition.code)
 
 
 if __name__ == "__main__":
