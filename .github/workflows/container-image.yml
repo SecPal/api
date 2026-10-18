@@ -46,11 +46,13 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout exact API commit
+        # v7.0.1
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
       - name: Checkout accepted supply-chain implementation
+        # v7.0.1
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: SecPal/.github
@@ -65,6 +67,7 @@ jobs:
 
           printf ''%s\n'' "$RUNNER_TEMP/secpal-policy/bin" >> "$GITHUB_PATH"'
       - name: Set up PHP
+        # 2.37.2
         uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962
         with:
           php-version: "8.4"
@@ -99,12 +102,14 @@ jobs:
             runner: ubuntu-24.04-arm
     steps:
       - name: Checkout exact API commit
+        # v7.0.1
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
           path: source
       - name: Checkout accepted supply-chain implementation
+        # v7.0.1
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: SecPal/.github
@@ -129,6 +134,7 @@ jobs:
           NATIVE_ARCH: ${{ matrix.arch }}
         run: scripts/build-container.sh "$NATIVE_ARCH" "$RUNNER_TEMP/secpal-native/$NATIVE_ARCH"
       - name: Retain exact native OCI and SBOM evidence
+        # v7.0.2
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: api-native-${{ matrix.arch }}-${{ github.run_id }}-${{ github.run_attempt }}
