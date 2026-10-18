@@ -32,7 +32,7 @@ assert_http() {
     path=$1
     expected_status=$2
     expected_fragment=${3:-}
-    podman run --rm --network "$network" "$image" php -r '
+    if podman run --rm --network "$network" "$image" php -r '
     $context = stream_context_create(["http" => ["ignore_errors" => true, "timeout" => 3, "follow_location" => 0]]);
     $body = @file_get_contents($argv[1], false, $context);
     $statusLine = $http_response_header[0] ?? "";
@@ -42,7 +42,25 @@ assert_http() {
         fwrite(STDERR, "Unexpected HTTP response for {$argv[1]}: {$status}\n");
         exit(1);
     }
-    ' "http://${api}:8080${path}" "$expected_status" "$expected_fragment"
+    ' "http://${api}:8080${path}" "$expected_status" "$expected_fragment"; then
+        return 0
+    fi
+    # A diagnostic cannot turn the original failed assertion into acceptance.
+    # No application bodies, SQL text, credentials or raw runtime logs are emitted.
+    podman inspect --format '{{.State.Status}} OOM={{.State.OOMKilled}}' "$api" >&2 || true
+    podman exec "$postgres" psql -U secpal -d secpal -Atc \
+        "SELECT state, wait_event_type, wait_event, count(*) FROM pg_stat_activity WHERE datname='secpal' GROUP BY 1,2,3" >&2 || true
+    podman run --rm --network "$network" "$image" php -r '
+        $started = microtime(true);
+        $stream = @fopen($argv[1], "r", false, stream_context_create(["http" => [
+            "ignore_errors" => true, "timeout" => 15, "follow_location" => 0,
+            "header" => "Connection: close\r\n",
+        ]]));
+        $status = $http_response_header[0] ?? "NO_RESPONSE";
+        fprintf(STDERR, "Diagnostic request: %s; %.3fs; original assertion remains failed\n", $status, microtime(true)-$started);
+        if (is_resource($stream)) { fclose($stream); }
+    ' "http://${api}:8080${path}" || true
+    return 1
 }
 wait_for_http() {
     attempt=0

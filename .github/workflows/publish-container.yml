@@ -76,6 +76,12 @@ jobs:
         with:
           pattern: trivy-repository-evidence-${{ github.run_id }}-${{ github.run_attempt }}-*
           path: .context/repository-security
+      - name: Install locked central policy dependencies
+        run: 'python3 -m venv "$RUNNER_TEMP/secpal-policy"
+
+          "$RUNNER_TEMP/secpal-policy/bin/pip" install --requirement .context/publisher-governance/requirements/vulnerability-policy.txt
+
+          printf ''%s\n'' "$RUNNER_TEMP/secpal-policy/bin" >> "$GITHUB_PATH"'
       - name: Publish and independently read exact subjects
         id: prepare
         env:
