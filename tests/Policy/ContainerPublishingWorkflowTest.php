@@ -281,6 +281,9 @@ it('shares database-free native Buildah builds without PR publication or emulati
         ->and($ci['on'])->toHaveKey('workflow_call')
         ->and($ci['on']['pull_request']['paths'])->toContain('Containerfile', '.containerignore', 'tests/Policy/**', 'composer.lock')
         ->and($ci['jobs']['build-and-test']['needs'])->toBe('validate')
+        ->and($ci['jobs']['build-and-test']['steps'][0]['with']['path'])->toBe('source')
+        ->and($ci['jobs']['build-and-test']['defaults']['run']['working-directory'])->toBe('source')
+        ->and(containerPublishingRunScripts($ci['jobs']['build-and-test']))->toContain('"$RUNNER_TEMP/secpal-native/$NATIVE_ARCH"')
         ->and($ci['jobs']['build-and-test']['strategy']['matrix']['include'])->toBe([
             ['arch' => 'amd64', 'runner' => 'ubuntu-24.04'],
             ['arch' => 'arm64', 'runner' => 'ubuntu-24.04-arm'],

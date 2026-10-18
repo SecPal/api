@@ -6,7 +6,7 @@ repo_root=$(git rev-parse --show-toplevel)
 cd "$repo_root"
 arch=${1:?native architecture}
 output=${2:?owned output directory}
-governance="$repo_root/.context/publisher-governance"
+governance="${GITHUB_WORKSPACE:?}/.context/publisher-governance"
 tools="${RUNNER_TEMP:?}/secpal-publisher-tools"
 case "$arch:$(uname -m):${RUNNER_ARCH:-}" in
   amd64:x86_64:X64|arm64:aarch64:ARM64) ;;
