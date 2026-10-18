@@ -20,7 +20,7 @@ class ImportAddressDataCommand extends Command
                             {--expected-sha256= : Exact lowercase SHA-256 authorized for the source bytes}
                             {--if-empty : Skip when an activated import already exists}
                             {--setup-only : Only run when ADDRESS_DATA_IMPORT_ON_SETUP is enabled}
-                            {--keep-imports=0 : Keep this many prior import versions (street rows + metadata)}';
+                            {--keep-imports=1 : Keep this many prior import versions (minimum one)}';
 
     /**
      * @var string
@@ -66,10 +66,6 @@ class ImportAddressDataCommand extends Command
         $explicitSource = $this->option('source');
         if ($explicitSource !== null && trim((string) $explicitSource) !== '') {
             return (string) $explicitSource;
-        }
-
-        if (! (bool) $this->option('setup-only')) {
-            return null;
         }
 
         $setupSourcePath = config('address_data.setup_source_path');

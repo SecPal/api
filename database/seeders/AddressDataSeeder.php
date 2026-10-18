@@ -38,9 +38,9 @@ class AddressDataSeeder extends Seeder
             expectedSha256: is_string(config('address_data.expected_sha256'))
                 ? config('address_data.expected_sha256')
                 : null,
-            ifEmpty: true,
+            ifEmpty: false,
             setupOnly: true,
-            keepImports: 0,
+            keepImports: 1,
             onProgress: function (string $message): void {
                 $this->command->line('  '.$message);
             },

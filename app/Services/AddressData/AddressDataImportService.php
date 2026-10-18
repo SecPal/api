@@ -34,6 +34,36 @@ final class AddressDataImportService
         int $keepImports,
         ?callable $onProgress = null,
     ): array {
+        // Session-scoped PostgreSQL ownership spans download, staging, activation
+        // and pruning without holding a long-running database transaction.
+        $lockKey = 'address-data:'.AddressDataConfig::string('address_data.country', 'DE');
+        /** @var object{acquired: bool} $lock */
+        $lock = DB::selectOne("SELECT pg_try_advisory_lock(hashtextextended(current_schema() || ':' || ?, 0)) AS acquired", [$lockKey]);
+        if (! $lock->acquired) {
+            return ['status' => 'failed', 'message' => 'Another address-data import is running. Retry after it finishes.'];
+        }
+
+        try {
+            return $this->runExclusively($force, $dryRun, $sourcePath, $expectedSha256, $ifEmpty, $setupOnly, $keepImports, $onProgress);
+        } finally {
+            DB::selectOne("SELECT pg_advisory_unlock(hashtextextended(current_schema() || ':' || ?, 0))", [$lockKey]);
+        }
+    }
+
+    /**
+     * @param  (callable(string): void)|null  $onProgress
+     * @return array{status: string, message: string, import_id?: int}
+     */
+    private function runExclusively(
+        bool $force,
+        bool $dryRun,
+        ?string $sourcePath,
+        ?string $expectedSha256,
+        bool $ifEmpty,
+        bool $setupOnly,
+        int $keepImports,
+        ?callable $onProgress,
+    ): array {
         $emit = static function (string $message) use ($onProgress): void {
             if ($onProgress !== null) {
                 $onProgress($message);
@@ -63,6 +93,15 @@ final class AddressDataImportService
             return ['status' => 'failed', 'message' => $e->getMessage()];
         }
 
+        $active = $this->latestActivatedImport($countryCode);
+        if ($sourcePath === null && ! $force && ! $dryRun && $active !== null
+            && $active->status === AddressDataImport::STATUS_SUCCEEDED
+            && is_string($active->source_sha256) && hash_equals($active->source_sha256, $expectedSha256)) {
+            $this->reconcileSourceMetadata($active);
+
+            return ['status' => 'skipped', 'message' => 'Source unchanged (SHA-256 matches active import).'];
+        }
+
         $emit('Resolving address data source (download or local file)…');
 
         try {
@@ -83,9 +122,11 @@ final class AddressDataImportService
         }
 
         $active = $this->latestActivatedImport($countryCode);
-        if (! $force && $active !== null && $active->source_sha256 !== null && hash_equals($active->source_sha256, $sha256)) {
+        if (! $force && ! $dryRun && $active !== null && $active->source_sha256 !== null && hash_equals($active->source_sha256, $sha256)) {
             $this->cleanupTempDownload($path);
             $emit('Skipped: source unchanged (SHA-256 matches active import). Use --force to re-import.');
+
+            $this->reconcileSourceMetadata($active);
 
             return ['status' => 'skipped', 'message' => 'Source unchanged (SHA-256 matches active import).'];
         }
@@ -105,25 +146,20 @@ final class AddressDataImportService
             return ['status' => 'dry_run', 'message' => "Validated CSV; {$rows} rows would be imported."];
         }
 
-        $license = AddressDataConfig::string('address_data.license_spdx', 'ODbL-1.0');
-        $attribution = AddressDataConfig::string('address_data.attribution', '');
-
         $emit('Creating import run record…');
 
         $import = AddressDataImport::query()->create([
             'country_code' => $countryCode,
-            'source_name' => AddressDataConfig::string('address_data.source_name', 'OpenPLZ API Data'),
+            ...$this->sourceMetadata(),
             'source_url' => $sourcePath === null ? $sourceUrl : 'file://'.$sourcePath,
             'status' => AddressDataImport::STATUS_RUNNING,
             'started_at' => now(),
-            'license' => $license,
-            'attribution' => $attribution,
         ]);
 
         try {
             $rowCount = $this->csvImporter->importFile($path, $import, false, $onProgress);
         } catch (Throwable $e) {
-            $import->update([
+            $import->refresh()->update([
                 'status' => AddressDataImport::STATUS_FAILED,
                 'finished_at' => now(),
                 'error_message' => $e->getMessage(),
@@ -136,7 +172,7 @@ final class AddressDataImportService
 
         if ($rowCount === 0) {
             $message = 'Import aborted: CSV contained no data rows. Previous active dataset preserved.';
-            $import->update([
+            $import->refresh()->update([
                 'status' => AddressDataImport::STATUS_FAILED,
                 'finished_at' => now(),
                 'error_message' => $message,
@@ -179,7 +215,7 @@ final class AddressDataImportService
                 $this->pruneStreetRows($countryCode, $keepImports);
             });
         } catch (Throwable $e) {
-            $import->update([
+            $import->refresh()->update([
                 'status' => AddressDataImport::STATUS_FAILED,
                 'finished_at' => now(),
                 'error_message' => $e->getMessage(),
@@ -200,6 +236,29 @@ final class AddressDataImportService
             'message' => "Imported {$rowCount} rows.",
             'import_id' => $import->id,
         ];
+    }
+
+    /**
+     * @return array{source_name: string, license: string, attribution: string}
+     */
+    private function sourceMetadata(): array
+    {
+        return [
+            'source_name' => AddressDataConfig::string('address_data.source_name', 'OpenPLZ API Data'),
+            'license' => AddressDataConfig::string('address_data.license_spdx', 'ODbL-1.0'),
+            'attribution' => AddressDataConfig::string('address_data.attribution', ''),
+        ];
+    }
+
+    private function reconcileSourceMetadata(AddressDataImport $active): void
+    {
+        // Preserve the recorded acquisition URL and activation time. Updating
+        // notices does not require downloading or reactivating identical bytes.
+        $active->fill($this->sourceMetadata());
+        if ($active->isDirty()) {
+            $active->save();
+            $this->suggestionService->forgetActiveImportCache($active->country_code);
+        }
     }
 
     private function hasActivatedImport(string $countryCode): bool
@@ -245,7 +304,7 @@ final class AddressDataImportService
             ->where('country_code', $countryCode)
             ->where('status', AddressDataImport::STATUS_SUCCEEDED)
             ->orderByDesc('id')
-            ->limit(max(1, 1 + $keepImports))
+            ->limit(1 + max(1, $keepImports))
             ->pluck('id')
             ->all();
 

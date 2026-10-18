@@ -46,3 +46,19 @@ the release checklist in
 [`docs/THIRD_PARTY_LICENSE_AUDIT.md`](docs/THIRD_PARTY_LICENSE_AUDIT.md).
 
 The API container installs `opentimestamps` 0.4.5 and its required Python dependencies from their package distributions. Their package metadata, including the upstream LGPL-3.0 license files, remains installed in the image. The core source is available from <https://github.com/opentimestamps/python-opentimestamps>.
+
+## OpenPLZ address reference data
+
+OpenPLZ API Data / OpenPotato; © OpenStreetMap contributors
+(<https://www.openstreetmap.org/copyright>). The German reference database is
+licensed under [ODbL-1.0](https://opendatacommons.org/licenses/odbl/1-0/), separately
+from SecPal application code. The complete license is in
+[LICENSES/ODbL-1.0.txt](LICENSES/ODbL-1.0.txt).
+
+The full CSV is downloaded only during an explicit installation/update or manual
+import. Its immutable source and SHA-256 are in `config/address_data.php`.
+The [address-data contract](docs/ADDRESS_DATA.md) records source verification,
+operator obligations and the machine-readable alterations offer. The image
+carries that contract at `/app/docs/ADDRESS_DATA.md`. Public clients must display
+the attribution and license links; a software license audit alone does not
+clear a deployment's ODbL obligations.

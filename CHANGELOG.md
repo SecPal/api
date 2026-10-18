@@ -24,6 +24,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Bind OpenPLZ address imports to the application release's reviewed commit and
+  SHA-256, remove the weekly updater, upgrade setup datasets by expected hash,
+  and skip remote downloads when the approved dataset is active (refs `api#1602`).
+- Preserve at least one prior address dataset, serialize imports with PostgreSQL
+  session locks, and recover cleanly from activation rollback. Carry OpenPLZ/OSM
+  credit, ODbL links and the alterations-offer contract in API import metadata
+  and image notices; deployment-specific legal approval remains required.
+
 - replace the active Docker/BuildKit publisher with native Buildah AMD64/ARM64
   builds from a sealed committed Containerfile context; bind Syft SPDX, independent
   Grype/Trivy artifact checks, native smoke and GitHub attestations to immutable
@@ -55,8 +63,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   relationship fields and `customers.update` for customer-establishment update
   or deletion, while preserving assignment-based ordinary edits and tenant and
   organizational-scope boundaries (fixes `api#1334`)
-- **Breaking:** disabled scheduled and setup address-data imports by default;
-  remote imports now require a reviewed commit-pinned GitHub raw URL and exact
+- **Breaking:** remote address-data imports require a reviewed commit-pinned GitHub raw URL and exact
   expected SHA-256, while local imports require the same digest admission before
   parsing or activation (fixes `api#1411`)
 - removed scheduled OpenTimestamp package-index update discovery; production
