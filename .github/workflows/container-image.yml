@@ -75,7 +75,11 @@ jobs:
           tools: composer:2.10.2
       - name: Install PHP dependencies
         run: composer install --no-interaction --no-progress --prefer-dist
+      - name: Install pinned registry CLI for offline compatibility evidence
+        run: scripts/container-tools.sh registry "$RUNNER_TEMP/secpal-publisher-tools"
       - name: Run database-free container policy tests
+        env:
+          SECPAL_TEST_ORAS: ${{ runner.temp }}/secpal-publisher-tools/oras
         run: "composer test:container-policy
 
           python3 tests/container-publisher.py"

@@ -7,6 +7,7 @@ import hashlib
 import importlib.util
 import json
 import os
+import shlex
 from pathlib import Path
 import unittest
 import subprocess
@@ -175,6 +176,54 @@ class Publisher(unittest.TestCase):
             count=len(calls.read_text().splitlines())
         self.assertNotEqual(result.returncode,0)
         self.assertEqual(count,1)
+
+    def test_postgresql_fixture_waits_for_tcp_before_migrations(self):
+        root=Path(__file__).resolve().parents[1]
+        script=(root/'tests/docker/smoke.sh').read_text()
+        start=script.index('attempt=0\nuntil podman exec "$postgres" pg_isready')
+        block=script[start:script.index('\nrun_api() {',start)]
+        with tempfile.TemporaryDirectory() as directory:
+            count=Path(directory)/'calls'
+            shell="""podman() {
+                calls=$(cat "$COUNT" 2>/dev/null || echo 0)
+                calls=$((calls+1)); printf '%s' "$calls" > "$COUNT"
+                case " $* " in
+                    *" -h 127.0.0.1 "*) test "$calls" -ge 2 ;;
+                    *) return 0 ;;
+                esac
+            }
+            sleep() { :; }
+            """+block
+            result=subprocess.run(['sh','-c',shell],env=dict(os.environ,COUNT=str(count),postgres='fixture'),
+                                  capture_output=True,text=True,timeout=2,check=False)
+            self.assertEqual(result.returncode,0,result.stderr)
+            self.assertEqual(count.read_text(),'2')
+
+    def test_registry_copy_arguments_execute_with_pinned_oras(self):
+        root=Path(__file__).resolve().parents[1]
+        oras=Path(os.environ['SECPAL_TEST_ORAS']).resolve()
+        script=(root/'scripts/publish-container.sh').read_text()
+        commands=[shlex.split(line.strip().rstrip(chr(92)).strip())[2:]
+                  for line in script.splitlines() if '"$tools/oras" cp ' in line]
+        self.assertTrue(commands)
+        with tempfile.TemporaryDirectory() as directory:
+            work=Path(directory)
+            (work/'payload.txt').write_text('non-secret local CLI conformance probe\n')
+            auth=work/'auth.json';auth.write_text('{"auths":{}}\n');auth.chmod(0o600)
+            source=work/'source'
+            subprocess.run([str(oras),'push','--oci-layout','--artifact-type',
+                            'application/vnd.secpal.cli-probe.v1',str(source)+':probe',
+                            'payload.txt:text/plain'],cwd=work,capture_output=True,text=True,check=True)
+            original=json.loads((source/'index.json').read_text())['manifests'][0]['digest']
+            for index,arguments in enumerate(commands):
+                destination=work/('copy-'+str(index))
+                actual=[str(auth) if value=='$REGISTRY_AUTH_FILE' else value for value in arguments]
+                result=subprocess.run([str(oras),'cp',*actual,'--to-oci-layout',
+                                       str(source)+':probe',str(destination)+':probe'],
+                                      cwd=work,capture_output=True,text=True,check=False)
+                self.assertEqual(result.returncode,0,result.stderr)
+                observed=json.loads((destination/'index.json').read_text())['manifests'][0]['digest']
+                self.assertEqual(observed,original)
 
     def test_missing_or_malformed_required_evidence_does_not_become_success(self):
         for collection,key,value in [(2,'spdx_sha256','not-a-digest'),(2,'syft_version','moving'),
