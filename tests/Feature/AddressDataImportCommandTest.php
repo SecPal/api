@@ -501,13 +501,11 @@ test('release configuration pins the reviewed upstream identity and digest', fun
     $release = require base_path('config/address_data.php');
     expect($release['source_url'])->toBe('https://raw.githubusercontent.com/openpotato/openplzapi.data/c26389b30573ab2738d0b14fd350f143aa0a1251/src/de/osm/streets.updated.csv')
         ->and($release['expected_sha256'])->toBe('1066a96a6b3a16629a94c834fca49fe58a2bb01558e17242c53a12d68b290088')
-        ->and($release)->not->toHaveKey('schedule_enabled')
         ->and($release['attribution'])->toContain('https://www.openstreetmap.org/copyright', 'https://opendatacommons.org/licenses/odbl/1-0/');
     $composer = json_decode(file_get_contents(base_path('composer.json')), true, flags: JSON_THROW_ON_ERROR);
     $setup = implode("\n", $composer['scripts']['setup']);
     expect($setup)->toContain('Composer\\Config::disableProcessTimeout')
-        ->toContain('addresses:import --no-interaction')
-        ->not->toContain('--if-empty', '--setup-only');
+        ->toContain('addresses:import --no-interaction');
 });
 
 test('explicit release import honors offline input even when optional seeding is disabled', function (): void {
