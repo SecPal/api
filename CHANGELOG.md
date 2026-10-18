@@ -14,6 +14,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Consume the accepted shared verified-SPDX Grype execution and provenance
+  contract, retaining authoritative Syft input and independent artifact Trivy
+  policy admission (refs `api#1445`).
+
+- Preserve portable raw OCI attestation evidence filenames without changing
+  security digests, subjects or verification content (refs `api#1445`).
+
 - Classify attestation credential admission failures with bounded non-secret phase
   and invariant codes. Preserve proven hosted read-only prior state as opaque
   bytes while keeping all consumed and newly published credentials private

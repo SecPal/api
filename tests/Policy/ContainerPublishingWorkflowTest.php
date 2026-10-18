@@ -330,7 +330,10 @@ it('keeps Syft authoritative and scans immutable artifacts independently', funct
     expect((string) file_get_contents($root.'/scripts/build-container.sh'))
         ->toContain('"$tools/syft" scan', '"oci-dir:$output/image"', 'spdx-json=', 'verify-syft');
     expect((string) file_get_contents($root.'/scripts/scan-container-artifact.sh'))->toContain(
-        '"$tools/grype" --config "$cache/config.yaml" "sbom:$output/sbom/syft.spdx.json"',
+        'secpal-vulnerability-reevaluation.py" scan-grype',
+        '--archive "$tools/grype.tar.gz"', '--spdx "$output/sbom/syft.spdx.json"',
+        '--association "$output/sbom/association.json"', '--provenance "$output/grype-input.json"',
+        '--metadata "$output/grype-metadata.json"',
         '"$tools/trivy" --config "$cache/config.yaml" image', '"$registry@$manifest"', '--platform "linux/$arch"',
         'secpal-vulnerability-reevaluation.py', 'secpal-vulnerability-policy.py',
         'policies/vulnerability-triage-v1.json', "policy['gate_state']!='CLEAN'",
