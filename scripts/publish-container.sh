@@ -44,10 +44,13 @@ case "$stage" in
     test "${#security_files[@]}" -eq 1
     python3 - "$governance/docs/schemas/secpal-trivy-repository-scan-v2.schema.json" "${security_files[0]}" <<'PY'
 import json,sys
-from jsonschema import Draft202012Validator
-schema=json.load(open(sys.argv[1],encoding="utf-8"))
-Draft202012Validator(schema,format_checker=Draft202012Validator.FORMAT_CHECKER).validate(
-    json.load(open(sys.argv[2],encoding="utf-8")))
+from jsonschema import Draft202012Validator, ValidationError
+try:
+    schema=json.load(open(sys.argv[1],encoding="utf-8"))
+    Draft202012Validator(schema,format_checker=Draft202012Validator.FORMAT_CHECKER).validate(
+        json.load(open(sys.argv[2],encoding="utf-8")))
+except (ValidationError, json.JSONDecodeError, OSError):
+    raise SystemExit("FAIL: malformed source-security evidence") from None
 PY
     python3 scripts/container-publisher.py prepare --root "$repo_root" --native .context/native \
       --security "${security_files[0]}" --output "$prepared"

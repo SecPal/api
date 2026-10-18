@@ -50,6 +50,20 @@ jobs:
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
+      - name: Checkout accepted supply-chain implementation
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: SecPal/.github
+          ref: a6c9ab9b3d9f71068ef33f580ccd62448ad08b7e
+          path: .context/publisher-governance
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Install locked accepted schema validator
+        run: 'python3 -m venv "$RUNNER_TEMP/secpal-policy"
+
+          "$RUNNER_TEMP/secpal-policy/bin/pip" install --requirement .context/publisher-governance/requirements/vulnerability-policy.txt
+
+          printf ''%s\n'' "$RUNNER_TEMP/secpal-policy/bin" >> "$GITHUB_PATH"'
       - name: Set up PHP
         uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962
         with:

@@ -9,6 +9,7 @@ suffix=$$
 network="secpal-api-smoke-${suffix}"
 postgres="secpal-postgres-${suffix}"
 api="secpal-api-${suffix}"
+client="secpal-client-${suffix}"
 sqlite_probe="database/container-smoke-${suffix}.sqlite"
 if test -e "$sqlite_probe"; then
     echo "Refusing to overwrite existing SQLite smoke probe: ${sqlite_probe}" >&2
@@ -22,7 +23,7 @@ port_probe="${tmp_dir}/assert-port-closed.php"
 cp tests/docker/assert-port-closed.php "$port_probe"
 chmod 0444 "$port_probe"
 cleanup() {
-    podman rm -f "$api" "$postgres" >/dev/null 2>&1 || true
+    podman rm -f "$client" "$api" "$postgres" >/dev/null 2>&1 || true
     podman network rm "$network" >/dev/null 2>&1 || true
     rm -f "$sqlite_probe"
     rm -rf "$tmp_dir"
@@ -32,7 +33,7 @@ assert_http() {
     path=$1
     expected_status=$2
     expected_fragment=${3:-}
-    if podman run --rm --network "$network" "$image" php -r '
+    if podman exec "$client" php -r '
     $context = stream_context_create(["http" => ["ignore_errors" => true, "timeout" => 3, "follow_location" => 0]]);
     $body = @file_get_contents($argv[1], false, $context);
     $statusLine = $http_response_header[0] ?? "";
@@ -50,7 +51,7 @@ assert_http() {
     podman inspect --format '{{.State.Status}} OOM={{.State.OOMKilled}}' "$api" >&2 || true
     podman exec "$postgres" psql -U secpal -d secpal -Atc \
         "SELECT state, wait_event_type, wait_event, count(*) FROM pg_stat_activity WHERE datname='secpal' GROUP BY 1,2,3" >&2 || true
-    podman run --rm --network "$network" "$image" php -r '
+    podman exec "$client" php -r '
         $started = microtime(true);
         $stream = @fopen($argv[1], "r", false, stream_context_create(["http" => [
             "ignore_errors" => true, "timeout" => 15, "follow_location" => 0,
@@ -264,6 +265,10 @@ run_api php artisan tinker --execute='app(\App\Services\RuntimeHeartbeatService:
 podman run -d --name "$api" --network "$network" --env-file "$api_env" \
     -v "${cert_dir}/ca.crt:/run/secrets/postgresql-ca.crt:ro" \
     -v "${kek_file}:/run/secrets/secpal-kek:ro" "$image" >/dev/null
+# Keep one independent client on the isolated network. Repeated rootless network
+# attach/detach is helper churn, rather than an application assertion.
+podman run -d --name "$client" --network "$network" \
+    -v "${port_probe}:/tmp/assert-port-closed.php:ro" "$image" sleep 300 >/dev/null
 wait_for_http
 podman exec "$api" secpal-http-live
 assert_http /health/live 200 '"status":"alive"'
@@ -275,7 +280,7 @@ assert_http /storage/logs/laravel.log 404
 assert_http /.git/config 404
 assert_http /.htaccess 404
 assert_http /robots.txt.license 404
-podman run --rm --network "$network" "$image" php -r '
+podman exec "$client" php -r '
 $context = stream_context_create(["http" => ["ignore_errors" => true, "timeout" => 3, "header" => "X-Forwarded-Proto: https\r\n"]]);
 @file_get_contents($argv[1], false, $context);
 foreach ($http_response_header ?? [] as $header) {
@@ -295,9 +300,7 @@ if grep -q "$log_marker" "${tmp_dir}/api.log" || ! grep -q REDACTED "${tmp_dir}/
     exit 1
 fi
 for closed_port in 80 443 2019; do
-    podman run --rm --network "$network" \
-        -v "${port_probe}:/tmp/assert-port-closed.php:ro" \
-        "$image" php /tmp/assert-port-closed.php "$api" "$closed_port"
+    podman exec "$client" php /tmp/assert-port-closed.php "$api" "$closed_port"
 done
 podman stop --time 10 "$api" >/dev/null
 test "$(podman inspect --format '{{.State.ExitCode}}' "$api")" -eq 0

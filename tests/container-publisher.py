@@ -8,6 +8,8 @@ import importlib.util
 import json
 from pathlib import Path
 import unittest
+import subprocess
+import tempfile
 import sys
 sys.dont_write_bytecode = True
 
@@ -142,6 +144,22 @@ class Publisher(unittest.TestCase):
             with self.assertRaises(ValueError):publisher.build_evidence(*candidate,expected_source=SOURCE)
         with self.assertRaises(ValueError):
             publisher.build_evidence(*args,expected_source=dict(SOURCE,commit='0'*40))
+
+    def test_canonical_source_schema_rejects_malformed_clean_without_echoing_payload(self):
+        root=Path(__file__).resolve().parents[1]
+        script=(root/'scripts/publish-container.sh').read_text()
+        start=script.index('import json,sys\nfrom jsonschema')
+        block=script[start:script.index('\nPY\n',start)]
+        schema=root/'.context/publisher-governance/docs/schemas/secpal-trivy-repository-scan-v2.schema.json'
+        marker='SECPAL_SYNTHETIC_UNTRUSTED_FIELD'
+        with tempfile.TemporaryDirectory() as directory:
+            candidate=Path(directory)/'result.json'
+            candidate.write_text(json.dumps(dict(gate_state='CLEAN',unexpected=marker)))
+            result=subprocess.run([sys.executable,'-c',block,str(schema),str(candidate)],
+                                  capture_output=True,text=True,check=False)
+        self.assertNotEqual(result.returncode,0)
+        self.assertEqual(result.stderr.strip(),'FAIL: malformed source-security evidence')
+        self.assertNotIn(marker,result.stdout+result.stderr)
 
     def test_missing_or_malformed_required_evidence_does_not_become_success(self):
         for collection,key,value in [(2,'spdx_sha256','not-a-digest'),(2,'syft_version','moving'),
