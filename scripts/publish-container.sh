@@ -40,9 +40,8 @@ verify_attestation() {
 }
 case "$stage" in
   prepare)
-    security_files=(.context/repository-security/*/result.json)
-    test "${#security_files[@]}" -eq 1
-    python3 - "$governance/docs/schemas/secpal-trivy-repository-scan-v2.schema.json" "${security_files[0]}" <<'PY'
+    security_file=.context/repository-security/result.json
+    python3 - "$governance/docs/schemas/secpal-trivy-repository-scan-v2.schema.json" "$security_file" <<'PY'
 import json,sys
 from jsonschema import Draft202012Validator, ValidationError
 try:
@@ -53,7 +52,7 @@ except (ValidationError, json.JSONDecodeError, OSError):
     raise SystemExit("FAIL: malformed source-security evidence") from None
 PY
     python3 scripts/container-publisher.py prepare --root "$repo_root" --native .context/native \
-      --security "${security_files[0]}" --output "$prepared"
+      --security "$security_file" --output "$prepared"
     index_digest=$(jq -er .index_digest "$prepared/prepared.json")
     sboms='[]'
     subjects=$(jq -c '[.index_digest]+[.records[].subject.manifest_digest]' "$prepared/prepared.json")

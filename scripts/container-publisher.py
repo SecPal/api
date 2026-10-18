@@ -232,6 +232,7 @@ def build_evidence(records, index_digest, sboms, scans, smokes, source_security,
                 or not re.fullmatch(r'sha256:[0-9a-f]{64}',sbom[0]['spdx_sha256'])
                 or not re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+',sbom[0]['syft_version'])
                 or len(smoke)!=1 or smoke[0]['digest']!=target or smoke[0]['runner_architecture']!=arch
+                or smoke[0]['test']!='tests/docker/smoke.sh'
                 or smoke[0]['result']!='SUCCEEDED' or smoke[0]['workflow_run_id']!=run_id
                 or smoke[0]['workflow_run_attempt']!=attempt):
             raise ValueError('publisher-sbom-or-smoke-binding')

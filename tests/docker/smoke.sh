@@ -33,6 +33,7 @@ assert_http() {
     path=$1
     expected_status=$2
     expected_fragment=${3:-}
+    diagnose=${4:-1}
     if podman exec "$client" php -r '
     $context = stream_context_create(["http" => ["ignore_errors" => true, "timeout" => 3, "follow_location" => 0]]);
     $body = @file_get_contents($argv[1], false, $context);
@@ -46,6 +47,7 @@ assert_http() {
     ' "http://${api}:8080${path}" "$expected_status" "$expected_fragment"; then
         return 0
     fi
+    if [ "$diagnose" = 0 ]; then return 1; fi
     # A diagnostic cannot turn the original failed assertion into acceptance.
     # No application bodies, SQL text, credentials or raw runtime logs are emitted.
     podman inspect --format '{{.State.Status}} OOM={{.State.OOMKilled}}' "$api" >&2 || true
@@ -66,7 +68,7 @@ assert_http() {
 wait_for_http() {
     attempt=0
     while [ "$attempt" -lt 30 ]; do
-        if assert_http /health/live 200 '"status":"alive"' >/dev/null 2>&1; then
+        if assert_http /health/live 200 '"status":"alive"' 0 >/dev/null 2>&1; then
             return 0
         fi
         attempt=$((attempt + 1))

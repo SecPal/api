@@ -6,6 +6,10 @@ name: API Repository Security
 
 on:
   workflow_call:
+    outputs:
+      evidence-artifact:
+        description: Exact same-run artifact emitted by the accepted source scanner.
+        value: ${{ jobs.repository-security.outputs.evidence-artifact }}
 
 permissions:
   contents: read
@@ -17,6 +21,8 @@ jobs:
     timeout-minutes: 20
     permissions:
       contents: read
+    outputs:
+      evidence-artifact: ${{ steps.repository-scan.outputs.evidence-artifact }}
     steps:
       - name: Checkout exact API commit
         # v7.0.1

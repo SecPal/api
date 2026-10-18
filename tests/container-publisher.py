@@ -6,6 +6,7 @@ import copy
 import hashlib
 import importlib.util
 import json
+import os
 from pathlib import Path
 import unittest
 import subprocess
@@ -136,6 +137,7 @@ class Publisher(unittest.TestCase):
             lambda a:a[3][0].update(subject_digest='sha256:'+'f'*64),
             lambda a:a[3][0].update(policy_result='UNKNOWN_STALE'),
             lambda a:a[4][0].update(result='FAILED'),
+            lambda a:a[4][0].update(test='unrelated-probe'),
             lambda a:a[4][0].update(workflow_run_id='1'),
             lambda a:a[4].pop(),
         ]
@@ -160,6 +162,19 @@ class Publisher(unittest.TestCase):
         self.assertNotEqual(result.returncode,0)
         self.assertEqual(result.stderr.strip(),'FAIL: malformed source-security evidence')
         self.assertNotIn(marker,result.stdout+result.stderr)
+
+    def test_startup_polling_does_not_run_expensive_failure_diagnostics(self):
+        root=Path(__file__).resolve().parents[1]
+        script=(root/'tests/docker/smoke.sh').read_text()
+        block=script[script.index('assert_http() {'):script.index('wait_for_http() {')]
+        with tempfile.TemporaryDirectory() as directory:
+            calls=Path(directory)/'calls'
+            shell='podman() { echo call >> "$CALLS"; return 1; }\n'+block+'\nassert_http /health/live 200 alive 0'
+            result=subprocess.run(['sh','-c',shell],env=dict(os.environ,CALLS=str(calls),client='client',api='api',postgres='postgres'),
+                                  capture_output=True,text=True,check=False)
+            count=len(calls.read_text().splitlines())
+        self.assertNotEqual(result.returncode,0)
+        self.assertEqual(count,1)
 
     def test_missing_or_malformed_required_evidence_does_not_become_success(self):
         for collection,key,value in [(2,'spdx_sha256','not-a-digest'),(2,'syft_version','moving'),

@@ -71,11 +71,15 @@ jobs:
         with:
           pattern: api-native-*-${{ github.run_id }}-${{ github.run_attempt }}
           path: .context/native
+      - name: Require exact source evidence identity
+        env:
+          SOURCE_EVIDENCE_ARTIFACT: ${{ needs.repository-security.outputs.evidence-artifact }}
+        run: test -n "$SOURCE_EVIDENCE_ARTIFACT"
       - name: Read exact source security evidence
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
         with:
-          pattern: trivy-repository-evidence-${{ github.run_id }}-${{ github.run_attempt }}-*
           path: .context/repository-security
+          name: ${{ needs.repository-security.outputs.evidence-artifact }}
       - name: Install locked central policy dependencies
         run: 'python3 -m venv "$RUNNER_TEMP/secpal-policy"
 
