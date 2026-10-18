@@ -54,7 +54,8 @@
       "@php -r \"file_exists('.env') || copy('.env.example', '.env');\"",
       "@php artisan key:generate",
       "@php artisan migrate --force",
-      "@php artisan addresses:import --if-empty --setup-only --no-interaction"
+      "Composer\\Config::disableProcessTimeout",
+      "@php artisan addresses:import --no-interaction"
     ],
     "dev": [
       "Composer\\Config::disableProcessTimeout",

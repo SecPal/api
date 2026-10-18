@@ -67,7 +67,9 @@ distribution obligation.
   required OpenPLZ/OpenStreetMap/OpenPotato attribution context. Runtime
   imports are downloaded data, not repository-owned application code; a
   deployment that publishes derived data must meet ODbL attribution and
-  share-alike obligations.
+  share-alike obligations. The [address-data contract](ADDRESS_DATA.md) records
+  the deployment assessment and external legal gate; SPDX/REUSE checks are not
+  legal clearance. The API image carries this contract and the ODbL license.
 - `CODE_OF_CONDUCT.md` retains its CC-BY-4.0 Contributor Covenant notice.
 - The repository tracks no `vendor/`, `node_modules/`, npm manifest, npm lock
   file, generated third-party JavaScript, or bundled OpenTimestamps core package.

@@ -11,19 +11,11 @@ return [
     |--------------------------------------------------------------------------
     */
 
-    'source_url' => env('ADDRESS_DATA_SOURCE_URL'),
+    'source_url' => 'https://raw.githubusercontent.com/openpotato/openplzapi.data/c26389b30573ab2738d0b14fd350f143aa0a1251/src/de/osm/streets.updated.csv',
 
-    'expected_sha256' => env('ADDRESS_DATA_EXPECTED_SHA256'),
+    'expected_sha256' => '1066a96a6b3a16629a94c834fca49fe58a2bb01558e17242c53a12d68b290088',
 
-    'country' => env('ADDRESS_DATA_COUNTRY', 'DE'),
-
-    /*
-    |--------------------------------------------------------------------------
-    | Production schedule (actual cadence is in routes/console.php)
-    |--------------------------------------------------------------------------
-    */
-
-    'schedule_enabled' => filter_var(env('ADDRESS_DATA_SCHEDULE_ENABLED', 'false'), FILTER_VALIDATE_BOOLEAN),
+    'country' => 'DE',
 
     'download_timeout' => (int) env('ADDRESS_DATA_DOWNLOAD_TIMEOUT', 600),
 
@@ -35,13 +27,13 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | First-time import during composer setup (see composer.json)
-    | Disabled by default. A local or immutable remote source still requires the
-    | exact expected SHA-256 when explicitly enabled.
+    | Optional database seeding / --setup-only imports
+    | Enabled by default. Composer setup and explicit deployment imports always
+    | run independently of this optional seeding switch.
     |--------------------------------------------------------------------------
     */
 
-    'import_on_setup' => filter_var(env('ADDRESS_DATA_IMPORT_ON_SETUP', 'false'), FILTER_VALIDATE_BOOLEAN),
+    'import_on_setup' => filter_var(env('ADDRESS_DATA_IMPORT_ON_SETUP', 'true'), FILTER_VALIDATE_BOOLEAN),
 
     'setup_source_path' => env('ADDRESS_DATA_SETUP_SOURCE_PATH'),
 
@@ -57,6 +49,6 @@ return [
 
     'license_spdx' => 'ODbL-1.0',
 
-    'attribution' => 'OpenPLZ API Data / OpenStreetMap contributors / OpenPotato',
+    'attribution' => 'OpenPLZ API Data / OpenPotato; © OpenStreetMap contributors (https://www.openstreetmap.org/copyright). Data licensed under ODbL-1.0 (https://opendatacommons.org/licenses/odbl/1-0/).',
 
 ];

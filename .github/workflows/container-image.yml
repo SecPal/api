@@ -11,6 +11,7 @@ name: Container Image
       - Containerfile
       - .containerignore
       - docker/**
+      - docs/ADDRESS_DATA.md
       - tests/docker/**
       - tests/Policy/**
       - tests/container-publisher.py

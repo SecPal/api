@@ -54,3 +54,22 @@ test('address data seeder skips gracefully when address data tables are missing'
         ->expectsOutputToContain('Skipped: address data tables are missing')
         ->assertSuccessful();
 });
+
+test('address data seeder upgrades an existing dataset instead of only filling an empty database', function (): void {
+    config([
+        'address_data.import_on_setup' => true,
+        'address_data.setup_source_path' => base_path('tests/fixtures/address_data/sample_streets.csv'),
+        'address_data.expected_sha256' => hash_file('sha256', base_path('tests/fixtures/address_data/sample_streets.csv')),
+    ]);
+    $previous = AddressDataImport::query()->create([
+        'country_code' => 'DE', 'source_name' => 'Old release', 'source_url' => 'file://old.csv',
+        'status' => AddressDataImport::STATUS_SUCCEEDED, 'started_at' => now(),
+        'activated_at' => now(), 'source_sha256' => str_repeat('b', 64),
+    ]);
+
+    artisan('db:seed', ['--class' => AddressDataSeeder::class])->assertSuccessful();
+
+    expect(AddressDataImport::query()->whereNotNull('activated_at')->value('source_sha256'))
+        ->toBe(config('address_data.expected_sha256'))
+        ->and($previous->fresh()?->activated_at)->toBeNull();
+});
