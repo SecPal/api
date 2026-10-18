@@ -5,7 +5,7 @@ SPDX-License-Identifier: CC0-1.0
 
 # API container
 
-SecPal uses one production API image for HTTP, queues, scheduling, and administration. Docker is the reference hosting path, while Laravel remains deployment-neutral and can run outside containers.
+SecPal uses one production API image for HTTP, queues, scheduling, and administration. The reference host uses rootless Podman/Quadlet; Laravel remains deployment-neutral.
 
 ## Architecture
 
@@ -20,8 +20,8 @@ Extensions are `bcmath`, `curl`, `gettext`, `intl`, `mbstring`, `opcache`, `pcnt
 Build without `.env`, `APP_KEY`, KEK, or PostgreSQL:
 
 ```bash
-docker build -t secpal-api:test .
-docker run --rm -p 8080:8080 -v secpal-api-storage:/app/storage/app/private -v /deployment/postgresql-ca.crt:/run/secrets/postgresql-ca.crt:ro -e APP_KEY -e DB_CONNECTION=pgsql -e DB_HOST -e DB_DATABASE -e DB_USERNAME -e DB_PASSWORD -e DB_SSLMODE=verify-full -e DB_SSLROOTCERT=/run/secrets/postgresql-ca.crt secpal-api:test
+buildah build --format oci --file Containerfile --tag secpal-api:test .
+podman run --rm -p 8080:8080 -v secpal-api-storage:/app/storage/app/private -v /deployment/postgresql-ca.crt:/run/secrets/postgresql-ca.crt:ro -e APP_KEY -e DB_CONNECTION=pgsql -e DB_HOST -e DB_DATABASE -e DB_USERNAME -e DB_PASSWORD -e DB_SSLMODE=verify-full -e DB_SSLROOTCERT=/run/secrets/postgresql-ca.crt secpal-api:test
 ```
 
 The default command is `frankenphp run --config /etc/frankenphp/Caddyfile`. No startup step generates secrets or runs migrations. Production must mount persistent storage at `/app/storage/app/private` and share it with roles that access uploads; otherwise database metadata can outlive container-local blobs.
@@ -87,7 +87,7 @@ php tests/repository-security/replay.php /path/to/SecPal/.github
 The replay rejects workflow/replay pin divergence before scanning, then executes
 the reviewed action itself against one temporary exact Git
 commit containing a vulnerable Composer development dependency, an insecure PHP
-Dockerfile and a generated synthetic `.env` secret. It asserts fresh API-bound
+Containerfile and a generated synthetic `.env` secret. It asserts fresh API-bound
 evidence, all three finding classes, redaction across retained action output and
 evidence, and API rejection of `ACTIONABLE`, then deletes the fixtures. It never
 installs fixture dependencies, copies scanner implementation or publishes an
@@ -134,7 +134,7 @@ GitHub Artifact Attestation, and the workflow policy rejects registry deletion
 commands. Cleanup is outside the publication critical path.
 
 Interrupted, repeated, and concurrent runs do not share a discovery tag. A run
-that stops at any stage may leave its tag in place; a retry uses a distinct run
+that stops after tag creation may leave that pointer in place; a retry uses a distinct run
 or attempt identity and verifies a new digest independently. Retention is
 idempotent and has no race with another run because it performs no registry
 mutation.
@@ -144,80 +144,75 @@ that a tag-only operation preserves digest pulls, platform manifests, the
 authoritative SBOM, build evidence, and GitHub Artifact Attestations across
 success, interruption, repetition, and concurrent publication. Missing,
 ambiguous, or changed provider semantics fail closed by retaining the tag. This
-policy protects the current evidence model without making BuildKit attachments
-a future architecture requirement. #1444 owns any future builder-independent
-replacement evidence, which must remain bound to the same canonical digest.
+policy protects the builder-independent evidence model and its immutable subjects.
 
-Before attestation, the workflow reads the exact OCI index bytes through the
-run tag and proves that their SHA-256 digest, the registry digest header, the
-run-tag target, and the build action's reported digest all match. It verifies
-the exact runtime platform set, OCI labels, BuildKit SBOM and provenance,
-source material, and both platform-specific runtime manifests by digest. Only
-then does it create and verify the registry-backed GitHub Artifact Attestation.
-The final snapshot repeats the run-tag byte digest, registry header, OCI media
-type, and attestation checks. This snapshot does not claim that the discovery
-tag will remain unchanged.
+## Native build and supply-chain acceptance
 
-Each runtime image config records the source repository, full revision,
-deterministic commit timestamp, title, description, and the repository's
-effective SPDX license expression. The source label is
-`https://github.com/SecPal/api`, and the license label is
-`AGPL-3.0-or-later`.
+`Containerfile` and `.containerignore` are the only active build definition.
+The same read-only workflow builds AMD64 on an AMD64 runner and ARM64 on an
+ARM64 runner using rootless Buildah. It rejects enabled foreign-architecture
+emulation. PR code receives neither package-write nor GitHub OIDC authority.
 
-The published index has four distinct supply-chain concepts:
+Before building, the publisher verifies the exact clean Git commit and creates
+a sealed snapshot through the accepted organization snapshot helper. No ignored
+or untracked runner files enter the build context. Each pinned multi-platform
+base is resolved and verified to its native platform manifest. Composer cache
+mounts are build caches; they are not additional source materials or runtime
+volumes. Distribution package resolutions are recorded by Syft; normalized
+source timestamps do not imply bit-for-bit reproducibility.
 
-- the `linux/amd64` and `linux/arm64` manifests are executable runtime images;
-- the BuildKit SPDX SBOM describes packages in each runtime image;
-- the BuildKit SLSA provenance uses `mode=max`, builds from the exact remote Git
-  commit rather than an untracked runner directory, and records complete
-  materials plus the invocation for each runtime image;
-- the GitHub Artifact Attestation signs the untagged image name plus the
-  published index digest through workload OIDC, tying it to `SecPal/api`, this
-  workflow, and the source commit.
+The native jobs export OCI layouts and one pinned Syft SPDX inventory for each
+runtime manifest. The publisher independently hashes the manifests/configs,
+checks the exact two-platform set, non-root user and OCI source/base labels,
+and assembles one OCI index. It uploads candidate subjects by digest into
+`ghcr.io/secpal/api`; no discovery tag exists at this stage.
 
-BuildKit stores the SBOM and provenance as attestation manifests associated
-with the runtime manifests. Their `unknown/unknown` platform descriptors are
-attachments, not extra runtime platforms. Remote verification excludes those
-attachments when asserting the exact two-platform runtime set, then inspects
-the SBOM and provenance separately. Buildx, its privileged BuildKit daemon, the
-SBOM scanner, and the privileged QEMU `binfmt` helper are independently
-version- or digest-pinned instead of inheriting moving defaults from their
-wrapper actions.
+Each SPDX inventory and its subject association are retained together in an
+immutable OCI artifact in that same package. Grype consumes the verified Syft
+bytes. Trivy independently scans each immutable remote runtime manifest.
+The accepted organization adapters and vulnerability policy own database
+freshness, actionability and reviewed VEX admission. A database failure, stale
+evidence, review-required or actionable result blocks acceptance.
 
-Before the first successful post-merge publish, no registry availability is
-implied. GHCR packages are private by default. After that publish succeeds, a
-repository administrator must verify the package link and change the package
-visibility to public once. Anonymous pulls are supported only after that
-separate administrative step. No personal access token, long-lived signing
-key, or Cosign key secret is part of this contract. The
-[supply-chain epic](https://github.com/SecPal/api/issues/1383) remains open
-until the digest-only GHCR publish, registry-backed attestation, package
-linkage, visibility change, and anonymous digest pull are verified.
+GitHub OIDC attestations bind the index, both platforms and both SPDX artifacts
+to this repository, workflow and exact source SHA. Both native runners then pull
+their exact platform digest and execute the complete runtime smoke contract,
+including the PHP executable's ELF architecture. A host architecture string or
+manifest label alone is insufficient.
 
-While the package is private, authenticate to GHCR before verification. After
-it is public, the image and its BuildKit attestations can be inspected
-anonymously by digest. GitHub Artifact Attestation verification uses the
-registry-backed OCI bundle and may still require GitHub CLI authentication
-while the package is private:
+The ADR-021 build-evidence document binds source/context hashes, Buildah/tool
+identity, platform/config/index digests, base manifests, SPDX subjects, scans,
+native smoke and run/attempt identity. It and the exact source-scan result are
+retained with a GitHub file-attestation bundle in an immutable OCI artifact.
+The final job independently verifies the remote artifact, attestations and
+index bytes before creating the sole run-scoped discovery tag. It reads the
+tag back afterward. Failed or interrupted runs may leave untagged candidate
+subjects; they never receive an accepted discovery pointer.
+
+All runtime configs record source, full revision, source-epoch creation time,
+title, description, effective SPDX license, reviewed base name and resolved
+base manifest digest. OCI image configs omit Docker-specific healthcheck
+extensions; deployment assigns role-specific health probes.
+
+Before the first successful Buildah publisher run, operational publisher
+acceptance remains pending. Source acceptance alone does not establish a
+working publisher, public package visibility or anonymous pulls. No personal
+access token, long-lived signing key or registry-deletion authority is added.
+
+Inspect accepted subjects by their independently verified immutable digest:
 
 ```bash
-docker buildx imagetools inspect \
-  ghcr.io/secpal/api@sha256:<manifest-digest>
+skopeo inspect --raw docker://ghcr.io/secpal/api@sha256:<index-digest>
 gh attestation verify \
-  oci://ghcr.io/secpal/api@sha256:<manifest-digest> \
-  --bundle-from-oci \
-  --repo SecPal/api
-docker pull ghcr.io/secpal/api@sha256:<manifest-digest>
+  oci://ghcr.io/secpal/api@sha256:<index-digest> \
+  --bundle-from-oci --repo SecPal/api
+podman pull ghcr.io/secpal/api@sha256:<index-digest>
 ```
 
-The publishing workflow additionally proves that the run-scoped tag resolves
-to the reported digest, the runtime platform set and all OCI labels are exact,
-both BuildKit attestations are readable, provenance materials contain the exact
-source commit, and both runtime manifests pass the complete container smoke
-contract by digest. Only then does it create and verify the GitHub attestation
-for this workflow, commit, `main`, and a GitHub-hosted runner. The `arm64`
-runtime executes through the independently pinned QEMU `binfmt` helper, which
-is registered before each Buildx builder that needs it starts.
+GHCR authentication may be needed while the package is private. Package
+visibility and linkage remain separately administered; publishing deploys no
+application. Recurring re-evaluation of already released artifacts belongs
+to #1448, and final retired-path documentation cleanup belongs to #1446/#1453.
 
 ## Roles
 

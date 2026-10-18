@@ -131,34 +131,6 @@ function containerPublishingWorkflow(): array
     return $workflow;
 }
 
-/** @param array<string, mixed> $job
- * @return array<string, mixed>
- */
-function containerPublishingStep(array $job, string $id): array
-{
-    foreach ($job['steps'] as $step) {
-        if (($step['id'] ?? null) === $id) {
-            return $step;
-        }
-    }
-
-    throw new RuntimeException("Missing workflow step: {$id}");
-}
-
-/** @param array<string, mixed> $job
- * @return array<string, mixed>
- */
-function containerPublishingNamedStep(array $job, string $name): array
-{
-    foreach ($job['steps'] as $step) {
-        if (($step['name'] ?? null) === $name) {
-            return $step;
-        }
-    }
-
-    throw new RuntimeException("Missing workflow step: {$name}");
-}
-
 /** @param array<string, mixed> $job */
 function containerPublishingRunScripts(array $job): string
 {
@@ -166,14 +138,6 @@ function containerPublishingRunScripts(array $job): string
         static fn (array $step): string => (string) ($step['run'] ?? ''),
         $job['steps'],
     ));
-}
-
-/** @param array<array-key, mixed>|string $haystack */
-function expectContainerPublishingNotToContain(array|string $haystack, string ...$needles): void
-{
-    foreach ($needles as $needle) {
-        expect($haystack)->not->toContain($needle);
-    }
 }
 
 /** @return list<string> */
@@ -190,47 +154,6 @@ function containerPublishingActionNames(array $workflow): array
     }
 
     return $names;
-}
-
-function containerPublishingContractContents(): string
-{
-    $root = dirname(__DIR__, 2);
-    $files = [];
-
-    foreach (['.github', 'tests', 'scripts', 'docs'] as $directory) {
-        $iterator = new RecursiveIteratorIterator(
-            new RecursiveDirectoryIterator($root.'/'.$directory, FilesystemIterator::SKIP_DOTS),
-        );
-
-        foreach ($iterator as $file) {
-            if ($file->isFile() && ! $file->isLink()) {
-                $files[] = $file->getPathname();
-            }
-        }
-    }
-
-    $files[] = $root.'/README.md';
-    $files[] = $root.'/CHANGELOG.md';
-    sort($files);
-
-    return implode("\n", array_map(
-        static fn (string $file): string => (string) file_get_contents($file),
-        $files,
-    ));
-}
-
-/** @return list<string> */
-function containerPolicyComposerScript(): array
-{
-    $composer = json_decode(
-        (string) file_get_contents(dirname(__DIR__, 2).'/composer.json'),
-        true,
-        flags: JSON_THROW_ON_ERROR,
-    );
-
-    expect($composer)->toBeArray();
-
-    return $composer['scripts']['test:container-policy'] ?? [];
 }
 
 function containerPublishingForbiddenCommandPattern(): string
@@ -326,541 +249,163 @@ function secPalApiImageReferenceIsCanonical(string $reference): bool
     return preg_match('/\Aghcr\.io\/secpal\/api@sha256:[0-9a-f]{64}\z/', $reference) === 1;
 }
 
-it('defines a main-only publish workflow with isolated least-privilege jobs', function (): void {
-    $workflow = containerPublishingWorkflow();
-    $validate = $workflow['jobs']['validate'];
-    $publish = $workflow['jobs']['publish'];
-    $verify = $workflow['jobs']['verify'];
-    $attest = $workflow['jobs']['attest'];
-
-    expect($workflow['name'])->toBe('Publish Container')
-        ->and($workflow['on'])->toBe(['push' => ['branches' => ['main']]])
-        ->and($workflow['permissions'])->toBe([])
-        ->and($workflow['concurrency'])->toBe([
-            'group' => 'publish-container-${{ github.repository }}-${{ github.sha }}',
-            'cancel-in-progress' => false,
-        ])->and($workflow['env'])->toBe([
-            'GHCR_HOST' => 'ghcr.io',
-            'GHCR_REPOSITORY_PATH' => 'secpal/api',
-            'CANONICAL_IMAGE' => 'ghcr.io/secpal/api',
-        ])->and(array_keys($workflow['jobs']))->toBe(['validate', 'repository-security', 'publish', 'verify', 'attest'])
-        ->and($validate['permissions'])->toBe(['contents' => 'read'])
-        ->and($publish['permissions'])->toBe(['contents' => 'read', 'packages' => 'write'])
-        ->and($verify['permissions'])->toBe(['contents' => 'read', 'packages' => 'read'])
-        ->and($attest['permissions'])->toBe([
-            'contents' => 'read',
-            'packages' => 'write',
-            'attestations' => 'write',
-            'id-token' => 'write',
+it('gates official publication on source security and native validation', function (): void {
+    $w = containerPublishingWorkflow();
+    expect($w['on'])->toBe(['push' => ['branches' => ['main']]])
+        ->and($w['permissions'])->toBe([])
+        ->and($w['jobs']['repository-security']['uses'])->toBe('./.github/workflows/reusable-repository-security.yml')
+        ->and($w['jobs']['build']['needs'])->toBe(['repository-security'])
+        ->and($w['jobs']['build']['uses'])->toBe('./.github/workflows/container-image.yml')
+        ->and($w['jobs']['prepare']['needs'])->toBe(['build', 'repository-security'])
+        ->and($w['jobs']['accept']['needs'])->toBe(['prepare', 'attest', 'verify', 'scan', 'repository-security']);
+    foreach (['build', 'repository-security'] as $job) {
+        expect($w['jobs'][$job]['permissions'])->toBe(['contents' => 'read']);
+    }
+    foreach (['verify', 'scan'] as $job) {
+        expect($w['jobs'][$job]['permissions'])->toBe([
+            'contents' => 'read', 'packages' => 'read', 'attestations' => 'read',
         ]);
-
-    foreach ([$validate, $publish, $verify, $attest] as $job) {
-        expect($job['runs-on'])->toBe('ubuntu-latest')
-            ->and($job['timeout-minutes'])->toBeInt()->toBeGreaterThan(0);
     }
-});
-
-it('keeps static container policy validation independent from PostgreSQL', function (): void {
-    $root = dirname(__DIR__, 2);
-    $publishWorkflow = containerPublishingWorkflow();
-    $pullRequestWorkflow = Yaml::parseFile($root.'/.github/workflows/container-image.yml');
-    $publishValidate = $publishWorkflow['jobs']['validate'];
-    $pullRequestValidate = $pullRequestWorkflow['jobs']['build-and-test'];
-    $publishLint = containerPublishingNamedStep($publishValidate, 'Lint container scripts');
-    $definitions = json_encode([$publishWorkflow, $pullRequestWorkflow], JSON_THROW_ON_ERROR);
-
-    expect(containerPolicyComposerScript())->toBe([
-        'pest --no-coverage tests/Policy/ContainerImageDefinitionTest.php tests/Policy/ContainerPublishingWorkflowTest.php',
-    ])->and($publishValidate)->not->toHaveKeys(['services', 'env'])
-        ->and($pullRequestValidate)->not->toHaveKeys(['services', 'env'])
-        ->and(containerPublishingRunScripts($publishValidate))
-        ->toContain('composer test:container-policy', 'tests/docker/smoke.sh')
-        ->not->toContain('php artisan test')
-        ->not->toContain('docker login')
-        ->and($publishLint['run'])
-        ->toContain('koalaman/shellcheck:', 'tests/docker/smoke.sh')
-        ->and(containerPublishingRunScripts($pullRequestValidate))
-        ->toContain('composer test:container-policy', 'tests/docker/smoke.sh')
-        ->and($definitions)->not->toMatch('/DB_[A-Z_]+/');
-});
-
-it('keeps validation tools pinned and promotion-free', function (): void {
-    $root = dirname(__DIR__, 2);
-    $publish = containerPublishingWorkflow()['jobs']['validate'];
-    $pullRequest = Yaml::parseFile($root.'/.github/workflows/container-image.yml')['jobs']['build-and-test'];
-
-    foreach ([$publish, $pullRequest] as $job) {
-        $scripts = containerPublishingRunScripts($job);
-        expect($scripts)
-            ->toContain('hadolint/hadolint:v2.14.0-debian@sha256:')
-            ->toContain('koalaman/shellcheck:v0.10.0@sha256:')
-            ->toContain('docker/healthchecks/http-live.sh', 'tests/docker/smoke.sh');
-        expectContainerPublishingNotToContain(
-            $scripts,
-            'promote-ghcr'.'-index',
-            'tests/container/',
-            'tests/fixtures/',
-            'Test GHCR index promotion contract',
-        );
-    }
-});
-
-it('publishes every workflow run under a unique non-canonical discovery tag', function (): void {
-    $publish = containerPublishingWorkflow()['jobs']['publish'];
-    $publishedTag = containerPublishingStep($publish, 'published_tag');
-    $build = containerPublishingStep($publish, 'build');
-
-    expect($publishedTag['name'])->toBe('Resolve unique published tag')
-        ->and($publishedTag['run'])->toContain(
-            'printf \'tag=build-%s-%s-%s\\n\'',
-            '"$GITHUB_SHA" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT"',
-        )->and($build)->not->toHaveKey('if')
-        ->and($build['with']['tags'])->toBe(
-            '${{ env.CANONICAL_IMAGE }}:${{ steps.published_tag.outputs.tag }}',
-        )->and($publish['outputs'])->toBe([
-            'image_digest' => '${{ steps.build.outputs.digest }}',
-            'image_created' => '${{ steps.metadata.outputs.created }}',
-            'published_tag' => '${{ steps.published_tag.outputs.tag }}',
+    foreach (['attest', 'accept'] as $job) {
+        expect($w['jobs'][$job]['permissions'])->toBe([
+            'contents' => 'read', 'packages' => 'write', 'attestations' => 'write', 'id-token' => 'write',
         ]);
+    }
 });
 
-it('retains run tags across interruption repetition and publication races', function (): void {
-    $workflow = containerPublishingWorkflow();
-    $publishedTag = containerPublishingStep($workflow['jobs']['publish'], 'published_tag');
-    $documentation = (string) file_get_contents(dirname(__DIR__, 2).'/docs/containers.md');
-
-    expect(array_keys($workflow['jobs']))->toBe(['validate', 'repository-security', 'publish', 'verify', 'attest'])
-        ->and($workflow['concurrency'])->toBe([
-            'group' => 'publish-container-${{ github.repository }}-${{ github.sha }}',
-            'cancel-in-progress' => false,
-        ])->and($publishedTag['run'])->toContain(
-            '"$GITHUB_SHA" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT"',
-        )->and($workflow['jobs']['verify']['needs'])->toBe('publish')
-        ->and($workflow['jobs']['attest']['needs'])->toBe(['publish', 'verify'])
-        ->and($documentation)->toContain(
-            '## Run-tag retention',
-            'GHCR does not provide a proven tag-only deletion operation',
-            'No publisher job or scheduled workflow has cleanup authority',
-            'Interrupted, repeated, and concurrent runs do not share a discovery tag',
-        );
-});
-
-it('uses the OCI index digest as the only canonical image identity', function (): void {
-    $workflow = (string) file_get_contents(containerPublishingWorkflowPath());
-
-    expect($workflow)
-        ->toContain('DIGEST_REF="${CANONICAL_IMAGE}@${IMAGE_DIGEST}"');
-    expectContainerPublishingNotToContain(
-        $workflow,
-        'FINAL_REF=',
-        ':sha-${GITHUB_SHA}',
-        ':main',
-        'semver',
-    );
-    expect(secPalApiImageReferenceIsCanonical(
-        'ghcr.io/secpal/api@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
-    ))->toBeTrue()
-        ->and(secPalApiImageReferenceIsCanonical(
-            'ghcr.io/secpal/api:build-0123456789abcdef0123456789abcdef01234567-123-1',
-        ))->toBeFalse();
-});
-
-it('never promotes or conditionally creates a stable registry tag', function (): void {
+it('shares database-free native Buildah builds without PR publication or emulation', function (): void {
     $root = dirname(__DIR__, 2);
-    $activeFiles = containerPublishingContractContents();
-
-    $promotionScript = 'promote-ghcr'.'-index.sh';
-    $promotionContract = 'promote-ghcr'.'-index-contract.sh';
-    $fakeRegistry = 'fake-ghcr'.'-curl.sh';
-
-    expect(is_file($root.'/scripts/'.$promotionScript))->toBeFalse()
-        ->and(is_file($root.'/tests/container/'.$promotionContract))->toBeFalse()
-        ->and(is_file($root.'/tests/fixtures/'.$fakeRegistry))->toBeFalse();
-    expectContainerPublishingNotToContain(
-        $activeFiles,
-        'If-None'.'-Match',
-        'promote-ghcr'.'-index',
-        'fake-ghcr'.'-curl',
-        'Promote verified'.' candidate',
-        'final SHA'.' tag',
-        'candidate-'.'${{',
-    );
-});
-
-it('verifies the workflow-built digest before attesting it', function (): void {
-    $workflow = containerPublishingWorkflow();
-    $verify = $workflow['jobs']['verify'];
-    $attest = $workflow['jobs']['attest'];
-
-    expect($workflow['jobs']['publish']['outputs']['image_digest'])
-        ->toBe('${{ steps.build.outputs.digest }}')
-        ->and($verify['needs'])->toBe('publish')
-        ->and($attest['needs'])->toBe(['publish', 'verify'])
-        ->and(array_column($verify['steps'], 'name'))->toContain(
-            'Verify workflow-built digest and BuildKit attestations',
-            'Smoke-test the published digest',
-        );
-});
-
-it('never reuses a registry-sourced image for a new workflow run', function (): void {
-    $publish = containerPublishingWorkflow()['jobs']['publish'];
-    $scripts = containerPublishingRunScripts($publish);
-    $stepIds = array_filter(array_column($publish['steps'], 'id'));
-
-    expectContainerPublishingNotToContain($stepIds, 'existing'.'-image', 'image', 'candidate');
-    expect($publish['outputs'])->not->toHaveKeys(['final_'.'exists', 'candidate_'.'tag'])
-        ->and(containerPublishingStep($publish, 'build'))->not->toHaveKey('if');
-    expectContainerPublishingNotToContain(
-        $scripts,
-        'manifests/${image_tag}',
-        'EXISTING_IMAGE_DIGEST',
-        'exists=true',
-        'exists=false',
-    );
-});
-
-it('verifies the published run tag and attestation after signing', function (): void {
-    $attest = containerPublishingWorkflow()['jobs']['attest'];
-    $names = array_column($attest['steps'], 'name');
-    $attestationIndex = array_search('Generate GitHub artifact attestation', $names, true);
-    $selectedVerificationIndex = array_search('Verify selected GitHub artifact attestation', $names, true);
-    $snapshotIndex = array_search('Verify published run tag and artifact attestation', $names, true);
-    $summaryIndex = array_search('Record published image identity', $names, true);
-    $snapshot = containerPublishingNamedStep($attest, 'Verify published run tag and artifact attestation');
-
-    expect($attestationIndex)->toBeInt()
-        ->and($selectedVerificationIndex)->toBeInt()->toBeGreaterThan($attestationIndex)
-        ->and($snapshotIndex)->toBeInt()->toBeGreaterThan($selectedVerificationIndex)
-        ->and($summaryIndex)->toBeInt()->toBeGreaterThan($snapshotIndex)
-        ->and($snapshot['run'])->toContain(
-            'grep -Eq "^build-${GITHUB_SHA}-[0-9]+-[0-9]+$"',
-            '--dump-header "$headers_file"',
-            'byte_digest="sha256:$(sha256sum "$manifest_file"',
-            'test "$registry_digest" = "$IMAGE_DIGEST"',
-            '.mediaType == "application/vnd.oci.image.index.v1+json"',
-            'gh attestation verify "oci://${DIGEST_REF}"',
-            'The recorded digest remains canonical even if a registry tag later changes.',
-        );
-});
-
-it('permits only the build and attestation registry writes', function (): void {
-    $workflow = containerPublishingWorkflow();
-    $serialized = (string) file_get_contents(containerPublishingWorkflowPath());
-    $actionNames = array_count_values(containerPublishingActionNames($workflow));
-
-    expect($actionNames['docker/build-push-action'] ?? 0)->toBe(1)
-        ->and($actionNames['actions/attest'] ?? 0)->toBe(1)
-        ->and(substr_count($serialized, 'push: true'))->toBe(1)
-        ->and(substr_count($serialized, 'push-to-registry: true'))->toBe(1)
-        ->and($serialized)->not->toMatch(containerPublishingForbiddenCommandPattern())
-        ->and(containerPublishingContainsForbiddenDeletion(implode(
-            "\n",
-            containerPublishingWorkflowRunCommands($workflow),
-        )))->toBeFalse();
-    expectContainerPublishingNotToContain($serialized, 'package delete', 'tag delete');
-});
-
-it('forbids registry deletion commands across workflows and repository scripts', function (): void {
-    $root = dirname(__DIR__, 2).'/';
-    $files = containerPublishingAutomationFiles();
-    $relativePaths = array_map(
-        static fn (string $file): string => str_replace($root, '', $file),
-        $files,
-    );
-    $invokedScripts = array_map(
-        static fn (string $file): string => str_replace($root, '', $file),
-        containerPublishingInvokedRepositoryScripts(),
-    );
-
-    expect($files)->not->toBeEmpty()
-        ->and($relativePaths)->toContain(
-            'tests/docker/smoke.sh',
-            'docker/healthchecks/http-live.sh',
-        )->and($invokedScripts)->toBe([
-            'docker/healthchecks/http-live.sh',
-            'scripts/check-license-compatibility.sh',
-            'scripts/check-live-cors-health.sh',
-            'tests/docker/smoke.sh',
-        ]);
-
-    foreach ($files as $file) {
-        $relativePath = str_replace($root, '', $file);
-        $contents = str_starts_with($relativePath, '.github/workflows/')
-            ? implode("\n", containerPublishingWorkflowRunCommands(
-                containerPublishingParsedWorkflowFile($file),
-            ))
-            : (string) file_get_contents($file);
-
-        expect(containerPublishingContainsForbiddenDeletion($contents), $relativePath)
-            ->toBeFalse();
+    $ci = Yaml::parseFile($root.'/.github/workflows/container-image.yml');
+    $build = (string) file_get_contents($root.'/scripts/build-container.sh');
+    expect($ci['permissions'])->toBe(['contents' => 'read'])
+        ->and($ci['on'])->toHaveKey('workflow_call')
+        ->and($ci['on']['pull_request']['paths'])->toContain('Containerfile', '.containerignore', 'tests/Policy/**', 'composer.lock')
+        ->and($ci['jobs']['build-and-test']['needs'])->toBe('validate')
+        ->and($ci['jobs']['build-and-test']['steps'][0]['with']['path'])->toBe('source')
+        ->and($ci['jobs']['build-and-test']['defaults']['run']['working-directory'])->toBe('source')
+        ->and(containerPublishingRunScripts($ci['jobs']['build-and-test']))->toContain('"$RUNNER_TEMP/secpal-native/$NATIVE_ARCH"')
+        ->and($ci['jobs']['build-and-test']['strategy']['matrix']['include'])->toBe([
+            ['arch' => 'amd64', 'runner' => 'ubuntu-24.04'],
+            ['arch' => 'arm64', 'runner' => 'ubuntu-24.04-arm'],
+        ])
+        ->and(containerPublishingRunScripts($ci['jobs']['validate']))
+        ->toContain('composer test:container-policy', 'python3 tests/container-publisher.py',
+            'hadolint/hadolint:v2.14.0-debian@sha256:', 'koalaman/shellcheck:v0.10.0@sha256:')
+        ->and($ci['jobs']['validate'])->not->toHaveKeys(['services', 'env'])
+        ->and($build)->toContain('buildah build --format oci', '--timestamp "$epoch"', '--pull=never',
+            '--file "$snapshot/Containerfile"', 'prepare-snapshot', '--http-proxy=false',
+            'Foreign-architecture emulation is not native evidence', 'SKIP_BUILD=1', 'EXPECTED_ARCH="$arch"');
+    foreach (['container-image.yml', 'publish-container.yml'] as $file) {
+        $w = Yaml::parseFile($root.'/.github/workflows/'.$file);
+        foreach (containerPublishingActionNames($w) as $action) {
+            expect($action)->not->toStartWith('docker/');
+        }
+        expect((string) file_get_contents($root.'/.github/workflows/'.$file))
+            ->not->toContain('buildx', 'buildkit', 'setup-qemu', 'binfmt');
     }
+    expect($build)->not->toMatch('/\bdocker\s|\bpodman\s+build\b/');
 });
 
-it('derives the complete platform inventory from the exact verified index bytes', function (): void {
-    $verification = containerPublishingNamedStep(
-        containerPublishingWorkflow()['jobs']['verify'],
-        'Verify workflow-built digest and BuildKit attestations',
-    );
-
-    expect($verification['run'])
-        ->toContain('jq -e \'')
-        ->toContain('\' "$manifest_file"')
-        ->not->toContain('docker buildx imagetools inspect "$TAG_REF"');
+it('binds remote manifest config and native runtime content before acceptance', function (): void {
+    $root = dirname(__DIR__, 2);
+    $script = (string) file_get_contents($root.'/scripts/publish-container.sh');
+    expect($script)->toContain('= SecPal/api', '= push', '= refs/heads/main',
+        'container-publisher.py prepare', 'cmp "$prepared/index.json" "$prepared/remote-index.json"',
+        'cmp "$prepared/platform-$arch.json" "$prepared/remote-platform-$arch.json"',
+        'cmp "$prepared/config-$arch.json" "$prepared/remote-config-$arch.json"',
+        'podman pull --authfile "$REGISTRY_AUTH_FILE" "$repository@$manifest"',
+        'SKIP_BUILD=1 IMAGE_TAG="$repository@$manifest" EXPECTED_ARCH="$arch" tests/docker/smoke.sh');
+    expect((string) file_get_contents($root.'/tests/docker/smoke.sh'))->toContain(
+        'podman image inspect --format', 'EXPECTED_ARCH', 'unpack("v", substr($header, 18, 2))',
+        'test "$(id -u)" -eq 10001', 'test "$(id -g)" -eq 10001',
+        'DB_SSLMODE=verify-full', "POSTGRES_INITDB_ARGS='--auth-host=scram-sha-256'",
+        'assert_http /health/live 200', 'assert_http /health/ready 200', 'podman stop --time 10',
+    )->not->toContain('docker run', 'docker build', 'valkey_image=');
+    expect(secPalApiImageReferenceIsCanonical('ghcr.io/secpal/api@sha256:'.str_repeat('a', 64)))->toBeTrue()
+        ->and(secPalApiImageReferenceIsCanonical('ghcr.io/secpal/api:build-example-42-1'))->toBeFalse();
 });
 
-it('preserves multi-architecture metadata SBOM provenance and exact index verification', function (): void {
-    $workflow = containerPublishingWorkflow();
-    $build = containerPublishingStep($workflow['jobs']['publish'], 'build');
-    $verification = containerPublishingNamedStep(
-        $workflow['jobs']['verify'],
-        'Verify workflow-built digest and BuildKit attestations',
-    );
-
-    expect($build['with']['context'])->toBe('https://github.com/SecPal/api.git#${{ github.sha }}')
-        ->and($build['with']['platforms'])->toBe('linux/amd64,linux/arm64')
-        ->and($build['with']['push'])->toBeTrue()
-        ->and($build['with']['pull'])->toBeTrue()
-        ->and($build['with']['sbom'])->toContain('buildkit-syft-scanner:stable-1@sha256:')
-        ->and($build['with']['provenance'])->toBe('mode=max')
-        ->and($build['with']['labels'])->toContain(
-            'org.opencontainers.image.source=https://github.com/SecPal/api',
-            'org.opencontainers.image.revision=${{ github.sha }}',
-            'org.opencontainers.image.title=SecPal API',
-            'org.opencontainers.image.description=Production API for SecPal operations software',
-            'org.opencontainers.image.licenses=AGPL-3.0-or-later',
-            'org.opencontainers.image.created=${{ steps.metadata.outputs.created }}',
-        )->and($verification['run'])->toContain(
-            'TAG_REF="${CANONICAL_IMAGE}:${PUBLISHED_TAG}"',
-            'DIGEST_REF="${CANONICAL_IMAGE}@${IMAGE_DIGEST}"',
-            'byte_digest="sha256:$(sha256sum "$manifest_file"',
-            'test "$byte_digest" = "$IMAGE_DIGEST"',
-            'test "$registry_digest" = "$IMAGE_DIGEST"',
-            '== ["linux/amd64", "linux/arm64"]',
-            '| length) == 2',
-            '.platform.os == "unknown" and .platform.architecture == "unknown"',
-            '.SPDXID == "SPDXRef-DOCUMENT"',
-            '.Provenance',
-            'buildkit_completeness.request == true',
-            'buildkit_completeness.resolvedDependencies == true',
-            '.uri == $source and .digest.sha1 == $revision',
-        )->and($build['with']['labels'])->not->toContain('LicenseRef-');
+it('keeps Syft authoritative and scans immutable artifacts independently', function (): void {
+    $root = dirname(__DIR__, 2);
+    expect((string) file_get_contents($root.'/scripts/build-container.sh'))
+        ->toContain('"$tools/syft" scan', '"oci-dir:$output/image"', 'spdx-json=', 'verify-syft');
+    expect((string) file_get_contents($root.'/scripts/scan-container-artifact.sh'))->toContain(
+        '"$tools/grype" --config "$cache/config.yaml" "sbom:$output/sbom/syft.spdx.json"',
+        '"$tools/trivy" --config "$cache/config.yaml" image', '"$registry@$manifest"', '--platform "linux/$arch"',
+        'secpal-vulnerability-reevaluation.py', 'secpal-vulnerability-policy.py',
+        'policies/vulnerability-triage-v1.json', "policy['gate_state']!='CLEAN'",
+    )->not->toContain('--ignore-unfixed', '--severity ', '--exit-code 0');
+    expect((string) file_get_contents($root.'/scripts/container-tools.sh'))->toContain(
+        'sha256sum --check --strict', 'syft_1.54.1_linux_', 'grype_0.118.0_linux_',
+        'trivy_0.74.0_Linux-64bit', 'oras_1.3.4_linux_amd64');
 });
 
-it('smoke-tests exactly both runtime platform digests before attestation', function (): void {
-    $workflow = containerPublishingWorkflow();
-    $verify = $workflow['jobs']['verify'];
-    $smoke = containerPublishingNamedStep($verify, 'Smoke-test the published digest');
-
-    expect($smoke['run'])->toContain(
-        'for platform in linux/amd64 linux/arm64; do',
-        '| if length == 1 then .[0] else empty end',
-        'docker pull --platform "$platform" "$PLATFORM_REF"',
-        'SKIP_BUILD=1 IMAGE_TAG="$PLATFORM_REF" tests/docker/smoke.sh',
-    )->and($workflow['jobs']['attest']['needs'])->toBe(['publish', 'verify']);
-});
-
-it('binds artifact attestation to repository workflow branch commit subject and digest', function (): void {
-    $attest = containerPublishingWorkflow()['jobs']['attest'];
-    $action = containerPublishingStep($attest, 'attest');
-    $scripts = containerPublishingRunScripts($attest);
-
-    expect($action)->not->toHaveKey('if')
-        ->and($action['with'])->toBe([
-            'subject-name' => '${{ env.CANONICAL_IMAGE }}',
-            'subject-digest' => '${{ needs.publish.outputs.image_digest }}',
-            'push-to-registry' => true,
-            'create-storage-record' => false,
-        ])->and(substr_count($scripts, 'gh attestation verify "oci://${DIGEST_REF}"'))->toBe(2)
-        ->and($scripts)->toContain(
-            '--bundle-from-oci',
-            '--repo SecPal/api',
-            '--signer-workflow SecPal/api/.github/workflows/publish-container.yml',
-            '--signer-digest "$GITHUB_SHA"',
-            '--source-ref refs/heads/main',
-            '--source-digest "$GITHUB_SHA"',
-            '--deny-self-hosted-runners',
-        );
-});
-
-it('records the verified canonical digest and warns against discovery-tag consumption', function (): void {
-    $summary = containerPublishingNamedStep(
-        containerPublishingWorkflow()['jobs']['attest'],
-        'Record published image identity',
-    );
-
-    expect($summary['run'])->toContain(
-        '## Published SecPal API image',
-        '- Source commit: \`%s\`',
-        '- Discovery tag: \`%s:%s\`',
-        '- Canonical digest: \`%s@%s\`',
-        '\`linux/amd64\`, \`linux/arm64\`',
-        '- SBOM: verified',
-        '- Provenance: verified',
-        '- Runtime smoke: verified',
-        '- GitHub Artifact Attestation: verified',
-        'The discovery tag is not a deployment or trust reference.',
-        '>> "$GITHUB_STEP_SUMMARY"',
-    );
-});
-
-it('registers QEMU before Buildx and pins every action to a full SHA', function (): void {
-    $workflow = containerPublishingWorkflow();
-    $rawWorkflow = (string) file_get_contents(containerPublishingWorkflowPath());
-    $actionNames = [];
-    $loginSteps = [];
-    $buildxSteps = [];
-    $qemuSteps = [];
-    $checkoutSteps = [];
-    $allowedActions = [
-        'actions/checkout',
-        'actions/attest',
-        'docker/setup-qemu-action',
-        'docker/setup-buildx-action',
-        'docker/login-action',
-        'docker/build-push-action',
-        'shivammathur/setup-php',
-    ];
-
-    foreach (['publish', 'verify'] as $jobId) {
-        $actionNamesInJob = array_map(
-            static fn (string $uses): string => explode('@', $uses, 2)[0],
-            array_column($workflow['jobs'][$jobId]['steps'], 'uses'),
-        );
-        $qemu = array_search(
-            'docker/setup-qemu-action',
-            $actionNamesInJob,
-            true,
-        );
-        $buildx = array_search(
-            'docker/setup-buildx-action',
-            $actionNamesInJob,
-            true,
-        );
-
-        expect($qemu)->toBeInt()
-            ->and($buildx)->toBeInt()
-            ->and($qemu)->toBeLessThan($buildx);
-    }
-
-    foreach ($workflow['jobs'] as $job) {
-        foreach ($job['steps'] ?? [] as $step) {
-            if (! isset($step['uses'])) {
-                continue;
-            }
-
-            $actionName = explode('@', $step['uses'], 2)[0];
-            $actionNames[] = $actionName;
-            expect($step['uses'])->toMatch('/\A[^@\s]+@[0-9a-f]{40}\z/')
-                ->and($actionName)->toBeIn($allowedActions);
-
-            match ($actionName) {
-                'actions/checkout' => $checkoutSteps[] = $step,
-                'docker/login-action' => $loginSteps[] = $step,
-                'docker/setup-buildx-action' => $buildxSteps[] = $step,
-                'docker/setup-qemu-action' => $qemuSteps[] = $step,
-                default => null,
-            };
+it('attests index platforms SBOMs and build evidence through exact GitHub identities', function (): void {
+    $root = dirname(__DIR__, 2);
+    $w = containerPublishingWorkflow();
+    $subjects = [];
+    foreach ($w['jobs']['attest']['steps'] as $step) {
+        if (str_starts_with($step['uses'] ?? '', 'actions/attest@')) {
+            $subjects[] = $step['with']['subject-digest'];
+            expect($step['with']['push-to-registry'])->toBeTrue()
+                ->and($step['with']['create-storage-record'])->toBeFalse();
         }
     }
-
-    preg_match_all(
-        '/^\s+# v?\d+\.\d+\.\d+\R\s+uses: [^@\s]+@[0-9a-f]{40}$/m',
-        $rawWorkflow,
-        $pinnedLines,
-    );
-
-    expect($pinnedLines[0])->toHaveCount(count($actionNames))
-        ->and($checkoutSteps)->toHaveCount(4)
-        ->and($loginSteps)->toHaveCount(3)
-        ->and($buildxSteps)->toHaveCount(2)
-        ->and($qemuSteps)->toHaveCount(2);
-
-    foreach ($checkoutSteps as $checkoutStep) {
-        expect($checkoutStep['with'])->toBe([
-            'ref' => '${{ github.sha }}',
-            'persist-credentials' => false,
-        ]);
+    expect($subjects)->toHaveCount(5);
+    foreach (['index_digest', 'amd64_digest', 'arm64_digest', 'amd64_sbom_digest', 'arm64_sbom_digest'] as $key) {
+        expect(implode("\n", $subjects))->toContain('needs.prepare.outputs.'.$key);
     }
-
-    foreach ($loginSteps as $loginStep) {
-        expect($loginStep['with'])->toBe([
-            'registry' => '${{ env.GHCR_HOST }}',
-            'username' => '${{ github.actor }}',
-            'password' => '${{ secrets.GITHUB_TOKEN }}',
-        ]);
+    foreach (['publish-container.sh', 'scan-container-artifact.sh'] as $name) {
+        expect((string) file_get_contents($root.'/scripts/'.$name))->toContain(
+            '--bundle-from-oci', '--repo SecPal/api',
+            '--signer-workflow SecPal/api/.github/workflows/publish-container.yml',
+            '--signer-digest "$GITHUB_SHA"', '--source-ref refs/heads/main',
+            '--source-digest "$GITHUB_SHA"', '--deny-self-hosted-runners');
     }
+    expect(containerPublishingRunScripts($w['jobs']['accept']))->toContain(
+        'publish-container.sh evidence', 'gh attestation verify',
+        'publish-container.sh retain-evidence', 'publish-container.sh accept');
+});
 
-    foreach ($buildxSteps as $buildxStep) {
-        expect($buildxStep['with'])->toBe([
-            'version' => 'v0.36.0',
-            'driver-opts' => 'image=docker.io/moby/buildkit:buildx-stable-1@sha256:2f5adac4ecd194d9f8c10b7b5d7bceb5186853db1b26e5abd3a657af0b7e26ec',
-        ]);
-    }
+it('writes one discovery pointer only after verified acceptance and retains tags', function (): void {
+    $root = dirname(__DIR__, 2);
+    $script = (string) file_get_contents($root.'/scripts/publish-container.sh');
+    $accept = substr($script, strpos($script, "\n  accept)"));
+    expect(substr_count($script, '"$tools/oras" tag '))->toBe(1)
+        ->and($accept)->toContain('published_tag="build-$GITHUB_SHA-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"',
+            'verify_attestation "$evidence_digest"', 'cmp "$prepared/index.json" "$prepared/accepted-index.json"',
+            'cmp "$prepared/index.json" "$prepared/discovery-index.json"',
+            'The discovery tag is not a deployment or trust reference.')
+        ->and(strpos($accept, 'verify_attestation "$evidence_digest"'))->toBeLessThan(strpos($accept, '"$tools/oras" tag '))
+        ->and($script)->not->toContain(':latest', ':main', 'crane copy');
+    expect((string) file_get_contents($root.'/docs/containers.md'))->toContain(
+        '## Run-tag retention', 'GHCR does not provide a proven tag-only deletion operation',
+        'No publisher job or scheduled workflow has cleanup authority',
+        'Interrupted, repeated, and concurrent runs do not share a discovery tag');
+});
 
-    foreach ($qemuSteps as $qemuStep) {
-        expect($qemuStep['with'])->toBe([
-            'image' => 'docker.io/tonistiigi/binfmt:latest@sha256:400a4873b838d1b89194d982c45e5fb3cda4593fbfd7e08a02e76b03b21166f0',
-            'platforms' => 'arm64',
-        ]);
+it('pins actions and disables persisted checkout credentials', function (): void {
+    $root = dirname(__DIR__, 2);
+    foreach (['container-image.yml', 'publish-container.yml'] as $file) {
+        $w = Yaml::parseFile($root.'/.github/workflows/'.$file);
+        foreach ($w['jobs'] as $job) {
+            foreach ($job['steps'] ?? [] as $step) {
+                if (! isset($step['uses'])) {
+                    continue;
+                }
+                expect($step['uses'])->toMatch('/\A[^@\s]+@[0-9a-f]{40}\z/');
+                if (str_starts_with($step['uses'], 'actions/checkout@')) {
+                    expect($step['with']['persist-credentials'])->toBeFalse();
+                }
+            }
+        }
     }
 });
 
-it('preserves deterministic metadata and the complete runtime smoke contract', function (): void {
-    $workflow = containerPublishingWorkflow();
-    $metadata = containerPublishingStep($workflow['jobs']['publish'], 'metadata');
-    $smokeScript = (string) file_get_contents(dirname(__DIR__, 2).'/tests/docker/smoke.sh');
-
-    expect($metadata['run'])->toBe(
-        'printf \'created=%s\\n\' "$(git show -s --format=%cI "$GITHUB_SHA")" >> "$GITHUB_OUTPUT"',
-    )->and($smokeScript)
-        ->toContain(
-            'if [ "${SKIP_BUILD:-0}" = 1 ]; then',
-            'test "$(id -u)" -eq 10001',
-            'test "$(id -g)" -eq 10001',
-            'postgres_image=${POSTGRES_IMAGE:-postgres:18-bookworm@sha256:1c59e2c3c818eaa0f0628f695b36e7c9e362d6b219b36a54a32df645cbd7e1af}',
-            'DB_SSLMODE=verify-full',
-            "POSTGRES_INITDB_ARGS='--auth-host=scram-sha-256'",
-            'assert_http /health/live 200',
-            'assert_http /health/ready 200',
-        )->not->toMatch('/postgres_image=\$\{[A-Z_]+:-[^}\s@]+\}/')
-        ->not->toContain('valkey_image=');
-});
-
-it('keeps the pull-request container workflow read-only and path-aware', function (): void {
-    $workflow = Yaml::parseFile(dirname(__DIR__, 2).'/.github/workflows/container-image.yml');
-    $paths = $workflow['on']['pull_request']['paths'];
-    $scripts = containerPublishingRunScripts($workflow['jobs']['build-and-test']);
-
-    expect($workflow['permissions'])->toBe(['contents' => 'read'])
-        ->and($workflow['jobs']['build-and-test'])->not->toHaveKey('permissions')
-        ->and($paths)->toContain(
-            '.github/workflows/publish-container.yml',
-            'tests/Policy/**',
-            'tests/docker/**',
-            'Dockerfile',
-            'docker/**',
-            'composer.json',
-            'composer.lock',
-            'phpunit.xml',
-        );
-    expectContainerPublishingNotToContain(
-        $paths,
-        'scripts/'.'promote-ghcr'.'-index.sh',
-        'tests/container/**',
-        'tests/fixtures/**',
-    );
-    expect($scripts)->toContain(
-        'composer test:container-policy',
-        'hadolint/hadolint:',
-        'koalaman/shellcheck:',
-        'tests/docker/smoke.sh',
-    );
-    expectContainerPublishingNotToContain(
-        $scripts,
-        'docker login',
-        'actions/attest',
-        'promote-ghcr'.'-index',
-    );
+it('forbids registry deletion across workflows and repository scripts', function (): void {
+    foreach (containerPublishingAutomationFiles() as $file) {
+        expect(containerPublishingContainsForbiddenDeletion((string) file_get_contents($file)), $file)->toBeFalse();
+    }
 });
 
 it('recognizes prohibited registry writes and every Docker prune family', function (string $command): void {

@@ -15,9 +15,9 @@ function repositorySecurityWorkflow(string $name): array
 }
 
 it('requires repository security acceptance before publication and provides PR feedback', function (): void {
-    $publisher = repositorySecurityWorkflow('publish-container')['jobs']['publish'];
+    $publisher = repositorySecurityWorkflow('publish-container')['jobs']['prepare'];
 
-    expect($publisher['needs'])->toBe(['validate', 'repository-security'])
+    expect($publisher['needs'])->toBe(['build', 'repository-security'])
         ->and($publisher)->not->toHaveKeys(['if', 'continue-on-error']);
 
     foreach (['publish-container', 'quality'] as $name) {
@@ -31,6 +31,9 @@ it('requires repository security acceptance before publication and provides PR f
         ]);
     }
 
+    $download = array_values(array_filter($publisher['steps'], static fn (array $step): bool => $step['name'] === 'Read exact source security evidence'))[0];
+    expect($download['with']['name'])->toBe('${{ needs.repository-security.outputs.evidence-artifact }}')
+        ->and($download['with'])->not->toHaveKey('pattern');
     expect(repositorySecurityWorkflow('quality')['on']['pull_request']['branches'])->toBe(['main']);
 });
 
@@ -38,7 +41,9 @@ it('scans the exact commit through the immutable input-free organization action 
     $workflow = repositorySecurityWorkflow('reusable-repository-security');
     $job = $workflow['jobs']['repository-security'];
 
-    expect($workflow['on'])->toBe(['workflow_call' => null])
+    expect($workflow['on']['workflow_call'])->toHaveKey('outputs')->not->toHaveKeys(['inputs', 'secrets'])
+        ->and($workflow['on']['workflow_call']['outputs']['evidence-artifact']['value'])->toBe('${{ jobs.repository-security.outputs.evidence-artifact }}')
+        ->and($job['outputs']['evidence-artifact'])->toBe('${{ steps.repository-scan.outputs.evidence-artifact }}')
         ->and($workflow['permissions'])->toBe(['contents' => 'read'])
         ->and($job['permissions'])->toBe(['contents' => 'read'])
         ->and($job['runs-on'])->toBe('ubuntu-latest')
