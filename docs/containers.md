@@ -61,8 +61,8 @@ Quality Checks on pull requests and `main` invoke the same API-local reusable
 workflow as the mandatory `repository-security` publisher predecessor. The
 publisher requires both image validation and repository security acceptance.
 Each invocation checks out `${{ github.sha }}` with credentials disabled and
-calls the input-free organization action at
-`63896dd16e521b46092597ced5e7f76fb1d9faeb` with only `contents: read`.
+calls the input-free organization action at the full commit SHA pinned in
+`.github/workflows/reusable-repository-security.yml` with only `contents: read`.
 
 Only `CLEAN` satisfies API acceptance. `ACTIONABLE`, `REVIEW_REQUIRED`,
 `UNKNOWN_STALE`, missing and unknown states block publication. Failed or skipped
@@ -84,8 +84,10 @@ organization checkout at the accepted revision:
 php tests/repository-security/replay.php /path/to/SecPal/.github
 ```
 
-The replay rejects workflow/replay pin divergence before scanning, then executes
-the reviewed action itself against one temporary exact Git
+The workflow is the sole source of the scanner revision. The replay reads its
+pin and rejects mutable or unexpected action references and mismatched or dirty
+organization checkouts before scanning, then executes the reviewed action itself
+against one temporary exact Git
 commit containing a vulnerable Composer development dependency, an insecure PHP
 Containerfile and a generated synthetic `.env` secret. It asserts fresh API-bound
 evidence, all three finding classes, redaction across retained action output and
