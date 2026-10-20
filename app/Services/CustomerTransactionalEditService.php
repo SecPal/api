@@ -56,6 +56,11 @@ final class CustomerTransactionalEditService
         array $normalizedInput,
     ): Customer {
         $this->ensureOperationAuthorized($user, $tenantId);
+        $payload = $this->requestContract->validate(
+            $requestContent,
+            $customerId,
+            $normalizedInput,
+        );
 
         try {
             return DB::transaction(function () use (
@@ -63,8 +68,7 @@ final class CustomerTransactionalEditService
                 $tenantId,
                 $customerId,
                 $ifMatch,
-                $requestContent,
-                $normalizedInput,
+                $payload,
             ): Customer {
                 $customer = $this->customers->findLockedForTenant($tenantId, $customerId)
                     ?? throw CustomerTransactionalEditException::notFound();
@@ -75,11 +79,6 @@ final class CustomerTransactionalEditService
 
                 $this->assertCurrentIfMatch($ifMatch, $this->currentRepresentationETag($customer));
 
-                $payload = $this->requestContract->validate(
-                    $requestContent,
-                    $customerId,
-                    $normalizedInput,
-                );
                 $resultingLegalEntityId = $this->resultingLegalEntityId($customer, $payload['customer']);
                 $this->validateCustomerDomain(
                     $user,

@@ -17,6 +17,8 @@ final class CustomerTransactionalEditRequest
 {
     public const AUTHORITATIVE_CONTRACTS_SHA = 'f8771b74d887b84b84dcc94e2405df7b47222466';
 
+    private const MAX_ESTABLISHMENTS = 100;
+
     /** @var list<string> */
     public const CUSTOMER_FIELDS = [
         'legal_entity_id',
@@ -47,7 +49,7 @@ final class CustomerTransactionalEditRequest
     ];
 
     /**
-     * Parse and validate the syntactic request contract after If-Match succeeds.
+     * Parse and validate the syntactic request contract before database locks are acquired.
      *
      * @param  array<string, mixed>  $normalizedInput
      * @return array{
@@ -95,6 +97,8 @@ final class CustomerTransactionalEditRequest
 
         if (! property_exists($document, 'customer_establishments')
             || ! is_array($document->customer_establishments)) {
+            $structuralErrors['customer_establishments'] = ['The assignment collection is invalid.'];
+        } elseif (count($document->customer_establishments) > self::MAX_ESTABLISHMENTS) {
             $structuralErrors['customer_establishments'] = ['The assignment collection is invalid.'];
         } else {
             foreach ($document->customer_establishments as $index => $item) {

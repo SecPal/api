@@ -14,6 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- bounded and prevalidated transactional customer-edit assignment collections
+  before acquiring representation locks, preventing expensive invalid requests
+  from blocking writes across tenants
 - **Breaking:** removed the unreleased Work Instruction product implementation,
   including its HTTP surface, permissions, runtime layers, persistence, and
   Contracts parity assumptions (fixes `api#1508`)

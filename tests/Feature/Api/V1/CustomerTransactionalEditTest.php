@@ -288,6 +288,36 @@ test('rejects structural, unknown-property, duplicate, and path-identity failure
         ->toBe(['The selected customer is invalid.']);
 });
 
+test('rejects oversized establishment collections before acquiring representation locks', function (): void {
+    $etag = customerEtag($this, $this->customer);
+    $queries = [];
+
+    DB::listen(function (QueryExecuted $query) use (&$queries): void {
+        $queries[] = $query->sql;
+    });
+
+    $assignment = [
+        'customer_id' => $this->customer->id,
+        'establishment_id' => $this->establishments[0]->id,
+    ];
+
+    $this->withToken($this->token)
+        ->withHeader('If-Match', $etag)
+        ->putJson(
+            "/v1/customers/{$this->customer->id}/transactional-edit",
+            transactionalCustomerPayload($this->customer, [], array_fill(0, 101, $assignment)),
+        )
+        ->assertUnprocessable()
+        ->assertJsonPath(
+            'errors.customer_establishments.0',
+            'The assignment collection is invalid.',
+        );
+
+    expect(collect($queries)->contains(
+        fn (string $query): bool => str_contains(strtolower($query), 'lock table'),
+    ))->toBeFalse();
+});
+
 test('rejects every ineligible desired establishment without disclosing why', function (): void {
     $otherLegalEntity = LegalEntity::factory()
         ->forTenant((string) $this->tenant->id)
