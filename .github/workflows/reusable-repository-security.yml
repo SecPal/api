@@ -33,7 +33,7 @@ jobs:
 
       - name: Scan the checked-out API repository
         id: repository-scan
-        uses: SecPal/.github/.github/actions/trivy-repository-scan@6a6758681f4ebc46b4a33d442846d33d6b79785c
+        uses: SecPal/.github/.github/actions/trivy-repository-scan@4b1bd8f1e71274aa4dc11e550d57939eb496d1ca
 
       - name: Require CLEAN repository evidence
         shell: bash
