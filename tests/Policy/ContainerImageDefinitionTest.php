@@ -26,7 +26,7 @@ it('defines the production API image contract', function (): void {
     $dependenciesStage = explode('FROM extensions AS runtime', $dependenciesStage, 2)[0];
 
     expect($dockerfile)
-        ->toContain('docker.io/dunglas/frankenphp:1.12.6-php8.4.23-bookworm@sha256:')
+        ->toContain('docker.io/dunglas/frankenphp:1.13.2-php8.4.27-bookworm@sha256:')
         ->toContain('docker.io/library/composer:2.10.2@sha256:5946476338742b200bb9ff88f8be56275ddae4b3949c72305cb0dbf10cfcb760')
         ->toContain('composer install')
         ->toContain('python3 python3-pip')

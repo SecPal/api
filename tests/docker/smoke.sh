@@ -122,9 +122,9 @@ if [ -n "${EXPECTED_ARCH:-}" ]; then
     '
 fi
 php_version=$(podman run --rm "$image" php -v)
-assert_output_starts_with "$php_version" 'PHP 8.4.23'
+assert_output_starts_with "$php_version" 'PHP 8.4.27'
 frankenphp_version=$(podman run --rm "$image" frankenphp version)
-assert_output_contains "$frankenphp_version" 'FrankenPHP v1.12.6'
+assert_output_contains "$frankenphp_version" 'FrankenPHP v1.13.2'
 php_modules=$(podman run --rm "$image" php -m)
 if assert_output_has_line "$php_modules" redis; then
     echo "Unsupported PhpRedis extension is installed" >&2

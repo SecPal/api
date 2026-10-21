@@ -39,6 +39,7 @@ name: Container Image
       - .github/workflows/container-image.yml
       - .github/workflows/publish-container.yml
   workflow_call: {}
+  workflow_dispatch: {}
 permissions:
   contents: read
 jobs:
