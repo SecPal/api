@@ -395,7 +395,7 @@ class CandidateContinuation(unittest.TestCase):
         self.origin=dict(id=42,run_attempt=1,head_sha=SHA,head_branch='main',event='push',
                          path='.github/workflows/publish-container.yml',repository=dict(full_name='SecPal/api'))
         self.commit=dict(sha=SHA,commit=dict(verification=dict(verified=True)))
-        self.comparison=dict(head_commit=dict(sha=SHA),ahead_by=0,status='behind')
+        self.comparison=dict(base_commit=dict(sha='d'*40),merge_base_commit=dict(sha=SHA),ahead_by=0,status='behind')
         self.jobs=dict(total_count=len(required),jobs=[
             dict(name=n,status='completed',conclusion='success') for n in required])
 
@@ -411,6 +411,8 @@ class CandidateContinuation(unittest.TestCase):
         result=publisher.candidate_context(SHA,'42','2',api=self.api)
         self.assertEqual(result,dict(source_commit=SHA,run_id='42',run_attempt='1',execution_attempt='2'))
         self.assertEqual(publisher.candidate_context(SHA,'42','1',api=self.api)['run_attempt'],'1')
+        self.origin['path']+="@main"
+        self.assertEqual(publisher.candidate_context(SHA,'42','2',api=self.api)['run_attempt'],'1')
 
     def test_missing_expired_or_ambiguous_original_artifacts_are_denied(self):
         for mutate in (
@@ -424,12 +426,14 @@ class CandidateContinuation(unittest.TestCase):
 
     def test_wrong_source_ref_workflow_repository_or_unaccepted_source_is_denied(self):
         for key,value in [('head_sha','b'*40),('head_branch','topic'),('event','workflow_dispatch'),
-                          ('path','.github/workflows/other.yml'),('repository',dict(full_name='other/api'))]:
+                          ('path','.github/workflows/other.yml'),('path','.github/workflows/publish-container.yml@topic'),('repository',dict(full_name='other/api'))]:
             self.setUp();self.origin[key]=value
             with self.assertRaises(ValueError):publisher.candidate_context(SHA,'42','2',api=self.api)
         self.setUp();self.commit['commit']['verification']['verified']=False
         with self.assertRaises(ValueError):publisher.candidate_context(SHA,'42','2',api=self.api)
         self.setUp();self.comparison.update(ahead_by=1,status='ahead')
+        with self.assertRaises(ValueError):publisher.candidate_context(SHA,'42','2',api=self.api)
+        self.setUp();self.comparison['merge_base_commit']['sha']='e'*40
         with self.assertRaises(ValueError):publisher.candidate_context(SHA,'42','2',api=self.api)
 
     def test_failed_skipped_cancelled_missing_and_duplicate_original_stages_are_denied(self):
@@ -729,7 +733,6 @@ class AdmissionConsumer(unittest.TestCase):
             arch=smoke['platform'].split('/')[1]
             d=smoke_root/f"api-smoke-{arch}-{smoke['workflow_run_id']}-{smoke['workflow_run_attempt']}"
             d.mkdir(parents=True);(d/'smoke.json').write_bytes(encoded(smoke))
-        candidate=publisher.read(self.prepared/'prepared.json')
         expected_attempt=self.records[0]['workflow_run_attempt']
         context=dict(source_commit=SHA,run_id='42',run_attempt=expected_attempt,execution_attempt=str(int(expected_attempt)+1))
         args=evidence(self.runtime_reference)

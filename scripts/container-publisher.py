@@ -359,13 +359,13 @@ def candidate_context(commit, run_id, execution_attempt, *, api=github):
     origin=api(f'{prefix}/actions/runs/{run_id}/attempts/{attempt}')
     if (origin['id']!=int(run_id) or origin['run_attempt']!=int(attempt)
             or origin['head_sha']!=commit or origin['head_branch']!='main' or origin['event']!='push'
-            or origin['path']!='.github/workflows/publish-container.yml'
+            or origin['path'] not in ('.github/workflows/publish-container.yml','.github/workflows/publish-container.yml@main')
             or origin['repository']['full_name']!='SecPal/api'):
         raise ValueError('publisher-original-run-binding')
     source_commit=api(f'{prefix}/commits/{commit}')
     accepted=api(f'{prefix}/compare/main...{commit}')
     if (source_commit['sha']!=commit or source_commit['commit']['verification']['verified'] is not True
-            or accepted['head_commit']['sha']!=commit or accepted['ahead_by']!=0
+            or accepted['merge_base_commit']['sha']!=commit or accepted['ahead_by']!=0
             or accepted['status'] not in ('identical','behind')):
         raise ValueError('publisher-candidate-not-accepted-source')
     jobs=api(f'{prefix}/actions/runs/{run_id}/attempts/{attempt}/jobs?per_page=100')
