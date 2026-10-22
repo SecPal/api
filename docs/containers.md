@@ -9,7 +9,9 @@ SecPal uses one production API image for HTTP, queues, scheduling, and administr
 
 ## Architecture
 
-The pinned base is `dunglas/frankenphp:1.12.6-php8.4.23-bookworm` at multi-architecture digest `sha256:79b347211bfec90d6a1373c4956a7d3832c8248a2ff2d76bd0b677f37284d32f`. It provides FrankenPHP 1.12.6, PHP 8.4.23, Debian 12, and verified `amd64`/`arm64` manifests. The Composer 2.10.2 build stage is also pinned to its multi-architecture digest. The Debian variant avoids Alpine/musl compatibility differences.
+The authoritative base references are the exact version tags and multi-architecture SHA-256 digests in `Containerfile`. The runtime uses official FrankenPHP with PHP 8.4 on Debian 12 Bookworm; the smoke test verifies the actual binaries against that input and requires at least PHP 8.4.27 for the PHP2Shell repair. The native build verifies the `amd64`/`arm64` platform identities. Composer is independently pinned for the build stage. The Debian variant avoids Alpine/musl compatibility differences.
+
+The security patch does not imply artifact-policy CLEAN. Fresh per-platform scans and any separately authorized exact-artifact admission remain required before release acceptance.
 
 FrankenPHP serves only `/app/public` in Classic Mode on HTTP port `8080`. Worker Mode, Octane, automatic HTTPS, ACME, and Caddy's admin API are disabled. The base image's OCI metadata still declares ports 80, 443, and 2019, but no process listens there. The `secpal` user (UID/GID `10001`) runs without extra capabilities; root owns source, while `storage` and `bootstrap/cache` are writable by that UID/GID.
 

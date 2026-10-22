@@ -14,6 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Pin the qualified FrankenPHP/PHP Bookworm security update, verify runtime
+  versions against the immutable Containerfile input, and model verified TLS
+  contexts correctly in the OpenTimestamps test double. Artifact admission
+  remains separately required (refs api#1609, api#1623, api#1445).
+
 - Accept explicit UTC source/scanner timestamps, retain both platform artifact
   evaluations before admission, and support the existing central exact-artifact
   security-improvement decision in the original publisher acceptance job.
