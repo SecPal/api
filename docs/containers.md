@@ -118,11 +118,16 @@ anchor. The run-scoped tag exists only to discover the index produced by that
 workflow run; the logged digest remains canonical even if the tag later moves.
 Publishing does not create a deployment contract or perform a deployment.
 
-Every run builds its own image. A rerun receives a new run or attempt identity,
-publishes a new run-scoped tag, verifies its newly built digest, and creates a
-new GitHub Artifact Attestation. The publisher performs no registry lookup to
-reuse a previous image, never adopts a registry-sourced digest, and never skips
-the build because another tag exists.
+Each new main-push run builds its own image. Candidate subjects are immutable
+and source-bound. An explicitly authorized retry of only the failed acceptance
+job reuses the same run's original complete candidate attempt; it does not build
+again. The original build and smoke identities remain in build evidence, while
+the later acceptance execution is recorded separately below the publisher
+extension. The discovery tag retains the original candidate attempt.
+
+Do not re-run all jobs as a continuation. Multiple prepared attempts are
+ambiguous and fail closed; neither a moving tag nor an unverified caller-supplied
+digest selects a candidate.
 
 ## Run-tag retention
 
@@ -137,11 +142,13 @@ uses its `packages: write` grants only to publish the newly built image and its
 GitHub Artifact Attestation, and the workflow policy rejects registry deletion
 commands. Cleanup is outside the publication critical path.
 
-Interrupted, repeated, and concurrent runs do not share a discovery tag. A run
-that stops after tag creation may leave that pointer in place; a retry uses a distinct run
-or attempt identity and verifies a new digest independently. Retention is
-idempotent and has no race with another run because it performs no registry
-mutation.
+Distinct main-push runs do not share discovery tags. Failed acceptance can
+retain untagged candidates and partial immutable evidence without accepting a
+release. If interruption occurs after pointer creation, the pointer may exist
+before successful read-back is recorded. A retry verifies an existing pointer
+against the exact original index and never overwrites it. Unknown registry
+errors fail closed rather than being treated as absence. Retention performs no
+registry cleanup.
 
 Tag cleanup remains unsupported unless an isolated disposable package proves
 that a tag-only operation preserves digest pulls, platform manifests, the
@@ -176,7 +183,9 @@ immutable OCI artifact in that same package. Grype consumes the verified Syft
 bytes. Trivy independently scans each immutable remote runtime manifest.
 The accepted organization adapters and vulnerability policy own database
 freshness, actionability and reviewed VEX admission. A database failure, stale
-evidence, review-required or actionable result blocks acceptance.
+evidence blocks acceptance. Review-required or actionable results remain blocked
+unless the separately authorized exact-artifact security-improvement decision
+described below is valid.
 
 GitHub OIDC attestations bind the index, both platforms and both SPDX artifacts
 to this repository, workflow and exact source SHA. Both native runners then pull
@@ -218,41 +227,78 @@ visibility and linkage remain separately administered; publishing deploys no
 application. Recurring re-evaluation of already released artifacts belongs
 to #1448, and final retired-path documentation cleanup belongs to #1446/#1453.
 
-## Source-evidence repair and prepared admission interface
+## Source evidence and exact-artifact admission
 
-The publisher consumes the accepted v4 repository-security schema, preserving
-the complete scanner/policy identity and exact source commit. The same reader
-checks successful CLEAN execution and the producer's database interval
-`updated_at <= observed_at < next_update` during preparation, evidence assembly
-and final acceptance. Its reviewed schema is byte-identical to the schema used
-by the pinned source producer.
+The publisher consumes the accepted v4 repository-security schema and preserves
+its scanner/policy identity and exact source commit. Preparation, evidence
+assembly and final acceptance require successful CLEAN source evidence and the
+producer's database interval `updated_at <= observed_at < next_update`.
+RFC3339 `Z` and explicit `+00:00` UTC forms compare as aware instants; raw
+scanner timestamps are retained unchanged.
 
-The separate `container-publisher.py check-security-improvement` command prepares
-the API #1609 integration. It rechecks the retained OCI bytes using the existing
-platform verifier, source/tree/index, SPDX association, raw scanner evidence and
-evaluation inputs before calling the immutable central
-`admit-api-security-patch` implementation. The existing trusted-control checkout
-must provide that reviewed implementation at `.context/publisher-governance`;
-neither bundle nor decision may select code or policy. Decision checkout/commit
-are separate reviewed data, verified against current accepted central authority.
-The command always obtains a fresh central decision and retains it separately
-as `security-improvement-admission.json`, preserving original scan results.
-A cached document is not authority. Tests use synthetic responses for the API
-seam; the real central command is also exercised to prove denial without an
-active decision.
+Artifact scanning collects both platforms before admission. Each original
+Syft association, raw Grype/Trivy document, provenance, normalized v1 evaluation,
+policy result and scan record remains retained. Healthy CLEAN results on both
+platforms follow the normal automatic path. Failed, malformed, missing or stale
+evidence never authorizes acceptance.
 
-No publication stage invokes this command. Ordinary scan and build-evidence
-acceptance remain CLEAN-only; a prepared ADMITTED_WITH_KNOWN_FINDINGS document
-cannot authorize evidence attestation, discovery or deployment. No active
-decision, risk approval or release permission is included.
+For the one-time API #1609 scope, the immutable central implementation can instead
+return `ADMITTED_WITH_KNOWN_FINDINGS`. That result is separate from the original
+ACTIONABLE/REVIEW_REQUIRED verdicts; neither verdict nor scanner v1 schema changes.
+The publisher re-derives retained observations with the accepted shared adapters
+and policy, checks exact source/tree/index/platform/config/SPDX/raw bindings, and
+re-authenticates the central decision before discovery. A cached receipt is not
+authority. No active decision or residual-risk approval ships with this code.
 
-Activation needs a separately authorized exact-artifact operator decision and
-independent security assessment, and reviewed consumption at the existing scan,
-build-evidence and final-acceptance boundaries. Actual non-CLEAN results must
-remain visible in the retained and attested evidence. Run/attempt bindings and
-the currently push-only workflow also require a legitimate evidence-continuation
-contract; rebuilding cannot transfer approval to different subjects. These
-remaining changes belong to #1445 and are not enabled by this reader repair.
+After the actual main-built candidate exists, its independent security
+assessment and explicit operator risk acceptance must cover the exact bundle
+and expiry. The existing central authority must accept the following data
+together on protected `SecPal/.github` main:
+
+- `policies/api-1609-security-admission.json`: the existing central decision
+  contract, including authenticated assessment/approval comment identities.
+- `policies/api-1609-security-admission.bundle.json`: the exact reviewed bundle
+  whose canonical digest the decision authorizes.
+
+Only data is read from that observed immutable central revision. Scanner,
+adapter, policy and admission implementation continue to execute from the
+separately reviewed pinned governance checkout. The central implementation
+checks current accepted ownership, independent authority, revocation, equivalent
+healthy comparison intelligence, unchanged risks and its at-most-seven-day
+window. No automatic extension or approval transfer is supported.
+
+The bundle's publisher-specific evidence bindings are derived from existing
+records, without a second manifest or source of truth:
+
+- `evidence.provenance` hashes canonical JSON
+  `{"candidate": <prepared.json>, "sboms": <sboms.json>}`.
+- `evidence.native_compatibility` hashes the canonical AMD64/ARM64 list of the
+  original `smoke.json` records.
+- Other mandatory evidence and baseline fields retain their central meanings.
+  The runtime identity comes from the central schema and must match the
+  source-bound official FrankenPHP base recorded for both platforms.
+
+When that actual decision is accepted and still valid, the separately authorized
+continuation is GitHub's **Re-run job** for only the failed
+**Accept verified API publication** job in the original publisher run.
+The equivalent CLI is `gh run rerun <original-run-id> --job <failed-accept-job-id>`.
+This is an operational step requiring the actual release authority; source
+implementation/review alone does not authorize it.
+
+The job authenticates the original main-push source and successful native build,
+attestation, smoke and scan stages through GitHub. It requires one unambiguous,
+unexpired prepared/scans/smoke artifact set and downloads that original attempt.
+GitHub preserves the original commit and ref when re-running a job. Missing or
+expired evidence, a changed decision, changed bundle/subjects/findings,
+incomplete execution or stale source/database evidence requires reassessment.
+
+Only successful admission permits build-evidence assembly and attestations.
+Exceptional receipts, the exact reviewed bundle and decision are retained in the
+same immutable build-evidence OCI artifact and independently read back.
+The original source, candidate run/attempt and smoke identity remain authoritative;
+a later acceptance attempt is an explicit publisher extension. All original
+candidate attestations are reverified before the final admission recheck and
+discovery read-back. Neither continuation nor publication deploys an application.
 
 ## Roles
 

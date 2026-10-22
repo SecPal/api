@@ -107,11 +107,15 @@ case "$stage" in
   retain-evidence)
     # The file attestation already exists; retain its exact bytes and bundle as
     # one immutable OCI artifact in the existing official package, never a new tag.
+    evidence_files=(build-evidence.json:application/json source-security.json:application/json build-evidence.bundle.json:application/json)
+    if [ -f "$prepared/security-improvement-admission.json" ]; then
+      evidence_files+=(security-improvement-admission.json:application/json security-improvement-bundle.json:application/json security-improvement-decision.json:application/json)
+    fi
     (
       cd "$prepared"
       "$tools/oras" push --oci-layout --image-spec v1.1 --artifact-type application/vnd.secpal-build-evidence.v1+json \
         --export-manifest build-evidence-manifest.json "$RUNNER_TEMP/build-evidence:build" \
-        build-evidence.json:application/json source-security.json:application/json build-evidence.bundle.json:application/json
+        "${evidence_files[@]}"
     )
     evidence_digest="sha256:$(sha256sum "$prepared/build-evidence-manifest.json" | cut -d ' ' -f1)"
     "$tools/oras" cp --to-registry-config "$REGISTRY_AUTH_FILE" --from-oci-layout \
@@ -125,7 +129,11 @@ case "$stage" in
     verify_attestation "$evidence_digest" "$prepared/build-evidence-artifact-attestation.json"
     readback=$(mktemp -d "$RUNNER_TEMP/secpal-evidence-readback.XXXXXX")
     "$tools/oras" pull --registry-config "$REGISTRY_AUTH_FILE" --output "$readback" "$repository@$evidence_digest"
-    for name in build-evidence.json source-security.json build-evidence.bundle.json; do
+    evidence_files=(build-evidence.json source-security.json build-evidence.bundle.json)
+    if [ -f "$prepared/security-improvement-admission.json" ]; then
+      evidence_files+=(security-improvement-admission.json security-improvement-bundle.json security-improvement-decision.json)
+    fi
+    for name in "${evidence_files[@]}"; do
       cmp "$prepared/$name" "$readback/$name"
     done
     gh attestation verify "$readback/build-evidence.json" --bundle "$readback/build-evidence.bundle.json" \
@@ -136,13 +144,36 @@ case "$stage" in
     for manifest in $(jq -er '.subject.platforms[].manifest_digest' "$prepared/build-evidence.json"); do
       verify_attestation "$manifest" "$RUNNER_TEMP/verified-platform-attestation.json"
     done
-    while IFS= read -r reference; do
+    for arch in amd64 arm64; do
+      reference=$(jq -er --arg platform "linux/$arch" '.sboms[]|select(.platform==$platform)|.artifact' "$prepared/build-evidence.json")
       verify_attestation "${reference##*@}" "$RUNNER_TEMP/verified-sbom-attestation.json"
-    done < <(jq -er '.sboms[].artifact' "$prepared/build-evidence.json")
+      sbom_readback=$(mktemp -d "$RUNNER_TEMP/secpal-sbom-readback.XXXXXX")
+      "$tools/oras" pull --registry-config "$REGISTRY_AUTH_FILE" --output "$sbom_readback" "$reference"
+      cmp ".context/scan/$arch/sbom/syft.spdx.json" "$sbom_readback/syft.spdx.json"
+      cmp ".context/scan/$arch/sbom/association.json" "$sbom_readback/association.json"
+      rm -rf -- "$sbom_readback"
+    done
     "$tools/oras" manifest fetch --registry-config "$REGISTRY_AUTH_FILE" "$repository@$index_digest" > "$prepared/accepted-index.json"
     cmp "$prepared/index.json" "$prepared/accepted-index.json"
-    published_tag="build-$GITHUB_SHA-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
-    "$tools/oras" tag --registry-config "$REGISTRY_AUTH_FILE" "$repository@$index_digest" "$published_tag"
+    # Reauthenticate current authority after all retention/attestation operations.
+    # A cached receipt cannot survive revocation, expiry, or changed evidence.
+    python3 scripts/container-publisher.py admission --root "$repo_root" --prepared "$prepared" \
+      --scan-root .context/scan --smoke-root .context/smoke
+    candidate_attempt=$(jq -er .workflow.run_attempt "$prepared/build-evidence.json")
+    published_tag="build-$GITHUB_SHA-$GITHUB_RUN_ID-$candidate_attempt"
+    # Existing pointers are verified, never overwritten. Only the pinned CLI's
+    # exact registry-not-found result permits creating a previously absent tag.
+    if "$tools/oras" manifest fetch --registry-config "$REGISTRY_AUTH_FILE" \
+      "$repository:$published_tag" > "$prepared/existing-discovery.json" 2> "$RUNNER_TEMP/discovery-status"; then
+      cmp "$prepared/index.json" "$prepared/existing-discovery.json"
+    else
+      expected_missing="Error response from registry: failed to fetch the content of \"$repository:$published_tag\": $repository:$published_tag: not found"
+      if [ "$(cat "$RUNNER_TEMP/discovery-status")" != "$expected_missing" ]; then
+        echo 'Discovery presence could not be authenticated' >&2
+        exit 1
+      fi
+      "$tools/oras" tag --registry-config "$REGISTRY_AUTH_FILE" "$repository@$index_digest" "$published_tag"
+    fi
     "$tools/oras" manifest fetch --registry-config "$REGISTRY_AUTH_FILE" "$repository:$published_tag" > "$prepared/discovery-index.json"
     cmp "$prepared/index.json" "$prepared/discovery-index.json"
     {

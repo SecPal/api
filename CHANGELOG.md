@@ -19,6 +19,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   contexts correctly in the OpenTimestamps test double. Artifact admission
   remains separately required (refs api#1609, api#1623, api#1445).
 
+- Accept explicit UTC source/scanner timestamps, retain both platform artifact
+  evaluations before admission, and support the existing central exact-artifact
+  security-improvement decision in the original publisher acceptance job.
+  Preserve unresolved findings, original candidate subjects and run identity;
+  require live authority again before discovery. No active risk approval or
+  runtime change is included (refs api#1445, api#1609).
+
 - Consume exact-source Trivy v4 evidence through one schema-validating publisher
   reader, preserving CLEAN-only admission and the producer database deadline.
   Prepare the separate central API #1609 admission check without activating any
