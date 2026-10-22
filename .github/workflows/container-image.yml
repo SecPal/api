@@ -54,7 +54,8 @@ jobs:
       - name: Install native distribution container tools
         run: "sudo apt-get update
 
-          sudo apt-get install --yes --no-install-recommends buildah podman skopeo uidmap slirp4netns crun
+          sudo apt-get install --yes --no-install-recommends buildah podman skopeo uidmap slirp4netns
+          crun
 
           podman --version
 
@@ -69,9 +70,11 @@ jobs:
           \ 6b50a06d38b66f8dd54c0e21b4ef7960d487b666 --output \"$output/source-after.json\"\ncmp \"$input/source.json\"\
           \ \"$output/source-after.json\"\npython3 scripts/container-publisher.py record --layout \"$input/image\"\
           \ \\\n  --arch \"$NATIVE_ARCH\" --source \"$input/source.json\" \\\n  --bases \"$input/bases.json\"\
-          \ --output \"$output/record.json\"\ncmp \"$input/record.json\" \"$output/record.json\"\nimage=\"\
-          localhost/secpal-api:build-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-$NATIVE_ARCH\"\npodman pull \"\
-          oci:$input/image:api\"\npodman tag \"$(jq -er .subject.config_digest \"$input/record.json\"\
+          \ --output \"$output/record.json\"\npython3 - \"$input/record.json\" \"$output/record.json\"\
+          \ <<'PY'\nimport json,sys\noriginal,observed=(json.load(open(p)) for p in sys.argv[1:])\nassert\
+          \ original[\"workflow_run_id\"]==\"39806314149\"\nfor key in (\"workflow_run_id\",\"workflow_run_attempt\"\
+          ):\n original.pop(key);observed.pop(key)\nassert original==observed\nPY\nimage=\"localhost/secpal-api:build-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-$NATIVE_ARCH\"\
+          \npodman pull \"oci:$input/image:api\"\npodman tag \"$(jq -er .subject.config_digest \"$input/record.json\"\
           )\" \"$image\"\npython3 - \"$input/executed-smoke.sh\" \"$output/executed-smoke.sh\" <<'PY'\n\
           import pathlib,sys\ntext=pathlib.Path(sys.argv[1]).read_text()\nassert text.count(\",uid=10001,gid=10001,mode=0750\"\
           )==7\ntext=text.replace(\",uid=10001,gid=10001,mode=0750\",\",mode=1777\")\npathlib.Path(sys.argv[2]).write_text(text)\n\
