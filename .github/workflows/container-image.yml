@@ -60,6 +60,15 @@ jobs:
           dpkg-query -W buildah podman skopeo"
       - name: Install pinned authoritative Syft
         run: scripts/container-tools.sh build "$RUNNER_TEMP/secpal-publisher-tools"
+      - name: Setup PHP
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962
+        with:
+          php-version: "8.4"
+          extensions: mbstring, xml, ctype, iconv, intl, pdo, pdo_pgsql
+          coverage: none
+          tools: composer:2.10.2
+      - name: Install unchanged development dependencies for existing runtime regressions
+        run: composer install --prefer-dist --no-progress --no-interaction
       - name: Build unchanged API source with qualification-only base override
         env:
           NATIVE_ARCH: ${{ matrix.arch }}
@@ -77,18 +86,22 @@ jobs:
           ) for x in lines) == 1\nupdated = \"\".join(\"ARG FRANKENPHP_IMAGE=\"+sys.argv[3]+\"\\n\" if\
           \ x.startswith(\"ARG FRANKENPHP_IMAGE=\") else x for x in lines)\npathlib.Path(sys.argv[2]).write_text(updated)\n\
           assert pathlib.Path(sys.argv[1]).read_bytes() == original\nOVERRIDE\n'''\nsource = source.replace(anchor,\
-          \ override + anchor.replace('\"$snapshot\"', '\"$qualification_base_root\"'))\nsource = source.replace('--label\
-          \ \"org.opencontainers.image.title=SecPal API\"', '--label \"io.secpal.qualification.issue=1623\"\
-          \ --label \"org.opencontainers.image.title=SecPal API qualification; not a release\"')\nsmoke\
-          \ = pathlib.Path(\"tests/docker/smoke.sh\").read_text()\nconfig = json.loads(subprocess.check_output([\"\
-          skopeo\", \"inspect\", \"--config\", \"docker://\"+os.environ[\"QUALIFICATION_BASE\"].split(\"\
-          :\")[0]+\"@\"+os.environ[\"QUALIFICATION_BASE\"].split(\"@\")[1]], text=True))\nenvironment\
-          \ = dict(x.split(\"=\",1) for x in config[\"config\"][\"Env\"])\nversion = config[\"config\"\
-          ][\"Labels\"][\"org.opencontainers.image.version\"]\nassert environment[\"PHP_VERSION\"].startswith(\"\
-          8.4.\")\nsmoke = smoke.replace(\"'PHP 8.4.23'\", repr(\"PHP \"+environment[\"PHP_VERSION\"]))\n\
-          smoke = smoke.replace(\"'FrankenPHP v1.12.6'\", repr(\"FrankenPHP \"+version))\ntemporary =\
-          \ pathlib.Path(os.environ[\"RUNNER_TEMP\"])\nsmoke_file = temporary/\"qualified-smoke.sh\"\n\
-          smoke_file.write_text(smoke); smoke_file.chmod(0o700)\nsource = source.replace('tests/docker/smoke.sh',\
+          \ override + anchor.replace('\"$snapshot\"', '\"$qualification_base_root\"'))\nsmoke = pathlib.Path(\"\
+          tests/docker/smoke.sh\").read_text()\nconfig = json.loads(subprocess.check_output([\"skopeo\"\
+          , \"inspect\", \"--config\", \"docker://\"+os.environ[\"QUALIFICATION_BASE\"].split(\":\")[0]+\"\
+          @\"+os.environ[\"QUALIFICATION_BASE\"].split(\"@\")[1]], text=True))\nenvironment = dict(x.split(\"\
+          =\",1) for x in config[\"config\"][\"Env\"])\nversion = config[\"config\"][\"Labels\"][\"org.opencontainers.image.version\"\
+          ]\nassert environment[\"PHP_VERSION\"].startswith(\"8.4.\")\nsmoke = smoke.replace(\"'PHP 8.4.23'\"\
+          , repr(\"PHP \"+environment[\"PHP_VERSION\"]))\nsmoke = smoke.replace(\"'FrankenPHP v1.12.6'\"\
+          , repr(\"FrankenPHP \"+version))\n\nrestriction = \" --read-only --cap-drop ALL --security-opt\
+          \ no-new-privileges\"\nrestriction += \" --tmpfs /tmp:rw,noexec,nosuid,nodev,size=64m,mode=1777\"\
+          \nfor path in (\"/config/caddy\",\"/data/caddy\",\"/app/storage/framework/cache/data\",\"/app/storage/framework/sessions\"\
+          ,\"/app/storage/framework/views\",\"/app/storage/logs\",\"/app/bootstrap/cache\"):\n restriction\
+          \ += \" --tmpfs \"+path+\":rw,noexec,nosuid,nodev,size=16m,uid=10001,gid=10001,mode=0750\"\n\
+          target='podman run -d --name \"$api\" --network \"$network\"'\nassert smoke.count(target)==1\n\
+          smoke=smoke.replace(target,'podman run -d'+restriction+' --name \"$api\" --network \"$network\"\
+          ')\n\ntemporary = pathlib.Path(os.environ[\"RUNNER_TEMP\"])\nsmoke_file = temporary/\"qualified-smoke.sh\"\
+          \nsmoke_file.write_text(smoke); smoke_file.chmod(0o700)\nsource = source.replace('tests/docker/smoke.sh',\
           \ str(smoke_file))\nbuild = temporary/\"qualified-build.sh\"\nbuild.write_text(source); build.chmod(0o700)\n\
           output = temporary/\"secpal-native\"/os.environ[\"NATIVE_ARCH\"]\noutput.mkdir(parents=True,exist_ok=True)\n\
           record = {\"scope\":\"QUALIFICATION_ONLY_NOT_A_RELEASE\",\"source\":os.environ[\"GITHUB_SHA\"\
@@ -110,6 +123,22 @@ jobs:
           podman\",\"run\",\"--rm\",image]+args,capture_output=True,text=True)\n (output/(name+\".txt\"\
           )).write_text(r.stdout)\n (output/(name+\"-stderr.txt\")).write_text(r.stderr)\n if r.returncode:\
           \ raise SystemExit(name+\" inventory failed\")\nPY\n"
+      - name: Existing authentication session jobs and PostgreSQL regressions using actual image PHP
+        env:
+          NATIVE_ARCH: ${{ matrix.arch }}
+        run:
+          "output=\"$RUNNER_TEMP/secpal-native/$NATIVE_ARCH\"\nimage=\"localhost/secpal-api:build-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-$NATIVE_ARCH\"\
+          \nmkdir -p storage/app/keys\nphp -r 'file_put_contents(\"storage/app/keys/kek.key\", sodium_crypto_secretbox_keygen());'\n\
+          chmod 600 storage/app/keys/kek.key\napp_key=\"base64:$(openssl rand -base64 32 | tr -d '\\n')\"\
+          \npodman run --rm --network host --user 0 \\\n  -v \"$PWD:/app:rw\" -v \"$output:/qualification:rw\"\
+          \ \\\n  -e \"APP_KEY=$app_key\" -e DB_CONNECTION=pgsql -e DB_HOST=127.0.0.1 \\\n  -e DB_PORT=5432\
+          \ -e DB_DATABASE=testing -e DB_USERNAME=testing \\\n  -e DB_PASSWORD=testing -e SECPAL_TEST_SCHEMA=public\
+          \ \\\n  \"$image\" php vendor/bin/pest \\\n  tests/Feature/Auth tests/Feature/AuthTest.php tests/Feature/HealthCheckTest.php\
+          \ \\\n  tests/Feature/Postgres18FixtureSemanticsTest.php \\\n  tests/Feature/PostgresRuntimeCoordinationTest.php\
+          \ \\\n  tests/Feature/Jobs tests/Feature/OpenTimestampScheduleRegistrationTest.php \\\n  tests/Feature/OpenTimestampServiceIntegrationTest.php\
+          \ \\\n  tests/Feature/OpenTimestampServiceTest.php \\\n  tests/Unit/Scripts/OtsStampHashRuntimeTest.php\
+          \ \\\n  tests/Unit/Scripts/OtsUpgradeRuntimeTest.php \\\n  tests/Unit/Services/OpenTimestampCliVerificationTest.php\
+          \ \\\n  tests/Unit/Services/OpenTimestampPythonVerifierTest.php \\\n  --log-junit /qualification/compatibility-junit.xml"
       - name: Retain exact native OCI and SBOM evidence
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
@@ -125,3 +154,15 @@ jobs:
     defaults:
       run:
         working-directory: source
+    services:
+      postgres:
+        image: postgres:18-bookworm@sha256:1c59e2c3c818eaa0f0628f695b36e7c9e362d6b219b36a54a32df645cbd7e1af
+        env:
+          POSTGRES_DB: testing
+          POSTGRES_USER: testing
+          POSTGRES_PASSWORD: testing
+        options:
+          --health-cmd="pg_isready -U testing" --health-interval 10s --health-timeout 5s --health-retries
+          5
+        ports:
+          - 5432:5432
