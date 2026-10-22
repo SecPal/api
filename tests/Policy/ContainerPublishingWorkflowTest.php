@@ -267,13 +267,16 @@ it('gates official publication on source security and native validation', functi
         ]);
     }
     foreach (['attest', 'accept'] as $job) {
-        expect($w['jobs'][$job]['permissions'])->toBe([
-            'contents' => 'read', 'packages' => 'write', 'attestations' => 'write', 'id-token' => 'write',
-        ]);
+        $expected = ['contents' => 'read'];
+        if ($job === 'accept') {
+            $expected['actions'] = 'read';
+        }
+        $expected += ['packages' => 'write', 'attestations' => 'write', 'id-token' => 'write'];
+        expect($w['jobs'][$job]['permissions'])->toBe($expected);
     }
 });
 
-it('uses one reviewed v4 reader dependency and keeps exceptional admission inactive', function (): void {
+it('uses immutable v4 code and separately authenticated decision data', function (): void {
     $root = dirname(__DIR__, 2);
     $publisher = containerPublishingWorkflow();
     $native = Yaml::parseFile($root.'/.github/workflows/container-image.yml');
@@ -290,6 +293,16 @@ it('uses one reviewed v4 reader dependency and keeps exceptional admission inact
     }
 
     expect(array_unique($references))->toHaveCount(1);
+    $accept = $publisher['jobs']['accept'];
+    $decision = array_values(array_filter($accept['steps'],
+        static fn (array $step): bool => ($step['with']['path'] ?? null) === '.context/admission-decision'));
+    expect($decision)->toHaveCount(1)
+        ->and($decision[0]['with']['repository'])->toBe('SecPal/.github')
+        ->and($decision[0]['with']['persist-credentials'])->toBeFalse()
+        ->and($decision[0]['with']['ref'])->toBe('${{ steps.decision.outputs.commit }}')
+        ->and(containerPublishingRunScripts($accept))->toContain('candidate-context', 'decision-revision')
+        ->not->toContain('.context/admission-decision/scripts/');
+
     foreach ($publisher['jobs'] as $job) {
         if (isset($job['steps'])) {
             expect(containerPublishingRunScripts($job))->not->toContain('check-security-improvement', 'admit-api-security-patch');
@@ -362,7 +375,7 @@ it('keeps Syft authoritative and scans immutable artifacts independently', funct
         '--metadata "$output/grype-metadata.json"',
         '"$tools/trivy" --config "$cache/config.yaml" image', '"$registry@$manifest"', '--platform "linux/$arch"',
         'secpal-vulnerability-reevaluation.py', 'secpal-vulnerability-policy.py',
-        'policies/vulnerability-triage-v1.json', "policy['gate_state']!='CLEAN'",
+        'policies/vulnerability-triage-v1.json', "policy['evidence_health']['state']!='HEALTHY'",
     )->not->toContain('--ignore-unfixed', '--severity ', '--exit-code 0');
     expect((string) file_get_contents($root.'/scripts/container-tools.sh'))->toContain(
         'sha256sum --check --strict', 'syft_1.54.1_linux_', 'grype_0.118.0_linux_',
@@ -401,7 +414,7 @@ it('writes one discovery pointer only after verified acceptance and retains tags
     $script = (string) file_get_contents($root.'/scripts/publish-container.sh');
     $accept = substr($script, strpos($script, "\n  accept)"));
     expect(substr_count($script, '"$tools/oras" tag '))->toBe(1)
-        ->and($accept)->toContain('published_tag="build-$GITHUB_SHA-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"',
+        ->and($accept)->toContain('published_tag="build-$GITHUB_SHA-$GITHUB_RUN_ID-$candidate_attempt"',
             'verify_attestation "$evidence_digest"', 'cmp "$prepared/index.json" "$prepared/accepted-index.json"',
             'cmp "$prepared/index.json" "$prepared/discovery-index.json"',
             'The discovery tag is not a deployment or trust reference.')
@@ -410,7 +423,7 @@ it('writes one discovery pointer only after verified acceptance and retains tags
     expect((string) file_get_contents($root.'/docs/containers.md'))->toContain(
         '## Run-tag retention', 'GHCR does not provide a proven tag-only deletion operation',
         'No publisher job or scheduled workflow has cleanup authority',
-        'Interrupted, repeated, and concurrent runs do not share a discovery tag');
+        'Distinct main-push runs do not share discovery tags');
 });
 
 it('pins actions and disables persisted checkout credentials', function (): void {
@@ -563,10 +576,12 @@ it('limits the pinned credential handoff to OCI attestation windows and always r
         expect($installs[0])->toBeLessThan(min($oci));
         expect($cleanup[0])->toBeGreaterThan(max($oci));
         expect($steps[$cleanup[0]]['if'])->toBe('always()');
-        expect($job['permissions'])->toBe([
-            'contents' => 'read', 'packages' => 'write',
-            'attestations' => 'write', 'id-token' => 'write',
-        ]);
+        $expected = ['contents' => 'read'];
+        if (isset($job['permissions']['actions'])) {
+            $expected['actions'] = 'read';
+        }
+        $expected += ['packages' => 'write', 'attestations' => 'write', 'id-token' => 'write'];
+        expect($job['permissions'])->toBe($expected);
 
         if ($name === 'accept') {
             $document = array_find_key($steps, fn (array $step): bool => ($step['id'] ?? '') === 'document');

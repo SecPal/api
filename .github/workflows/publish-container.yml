@@ -316,6 +316,7 @@ jobs:
     timeout-minutes: 20
     permissions:
       contents: read
+      actions: read
       packages: write
       attestations: write
       id-token: write
@@ -340,26 +341,46 @@ jobs:
           path: .context/publisher-governance
           persist-credentials: false
           fetch-depth: 0
+      - name: Authenticate original candidate attempt
+        id: candidate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/container-publisher.py candidate-context --output .context/publisher-candidate-context.json
       - name: Read exact prepared subjects
         # v8.0.2
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
         with:
-          pattern: api-prepared-${{ github.run_id }}-${{ github.run_attempt }}
+          pattern: api-prepared-${{ github.run_id }}-${{ steps.candidate.outputs.candidate_attempt }}
           path: .context/publisher
           merge-multiple: true
       - name: Read exact native scan evidence
         # v8.0.2
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
         with:
-          pattern: api-scans-${{ github.run_id }}-${{ github.run_attempt }}
+          pattern: api-scans-${{ github.run_id }}-${{ steps.candidate.outputs.candidate_attempt }}
           path: .context/scan
           merge-multiple: true
       - name: Read exact native smoke evidence
         # v8.0.2
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
         with:
-          pattern: api-smoke-*-${{ github.run_id }}-${{ github.run_attempt }}
+          pattern: api-smoke-*-${{ github.run_id }}-${{ steps.candidate.outputs.candidate_attempt }}
           path: .context/smoke
+      - name: Select current protected decision data when required
+        id: decision
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/container-publisher.py decision-revision --scan-root .context/scan
+      - name: Read accepted central decision as data only
+        if: steps.decision.outputs.commit != ''
+        # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: SecPal/.github
+          ref: ${{ steps.decision.outputs.commit }}
+          path: .context/admission-decision
+          persist-credentials: false
+          fetch-depth: 0
       - name: Install pinned publisher tools
         run: scripts/container-tools.sh registry "$RUNNER_TEMP/secpal-publisher-tools"
       - name: Install locked central policy dependencies
@@ -369,6 +390,8 @@ jobs:
 
           printf ''%s\n'' "$RUNNER_TEMP/secpal-policy/bin" >> "$GITHUB_PATH"'
       - name: Assemble complete builder-independent evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: scripts/publish-container.sh evidence
       - name: Attest immutable build evidence document
         id: document

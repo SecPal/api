@@ -101,8 +101,9 @@ import hashlib,json,sys
 from pathlib import Path
 root=Path(sys.argv[1]);arch=sys.argv[2]
 policy=json.loads((root/'policy-result.json').read_bytes())
-if policy['gate_state']!='CLEAN':
-    raise SystemExit('Artifact vulnerability policy did not admit CLEAN')
+if (policy['evidence_health']['state']!='HEALTHY'
+        or policy['gate_state'] not in ('CLEAN','ACTIONABLE','REVIEW_REQUIRED')):
+    raise SystemExit('Artifact vulnerability evidence is not healthy and complete')
 subject=json.loads((root/'subject.json').read_bytes())
 association=json.loads((root/'sbom/association.json').read_bytes())
 records=[]
