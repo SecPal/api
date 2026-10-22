@@ -70,7 +70,7 @@ jobs:
           "python3 - <<'PY'\nimport hashlib, json, os, pathlib, subprocess\nos.environ[\"GITHUB_SHA\"\
           ] = os.environ[\"QUALIFICATION_SOURCE\"]\nsource = pathlib.Path(\"scripts/build-container.sh\"\
           ).read_text()\nanchor = 'python3 scripts/container-publisher.py bases --root \"$snapshot\"'\n\
-          assert source.count(anchor) == 1\noverride = '''python3 - \"$snapshot/Containerfile\" \"$QUALIFICATION_BASE\"\
+          assert source.count(anchor) == 1\noverride = r'''python3 - \"$snapshot/Containerfile\" \"$QUALIFICATION_BASE\"\
           \ <<'OVERRIDE'\nimport pathlib, sys\np = pathlib.Path(sys.argv[1])\noriginal = p.read_bytes()\n\
           lines = original.decode().splitlines(keepends=True)\nassert sum(x.startswith(\"ARG FRANKENPHP_IMAGE=\"\
           ) for x in lines) == 1\nupdated = \"\".join(\"ARG FRANKENPHP_IMAGE=\"+sys.argv[2]+\"\\n\" if\
