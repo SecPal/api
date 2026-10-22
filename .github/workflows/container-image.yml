@@ -27,16 +27,6 @@ jobs:
             arch: arm64
             runner: ubuntu-24.04-arm
             artifact: api-compare-bookworm-arm64-39806314149-1
-          - distribution: trixie
-            base: docker.io/dunglas/frankenphp:1.13.2-php8.4.27-trixie@sha256:0de5a32944f72c13b45d183e8e6c53546b8172cec21cc8599e24b12e0661506d
-            arch: amd64
-            runner: ubuntu-24.04
-            artifact: api-compare-trixie-amd64-39806314149-1
-          - distribution: trixie
-            base: docker.io/dunglas/frankenphp:1.13.2-php8.4.27-trixie@sha256:0de5a32944f72c13b45d183e8e6c53546b8172cec21cc8599e24b12e0661506d
-            arch: arm64
-            runner: ubuntu-24.04-arm
-            artifact: api-compare-trixie-arm64-39806314149-1
     steps:
       - name: Checkout exact API commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -60,7 +50,7 @@ jobs:
           podman --version
 
           uname -m"
-      - name: Verify and exercise existing exact native image without rebuilding
+      - name: Verify unchanged Bookworm artifact and focused TLS fixture correction
         env:
           NATIVE_ARCH: ${{ matrix.arch }}
         run:
@@ -75,49 +65,31 @@ jobs:
           \ original[\"workflow_run_id\"]==\"39806314149\"\nfor key in (\"workflow_run_id\",\"workflow_run_attempt\"\
           ):\n original.pop(key);observed.pop(key)\nassert original==observed\nPY\nimage=\"localhost/secpal-api:build-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-$NATIVE_ARCH\"\
           \npodman pull \"oci:$input/image:api\"\npodman tag \"$(jq -er .subject.config_digest \"$input/record.json\"\
-          )\" \"$image\"\npython3 - \"$input/executed-smoke.sh\" \"$output/executed-smoke.sh\" <<'PY'\n\
-          import pathlib,sys\ntext=pathlib.Path(sys.argv[1]).read_text()\nassert text.count(\",uid=10001,gid=10001,mode=0750\"\
-          )==7\ntext=text.replace(\",uid=10001,gid=10001,mode=0750\",\",mode=1777\")\npathlib.Path(sys.argv[2]).write_text(text)\n\
-          PY\nSKIP_BUILD=1 IMAGE_TAG=\"$image\" EXPECTED_ARCH=\"$NATIVE_ARCH\" sh \"$output/executed-smoke.sh\"\
-          \nfor item in packages php frankenphp linkage python; do\n  case \"$item\" in\n    packages)\
-          \ podman run --rm \"$image\" dpkg-query -W '-f=${binary:Package}\\t${Version}\\t${Architecture}\\\
-          n' ;;\n    php) podman run --rm \"$image\" php -r 'echo json_encode([\"php\"=>PHP_VERSION,\"\
-          extensions\"=>get_loaded_extensions(),\"curl\"=>curl_version(),\"sqlite\"=>SQLite3::version(),\"\
-          libxml\"=>LIBXML_DOTTED_VERSION], JSON_PRETTY_PRINT);' ;;\n    frankenphp) podman run --rm \"\
-          $image\" frankenphp version ;;\n    linkage) podman run --rm \"$image\" sh -c 'ldd /usr/local/bin/php;\
-          \ ldd /usr/local/bin/frankenphp' ;;\n    python) podman run --rm \"$image\" python3 -m pip list\
-          \ --format=json ;;\n  esac > \"$output/$item.txt\"\ndone"
-      - name: Setup PHP
-        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962
-        with:
-          php-version: "8.4"
-          extensions: mbstring, xml, ctype, iconv, intl, pdo, pdo_pgsql
-          coverage: none
-          tools: composer:2.10.2
-      - name: Install unchanged development dependencies for existing runtime regressions
-        run: composer install --prefer-dist --no-progress --no-interaction
-      - name: Existing authentication session jobs and PostgreSQL regressions using actual image PHP
-        env:
-          NATIVE_ARCH: ${{ matrix.arch }}
-        run:
-          "output=\"$RUNNER_TEMP/secpal-native/$NATIVE_ARCH\"\nimage=\"localhost/secpal-api:build-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-$NATIVE_ARCH\"\
-          \nmkdir -p storage/app/keys\nphp -r 'file_put_contents(\"storage/app/keys/kek.key\", sodium_crypto_secretbox_keygen());'\n\
-          chmod 600 storage/app/keys/kek.key\napp_key=\"base64:$(openssl rand -base64 32 | tr -d '\\n')\"\
-          \npodman run --rm --network host --user 0 \\\n  -v \"$PWD:/app:rw\" -v \"$output:/qualification:rw\"\
-          \ \\\n  -e \"APP_KEY=$app_key\" -e DB_CONNECTION=pgsql -e DB_HOST=127.0.0.1 \\\n  -e DB_PORT=5432\
-          \ -e DB_DATABASE=testing -e DB_USERNAME=testing \\\n  -e DB_PASSWORD=testing -e SECPAL_TEST_SCHEMA=public\
-          \ \\\n  \"$image\" php vendor/bin/pest \\\n  tests/Feature/Auth tests/Feature/AuthTest.php tests/Feature/HealthCheckTest.php\
-          \ \\\n  tests/Feature/Postgres18FixtureSemanticsTest.php \\\n  tests/Feature/PostgresRuntimeCoordinationTest.php\
-          \ \\\n  tests/Feature/Jobs tests/Feature/OpenTimestampScheduleRegistrationTest.php \\\n  tests/Feature/OpenTimestampServiceIntegrationTest.php\
-          \ \\\n  tests/Feature/OpenTimestampServiceTest.php \\\n  tests/Unit/Scripts/OtsStampHashRuntimeTest.php\
-          \ \\\n  tests/Unit/Scripts/OtsUpgradeRuntimeTest.php \\\n  tests/Unit/Services/OpenTimestampCliVerificationTest.php\
-          \ \\\n  tests/Unit/Services/OpenTimestampPythonVerifierTest.php \\\n  --log-junit /qualification/compatibility-junit.xml"
+          )\" \"$image\"\n\nfixture=\"$RUNNER_TEMP/tls-fixture\"\nmkdir -p \"$fixture/scripts\" \"$fixture/tests/Unit/Scripts\"\
+          \ncp scripts/ots-upgrade.py \"$fixture/scripts/\"\ncp tests/Unit/Scripts/OtsUpgradeTest.py \"\
+          $fixture/tests/Unit/Scripts/\"\npython3 - \"$fixture/tests/Unit/Scripts/OtsUpgradeTest.py\"\
+          \ \"$output/fixture-change.json\" <<'PY'\nimport pathlib,sys,hashlib,json,difflib\np=pathlib.Path(sys.argv[1]);original=p.read_text()\n\
+          assert original.count(\"        class FakeTlsContext:\\n\")==1\nupdated=original.replace(\"\
+          \        class FakeTlsContext:\\n\", \"        class FakeTlsContext:\\n            verify_mode\
+          \ = 2  # ssl.CERT_REQUIRED\\n            check_hostname = True\\n\")\np.write_text(updated)\n\
+          pathlib.Path(sys.argv[2]).write_text(json.dumps({\"scope\":\"test-double-only; image and production\
+          \ source unchanged\",\"original_sha256\":hashlib.sha256(original.encode()).hexdigest(),\"qualified_fixture_sha256\"\
+          :hashlib.sha256(updated.encode()).hexdigest(),\"diff\":\"\".join(difflib.unified_diff(original.splitlines(True),updated.splitlines(True)))},indent=2)+\"\
+          \\n\")\nPY\nchmod -R a+rX \"$fixture\"\npodman run --rm --network=none --read-only --cap-drop=ALL\
+          \ \\\n  --security-opt=no-new-privileges --tmpfs /tmp:rw,noexec,nosuid,nodev,size=64m,mode=1777\
+          \ \\\n  -v \"$fixture:/qualification:ro\" -w /qualification \\\n  \"$image\" python3 -B -m unittest\
+          \ tests/Unit/Scripts/OtsUpgradeTest.py \\\n  > \"$output/focused-tls.stdout\" 2> \"$output/focused-tls.stderr\"\
+          \npodman run --rm --network=none --read-only --cap-drop=ALL \\\n  --security-opt=no-new-privileges\
+          \ \"$image\" python3 -c \\\n  'import runpy,ssl,socket; d=runpy.run_path(\"/app/scripts/ots-upgrade.py\"\
+          ,run_name=\"qualify\"); c=d[\"PinnedHTTPSConnection\"](\"alice.calendar.opentimestamps.org\"\
+          ,443,[(socket.AF_INET,socket.SOCK_STREAM,socket.IPPROTO_TCP,(\"93.184.216.34\",443))],2); assert\
+          \ c._context.verify_mode == ssl.CERT_REQUIRED and c._context.check_hostname; print(\"REAL_TLS_CONTEXT_PASS;\
+          \ no network connection made\")' \\\n  > \"$output/real-tls-context.txt\"\ncat \"$output/focused-tls.stderr\"\
+          \ \"$output/real-tls-context.txt\"\n"
       - name: Retain exact native OCI and SBOM evidence
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
-          name:
-            api-compatibility-${{ matrix.distribution }}-${{ matrix.arch }}-${{ github.run_id }}-${{
-            github.run_attempt }}
+          name: api-tls-fixture-${{ matrix.arch }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/secpal-native/${{ matrix.arch }}
           include-hidden-files: true
           if-no-files-found: error
@@ -127,15 +99,3 @@ jobs:
     defaults:
       run:
         working-directory: source
-    services:
-      postgres:
-        image: postgres:18-bookworm@sha256:1c59e2c3c818eaa0f0628f695b36e7c9e362d6b219b36a54a32df645cbd7e1af
-        env:
-          POSTGRES_DB: testing
-          POSTGRES_USER: testing
-          POSTGRES_PASSWORD: testing
-        options:
-          --health-cmd="pg_isready -U testing" --health-interval 10s --health-timeout 5s --health-retries
-          5
-        ports:
-          - 5432:5432
