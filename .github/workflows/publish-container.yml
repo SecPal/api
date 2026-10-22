@@ -58,7 +58,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: SecPal/.github
-          ref: 6a6758681f4ebc46b4a33d442846d33d6b79785c
+          ref: 3c07e41a5d686a39a9f56c8c8e6b0d2035589024
           path: .context/publisher-governance
           persist-credentials: false
           fetch-depth: 0
@@ -336,7 +336,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: SecPal/.github
-          ref: 6a6758681f4ebc46b4a33d442846d33d6b79785c
+          ref: 3c07e41a5d686a39a9f56c8c8e6b0d2035589024
           path: .context/publisher-governance
           persist-credentials: false
           fetch-depth: 0
@@ -362,6 +362,12 @@ jobs:
           path: .context/smoke
       - name: Install pinned publisher tools
         run: scripts/container-tools.sh registry "$RUNNER_TEMP/secpal-publisher-tools"
+      - name: Install locked central policy dependencies
+        run: 'python3 -m venv "$RUNNER_TEMP/secpal-policy"
+
+          "$RUNNER_TEMP/secpal-policy/bin/pip" install --requirement .context/publisher-governance/requirements/vulnerability-policy.txt
+
+          printf ''%s\n'' "$RUNNER_TEMP/secpal-policy/bin" >> "$GITHUB_PATH"'
       - name: Assemble complete builder-independent evidence
         run: scripts/publish-container.sh evidence
       - name: Attest immutable build evidence document
