@@ -70,13 +70,15 @@ jobs:
           "python3 - <<'PY'\nimport hashlib, json, os, pathlib, subprocess\nos.environ[\"GITHUB_SHA\"\
           ] = os.environ[\"QUALIFICATION_SOURCE\"]\nsource = pathlib.Path(\"scripts/build-container.sh\"\
           ).read_text()\nanchor = 'python3 scripts/container-publisher.py bases --root \"$snapshot\"'\n\
-          assert source.count(anchor) == 1\noverride = r'''python3 - \"$snapshot/Containerfile\" \"$QUALIFICATION_BASE\"\
-          \ <<'OVERRIDE'\nimport pathlib, sys\np = pathlib.Path(sys.argv[1])\noriginal = p.read_bytes()\n\
+          assert source.count(anchor) == 1\noverride = r'''qualification_base_root=\"$snapshot_parent/qualified-base\"\
+          \nmkdir \"$qualification_base_root\"\npython3 - \"$snapshot/Containerfile\" \"$qualification_base_root/Containerfile\"\
+          \ \"$QUALIFICATION_BASE\" <<'OVERRIDE'\nimport pathlib, sys\noriginal = pathlib.Path(sys.argv[1]).read_bytes()\n\
           lines = original.decode().splitlines(keepends=True)\nassert sum(x.startswith(\"ARG FRANKENPHP_IMAGE=\"\
-          ) for x in lines) == 1\nupdated = \"\".join(\"ARG FRANKENPHP_IMAGE=\"+sys.argv[2]+\"\\n\" if\
-          \ x.startswith(\"ARG FRANKENPHP_IMAGE=\") else x for x in lines)\np.write_text(updated)\nOVERRIDE\n\
-          '''\nsource = source.replace(anchor, override + anchor)\nsource = source.replace('--label \"\
-          org.opencontainers.image.title=SecPal API\"', '--label \"io.secpal.qualification.issue=1623\"\
+          ) for x in lines) == 1\nupdated = \"\".join(\"ARG FRANKENPHP_IMAGE=\"+sys.argv[3]+\"\\n\" if\
+          \ x.startswith(\"ARG FRANKENPHP_IMAGE=\") else x for x in lines)\npathlib.Path(sys.argv[2]).write_text(updated)\n\
+          assert pathlib.Path(sys.argv[1]).read_bytes() == original\nOVERRIDE\n'''\nsource = source.replace(anchor,\
+          \ override + anchor.replace('\"$snapshot\"', '\"$qualification_base_root\"'))\nsource = source.replace('--label\
+          \ \"org.opencontainers.image.title=SecPal API\"', '--label \"io.secpal.qualification.issue=1623\"\
           \ --label \"org.opencontainers.image.title=SecPal API qualification; not a release\"')\nsmoke\
           \ = pathlib.Path(\"tests/docker/smoke.sh\").read_text()\nconfig = json.loads(subprocess.check_output([\"\
           skopeo\", \"inspect\", \"--config\", \"docker://\"+os.environ[\"QUALIFICATION_BASE\"].split(\"\
@@ -92,7 +94,7 @@ jobs:
           record = {\"scope\":\"QUALIFICATION_ONLY_NOT_A_RELEASE\",\"source\":os.environ[\"GITHUB_SHA\"\
           ],\"base\":os.environ[\"QUALIFICATION_BASE\"],\"distribution\":os.environ[\"QUALIFICATION_DIST\"\
           ],\"architecture\":os.environ[\"NATIVE_ARCH\"],\"build_process\":\"existing scripts/build-container.sh;\
-          \ only snapshot base ARG and test expectations adapted\",\"original_build_sha256\":hashlib.sha256(pathlib.Path(\"\
+          \ only resolved base inputs and test expectations adapted\",\"original_build_sha256\":hashlib.sha256(pathlib.Path(\"\
           scripts/build-container.sh\").read_bytes()).hexdigest(),\"executed_build_sha256\":hashlib.sha256(build.read_bytes()).hexdigest()}\n\
           (output/\"qualification.json\").write_text(json.dumps(record,indent=2)+\"\\n\")\n(output/\"\
           executed-build.sh\").write_text(source)\n(output/\"executed-smoke.sh\").write_text(smoke)\n\
