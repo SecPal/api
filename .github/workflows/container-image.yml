@@ -7,9 +7,10 @@ name: "Container Image \u2014 qualification 1623"
   workflow_dispatch: {}
 permissions:
   contents: read
+  actions: read
 jobs:
   build-and-test:
-    name: Qualification ${{ matrix.distribution }} (${{ matrix.arch }})
+    name: Reused native ${{ matrix.distribution }} (${{ matrix.arch }})
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
     strategy:
@@ -20,18 +21,22 @@ jobs:
             base: docker.io/dunglas/frankenphp:1.13.2-php8.4.27-bookworm@sha256:49369ff211d81dc30a15890d58c0651d639aef0d9c0a9b91bcc6f387a77bd7a2
             arch: amd64
             runner: ubuntu-24.04
+            artifact: api-compare-bookworm-amd64-39806314149-1
           - distribution: bookworm
             base: docker.io/dunglas/frankenphp:1.13.2-php8.4.27-bookworm@sha256:49369ff211d81dc30a15890d58c0651d639aef0d9c0a9b91bcc6f387a77bd7a2
             arch: arm64
             runner: ubuntu-24.04-arm
+            artifact: api-compare-bookworm-arm64-39806314149-1
           - distribution: trixie
             base: docker.io/dunglas/frankenphp:1.13.2-php8.4.27-trixie@sha256:0de5a32944f72c13b45d183e8e6c53546b8172cec21cc8599e24b12e0661506d
             arch: amd64
             runner: ubuntu-24.04
+            artifact: api-compare-trixie-amd64-39806314149-1
           - distribution: trixie
             base: docker.io/dunglas/frankenphp:1.13.2-php8.4.27-trixie@sha256:0de5a32944f72c13b45d183e8e6c53546b8172cec21cc8599e24b12e0661506d
             arch: arm64
             runner: ubuntu-24.04-arm
+            artifact: api-compare-trixie-arm64-39806314149-1
     steps:
       - name: Checkout exact API commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -39,81 +44,46 @@ jobs:
           ref: 6b50a06d38b66f8dd54c0e21b4ef7960d487b666
           persist-credentials: false
           path: source
-      - name: Checkout accepted supply-chain implementation
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Retrieve existing immutable native qualification image
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
         with:
-          repository: SecPal/.github
-          ref: 6a6758681f4ebc46b4a33d442846d33d6b79785c
-          path: .context/publisher-governance
-          persist-credentials: false
-          fetch-depth: 0
+          name: ${{ matrix.artifact }}
+          path: ${{ runner.temp }}/input
+          run-id: 39806314149
+          github-token: ${{ github.token }}
       - name: Install native distribution container tools
         run: "sudo apt-get update
 
-          sudo apt-get install --yes --no-install-recommends buildah podman skopeo uidmap slirp4netns
-          crun
-
-          buildah --version
+          sudo apt-get install --yes --no-install-recommends buildah podman skopeo uidmap slirp4netns crun
 
           podman --version
 
-          dpkg-query -W buildah podman skopeo"
-      - name: Install pinned authoritative Syft
-        run: scripts/container-tools.sh build "$RUNNER_TEMP/secpal-publisher-tools"
-      - name: Build unchanged API source with qualification-only base override
+          uname -m"
+      - name: Verify and exercise existing exact native image without rebuilding
         env:
           NATIVE_ARCH: ${{ matrix.arch }}
-          QUALIFICATION_BASE: ${{ matrix.base }}
-          QUALIFICATION_DIST: ${{ matrix.distribution }}
-          QUALIFICATION_SOURCE: 6b50a06d38b66f8dd54c0e21b4ef7960d487b666
         run:
-          "python3 - <<'PY'\nimport hashlib, json, os, pathlib, subprocess\nos.environ[\"GITHUB_SHA\"\
-          ] = os.environ[\"QUALIFICATION_SOURCE\"]\nsource = pathlib.Path(\"scripts/build-container.sh\"\
-          ).read_text()\nanchor = 'python3 scripts/container-publisher.py bases --root \"$snapshot\"'\n\
-          assert source.count(anchor) == 1\noverride = r'''qualification_base_root=\"$snapshot_parent/qualified-base\"\
-          \nmkdir \"$qualification_base_root\"\npython3 - \"$snapshot/Containerfile\" \"$qualification_base_root/Containerfile\"\
-          \ \"$QUALIFICATION_BASE\" <<'OVERRIDE'\nimport pathlib, sys\noriginal = pathlib.Path(sys.argv[1]).read_bytes()\n\
-          lines = original.decode().splitlines(keepends=True)\nassert sum(x.startswith(\"ARG FRANKENPHP_IMAGE=\"\
-          ) for x in lines) == 1\nupdated = \"\".join(\"ARG FRANKENPHP_IMAGE=\"+sys.argv[3]+\"\\n\" if\
-          \ x.startswith(\"ARG FRANKENPHP_IMAGE=\") else x for x in lines)\npathlib.Path(sys.argv[2]).write_text(updated)\n\
-          assert pathlib.Path(sys.argv[1]).read_bytes() == original\nOVERRIDE\n'''\nsource = source.replace(anchor,\
-          \ override + anchor.replace('\"$snapshot\"', '\"$qualification_base_root\"'))\nsmoke = pathlib.Path(\"\
-          tests/docker/smoke.sh\").read_text()\nconfig = json.loads(subprocess.check_output([\"skopeo\"\
-          , \"inspect\", \"--config\", \"docker://\"+os.environ[\"QUALIFICATION_BASE\"].split(\":\")[0]+\"\
-          @\"+os.environ[\"QUALIFICATION_BASE\"].split(\"@\")[1]], text=True))\nenvironment = dict(x.split(\"\
-          =\",1) for x in config[\"config\"][\"Env\"])\nversion = config[\"config\"][\"Labels\"][\"org.opencontainers.image.version\"\
-          ]\nassert environment[\"PHP_VERSION\"].startswith(\"8.4.\")\nsmoke = smoke.replace(\"'PHP 8.4.23'\"\
-          , repr(\"PHP \"+environment[\"PHP_VERSION\"]))\nsmoke = smoke.replace(\"'FrankenPHP v1.12.6'\"\
-          , repr(\"FrankenPHP \"+version))\n\nrestriction = \" --read-only --cap-drop ALL --security-opt\
-          \ no-new-privileges\"\nrestriction += \" --tmpfs /tmp:rw,noexec,nosuid,nodev,size=64m,mode=1777\"\
-          \nfor path in (\"/config/caddy\",\"/data/caddy\",\"/app/storage/framework/cache/data\",\"/app/storage/framework/sessions\"\
-          ,\"/app/storage/framework/views\",\"/app/storage/logs\",\"/app/bootstrap/cache\"):\n restriction\
-          \ += \" --tmpfs \"+path+\":rw,noexec,nosuid,nodev,size=16m,uid=10001,gid=10001,mode=0750\"\n\
-          target='podman run -d --name \"$api\" --network \"$network\"'\nassert smoke.count(target)==1\n\
-          smoke=smoke.replace(target,'podman run -d'+restriction+' --name \"$api\" --network \"$network\"\
-          ')\n\ntemporary = pathlib.Path(os.environ[\"RUNNER_TEMP\"])\nsmoke_file = temporary/\"qualified-smoke.sh\"\
-          \nsmoke_file.write_text(smoke); smoke_file.chmod(0o700)\nsource = source.replace('tests/docker/smoke.sh',\
-          \ str(smoke_file))\nbuild = temporary/\"qualified-build.sh\"\nbuild.write_text(source); build.chmod(0o700)\n\
-          output = temporary/\"secpal-native\"/os.environ[\"NATIVE_ARCH\"]\noutput.mkdir(parents=True,exist_ok=True)\n\
-          record = {\"scope\":\"QUALIFICATION_ONLY_NOT_A_RELEASE\",\"source\":os.environ[\"GITHUB_SHA\"\
-          ],\"base\":os.environ[\"QUALIFICATION_BASE\"],\"distribution\":os.environ[\"QUALIFICATION_DIST\"\
-          ],\"architecture\":os.environ[\"NATIVE_ARCH\"],\"build_process\":\"existing scripts/build-container.sh;\
-          \ only resolved base inputs and test expectations adapted\",\"original_build_sha256\":hashlib.sha256(pathlib.Path(\"\
-          scripts/build-container.sh\").read_bytes()).hexdigest(),\"executed_build_sha256\":hashlib.sha256(build.read_bytes()).hexdigest()}\n\
-          (output/\"qualification.json\").write_text(json.dumps(record,indent=2)+\"\\n\")\n(output/\"\
-          executed-build.sh\").write_text(source)\n(output/\"executed-smoke.sh\").write_text(smoke)\n\
-          result = subprocess.run([\"bash\",str(build),os.environ[\"NATIVE_ARCH\"],str(output)])\nrecord[\"\
-          build_and_smoke_exit\"]=result.returncode\n(output/\"qualification.json\").write_text(json.dumps(record,indent=2)+\"\
-          \\n\")\nif result.returncode: raise SystemExit(result.returncode)\nimage=\"localhost/secpal-api:build-\"\
-          +os.environ[\"GITHUB_RUN_ID\"]+\"-\"+os.environ[\"GITHUB_RUN_ATTEMPT\"]+\"-\"+os.environ[\"\
-          NATIVE_ARCH\"]\ncommands = {\n \"packages\":[\"dpkg-query\",\"-W\",\"-f=${binary:Package}\\\
-          t${Version}\\t${Architecture}\\n\"],\n \"php\":[\"php\",\"-r\",\"echo json_encode(['php'=>PHP_VERSION,'extensions'=>get_loaded_extensions(),'curl'=>curl_version(),'sqlite'=>SQLite3::version(),'libxml'=>LIBXML_DOTTED_VERSION],\
-          \ JSON_PRETTY_PRINT);\"],\n \"frankenphp\":[\"frankenphp\",\"version\"],\n \"linkage\":[\"sh\"\
-          ,\"-c\",\"ldd /usr/local/bin/php; ldd /usr/local/bin/frankenphp\"],\n \"python\":[\"python3\"\
-          ,\"-m\",\"pip\",\"list\",\"--format=json\"],\n}\nfor name,args in commands.items():\n r=subprocess.run([\"\
-          podman\",\"run\",\"--rm\",image]+args,capture_output=True,text=True)\n (output/(name+\".txt\"\
-          )).write_text(r.stdout)\n (output/(name+\"-stderr.txt\")).write_text(r.stderr)\n if r.returncode:\
-          \ raise SystemExit(name+\" inventory failed\")\nPY\n"
+          "input=\"$RUNNER_TEMP/input\"\noutput=\"$RUNNER_TEMP/secpal-native/$NATIVE_ARCH\"\nmkdir\
+          \ -p \"$output\"\ncase \"$NATIVE_ARCH:$(uname -m)\" in\n  amd64:x86_64|arm64:aarch64) ;;\n \
+          \ *) exit 1 ;;\nesac\npython3 scripts/container-publisher.py source --root \"$PWD\" \\\n  --commit\
+          \ 6b50a06d38b66f8dd54c0e21b4ef7960d487b666 --output \"$output/source-after.json\"\ncmp \"$input/source.json\"\
+          \ \"$output/source-after.json\"\npython3 scripts/container-publisher.py record --layout \"$input/image\"\
+          \ \\\n  --arch \"$NATIVE_ARCH\" --source \"$input/source.json\" \\\n  --bases \"$input/bases.json\"\
+          \ --output \"$output/record.json\"\ncmp \"$input/record.json\" \"$output/record.json\"\nimage=\"\
+          localhost/secpal-api:build-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-$NATIVE_ARCH\"\npodman pull \"\
+          oci:$input/image:api\"\npodman tag \"$(jq -er .subject.config_digest \"$input/record.json\"\
+          )\" \"$image\"\npython3 - \"$input/executed-smoke.sh\" \"$output/executed-smoke.sh\" <<'PY'\n\
+          import pathlib,sys\ntext=pathlib.Path(sys.argv[1]).read_text()\nassert text.count(\",uid=10001,gid=10001,mode=0750\"\
+          )==7\ntext=text.replace(\",uid=10001,gid=10001,mode=0750\",\",mode=1777\")\npathlib.Path(sys.argv[2]).write_text(text)\n\
+          PY\nSKIP_BUILD=1 IMAGE_TAG=\"$image\" EXPECTED_ARCH=\"$NATIVE_ARCH\" sh \"$output/executed-smoke.sh\"\
+          \nfor item in packages php frankenphp linkage python; do\n  case \"$item\" in\n    packages)\
+          \ podman run --rm \"$image\" dpkg-query -W '-f=${binary:Package}\\t${Version}\\t${Architecture}\\\
+          n' ;;\n    php) podman run --rm \"$image\" php -r 'echo json_encode([\"php\"=>PHP_VERSION,\"\
+          extensions\"=>get_loaded_extensions(),\"curl\"=>curl_version(),\"sqlite\"=>SQLite3::version(),\"\
+          libxml\"=>LIBXML_DOTTED_VERSION], JSON_PRETTY_PRINT);' ;;\n    frankenphp) podman run --rm \"\
+          $image\" frankenphp version ;;\n    linkage) podman run --rm \"$image\" sh -c 'ldd /usr/local/bin/php;\
+          \ ldd /usr/local/bin/frankenphp' ;;\n    python) podman run --rm \"$image\" python3 -m pip list\
+          \ --format=json ;;\n  esac > \"$output/$item.txt\"\ndone"
       - name: Setup PHP
         uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962
         with:
@@ -143,8 +113,8 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name:
-            api-compare-${{ matrix.distribution }}-${{ matrix.arch }}-${{ github.run_id }}-${{ github.run_attempt
-            }}
+            api-compatibility-${{ matrix.distribution }}-${{ matrix.arch }}-${{ github.run_id }}-${{
+            github.run_attempt }}
           path: ${{ runner.temp }}/secpal-native/${{ matrix.arch }}
           include-hidden-files: true
           if-no-files-found: error
