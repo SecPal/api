@@ -79,13 +79,14 @@ jobs:
           org.opencontainers.image.title=SecPal API\"', '--label \"io.secpal.qualification.issue=1623\"\
           \ --label \"org.opencontainers.image.title=SecPal API qualification; not a release\"')\nsmoke\
           \ = pathlib.Path(\"tests/docker/smoke.sh\").read_text()\nconfig = json.loads(subprocess.check_output([\"\
-          skopeo\", \"inspect\", \"--config\", \"docker://\"+os.environ[\"QUALIFICATION_BASE\"]], text=True))\n\
-          environment = dict(x.split(\"=\",1) for x in config[\"config\"][\"Env\"])\nversion = config[\"\
-          config\"][\"Labels\"][\"org.opencontainers.image.version\"]\nassert environment[\"PHP_VERSION\"\
-          ].startswith(\"8.4.\")\nsmoke = smoke.replace(\"'PHP 8.4.23'\", repr(\"PHP \"+environment[\"\
-          PHP_VERSION\"]))\nsmoke = smoke.replace(\"'FrankenPHP v1.12.6'\", repr(\"FrankenPHP \"+version))\n\
-          temporary = pathlib.Path(os.environ[\"RUNNER_TEMP\"])\nsmoke_file = temporary/\"qualified-smoke.sh\"\
-          \nsmoke_file.write_text(smoke); smoke_file.chmod(0o700)\nsource = source.replace('tests/docker/smoke.sh',\
+          skopeo\", \"inspect\", \"--config\", \"docker://\"+os.environ[\"QUALIFICATION_BASE\"].split(\"\
+          :\")[0]+\"@\"+os.environ[\"QUALIFICATION_BASE\"].split(\"@\")[1]], text=True))\nenvironment\
+          \ = dict(x.split(\"=\",1) for x in config[\"config\"][\"Env\"])\nversion = config[\"config\"\
+          ][\"Labels\"][\"org.opencontainers.image.version\"]\nassert environment[\"PHP_VERSION\"].startswith(\"\
+          8.4.\")\nsmoke = smoke.replace(\"'PHP 8.4.23'\", repr(\"PHP \"+environment[\"PHP_VERSION\"]))\n\
+          smoke = smoke.replace(\"'FrankenPHP v1.12.6'\", repr(\"FrankenPHP \"+version))\ntemporary =\
+          \ pathlib.Path(os.environ[\"RUNNER_TEMP\"])\nsmoke_file = temporary/\"qualified-smoke.sh\"\n\
+          smoke_file.write_text(smoke); smoke_file.chmod(0o700)\nsource = source.replace('tests/docker/smoke.sh',\
           \ str(smoke_file))\nbuild = temporary/\"qualified-build.sh\"\nbuild.write_text(source); build.chmod(0o700)\n\
           output = temporary/\"secpal-native\"/os.environ[\"NATIVE_ARCH\"]\noutput.mkdir(parents=True,exist_ok=True)\n\
           record = {\"scope\":\"QUALIFICATION_ONLY_NOT_A_RELEASE\",\"source\":os.environ[\"GITHUB_SHA\"\
