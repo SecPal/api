@@ -10,6 +10,7 @@ import io
 import os
 import subprocess
 import socket
+import ssl
 import time
 import urllib.error
 import runpy
@@ -351,6 +352,9 @@ class OtsUpgradeTest(unittest.TestCase):
                 pass
 
         class FakeTlsContext:
+            verify_mode = ssl.CERT_REQUIRED
+            check_hostname = True
+
             def wrap_socket(self, transport, server_hostname=None):
                 server_names.append(server_hostname)
                 return transport

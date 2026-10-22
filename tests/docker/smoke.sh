@@ -121,10 +121,35 @@ if [ -n "${EXPECTED_ARCH:-}" ]; then
             && unpack("v", substr($header, 18, 2))[1] === $expected ? 0 : 1);
     '
 fi
+# Compare actual binaries to the single authoritative, immutable runtime input.
+# PHP 8.4.27 is the minimum security patch level for the PHP2Shell repair.
+# shellcheck disable=SC2016 # PHP variables must not be expanded by the shell.
+expected_runtime=$(php -r '
+    $count = preg_match_all(
+        "~^ARG FRANKENPHP_IMAGE=docker\\.io/dunglas/frankenphp:([0-9]+\\.[0-9]+\\.[0-9]+)-php(8\\.4\\.[0-9]+)-bookworm@sha256:[a-f0-9]{64}$~m",
+        file_get_contents("Containerfile"),
+        $matches,
+        PREG_SET_ORDER,
+    );
+    if ($count !== 1 || version_compare($matches[0][2], "8.4.27", "<")) {
+        fwrite(STDERR, "Invalid or vulnerable runtime input\n");
+        exit(1);
+    }
+    echo $matches[0][1], " ", $matches[0][2];
+')
+expected_frankenphp=${expected_runtime%% *}
+expected_php=${expected_runtime#* }
 php_version=$(podman run --rm "$image" php -v)
-assert_output_starts_with "$php_version" 'PHP 8.4.23'
+assert_output_starts_with "$php_version" "PHP ${expected_php} "
 frankenphp_version=$(podman run --rm "$image" frankenphp version)
-assert_output_contains "$frankenphp_version" 'FrankenPHP v1.12.6'
+# shellcheck disable=SC2016 # PHP variables must not be expanded by the shell.
+php -r '
+    if (preg_match("~\\bFrankenPHP v([0-9]+\\.[0-9]+\\.[0-9]+)\\b~", $argv[1], $matches) !== 1
+        || $matches[1] !== $argv[2]) {
+        fwrite(STDERR, "Runtime does not match the pinned FrankenPHP input\n");
+        exit(1);
+    }
+' "$frankenphp_version" "$expected_frankenphp"
 php_modules=$(podman run --rm "$image" php -m)
 if assert_output_has_line "$php_modules" redis; then
     echo "Unsupported PhpRedis extension is installed" >&2

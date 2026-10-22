@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: CC0-1.0
 
 ARG COMPOSER_IMAGE=docker.io/library/composer:2.10.2@sha256:5946476338742b200bb9ff88f8be56275ddae4b3949c72305cb0dbf10cfcb760
-ARG FRANKENPHP_IMAGE=docker.io/dunglas/frankenphp:1.12.6-php8.4.23-bookworm@sha256:79b347211bfec90d6a1373c4956a7d3832c8248a2ff2d76bd0b677f37284d32f
+ARG FRANKENPHP_IMAGE=docker.io/dunglas/frankenphp:1.13.2-php8.4.27-bookworm@sha256:49369ff211d81dc30a15890d58c0651d639aef0d9c0a9b91bcc6f387a77bd7a2
 FROM ${COMPOSER_IMAGE} AS composer
 FROM ${FRANKENPHP_IMAGE} AS extensions
 COPY docker/python/opentimestamps-requirements.txt /tmp/opentimestamps-requirements.txt
