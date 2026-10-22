@@ -60,15 +60,6 @@ jobs:
           dpkg-query -W buildah podman skopeo"
       - name: Install pinned authoritative Syft
         run: scripts/container-tools.sh build "$RUNNER_TEMP/secpal-publisher-tools"
-      - name: Setup PHP
-        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962
-        with:
-          php-version: "8.4"
-          extensions: mbstring, xml, ctype, iconv, intl, pdo, pdo_pgsql
-          coverage: none
-          tools: composer:2.10.2
-      - name: Install unchanged development dependencies for existing runtime regressions
-        run: composer install --prefer-dist --no-progress --no-interaction
       - name: Build unchanged API source with qualification-only base override
         env:
           NATIVE_ARCH: ${{ matrix.arch }}
@@ -123,6 +114,15 @@ jobs:
           podman\",\"run\",\"--rm\",image]+args,capture_output=True,text=True)\n (output/(name+\".txt\"\
           )).write_text(r.stdout)\n (output/(name+\"-stderr.txt\")).write_text(r.stderr)\n if r.returncode:\
           \ raise SystemExit(name+\" inventory failed\")\nPY\n"
+      - name: Setup PHP
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962
+        with:
+          php-version: "8.4"
+          extensions: mbstring, xml, ctype, iconv, intl, pdo, pdo_pgsql
+          coverage: none
+          tools: composer:2.10.2
+      - name: Install unchanged development dependencies for existing runtime regressions
+        run: composer install --prefer-dist --no-progress --no-interaction
       - name: Existing authentication session jobs and PostgreSQL regressions using actual image PHP
         env:
           NATIVE_ARCH: ${{ matrix.arch }}
