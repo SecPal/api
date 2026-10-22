@@ -216,6 +216,42 @@ visibility and linkage remain separately administered; publishing deploys no
 application. Recurring re-evaluation of already released artifacts belongs
 to #1448, and final retired-path documentation cleanup belongs to #1446/#1453.
 
+## Source-evidence repair and prepared admission interface
+
+The publisher consumes the accepted v4 repository-security schema, preserving
+the complete scanner/policy identity and exact source commit. The same reader
+checks successful CLEAN execution and the producer's database interval
+`updated_at <= observed_at < next_update` during preparation, evidence assembly
+and final acceptance. Its reviewed schema is byte-identical to the schema used
+by the pinned source producer.
+
+The separate `container-publisher.py check-security-improvement` command prepares
+the API #1609 integration. It rechecks the retained OCI bytes using the existing
+platform verifier, source/tree/index, SPDX association, raw scanner evidence and
+evaluation inputs before calling the immutable central
+`admit-api-security-patch` implementation. The existing trusted-control checkout
+must provide that reviewed implementation at `.context/publisher-governance`;
+neither bundle nor decision may select code or policy. Decision checkout/commit
+are separate reviewed data, verified against current accepted central authority.
+The command always obtains a fresh central decision and retains it separately
+as `security-improvement-admission.json`, preserving original scan results.
+A cached document is not authority. Tests use synthetic responses for the API
+seam; the real central command is also exercised to prove denial without an
+active decision.
+
+No publication stage invokes this command. Ordinary scan and build-evidence
+acceptance remain CLEAN-only; a prepared ADMITTED_WITH_KNOWN_FINDINGS document
+cannot authorize evidence attestation, discovery or deployment. No active
+decision, risk approval or release permission is included.
+
+Activation needs a separately authorized exact-artifact operator decision and
+independent security assessment, and reviewed consumption at the existing scan,
+build-evidence and final-acceptance boundaries. Actual non-CLEAN results must
+remain visible in the retained and attested evidence. Run/attempt bindings and
+the currently push-only workflow also require a legitimate evidence-continuation
+contract; rebuilding cannot transfer approval to different subjects. These
+remaining changes belong to #1445 and are not enabled by this reader repair.
+
 ## Roles
 
 Override the default command for the non-HTTP roles:

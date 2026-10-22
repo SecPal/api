@@ -273,6 +273,32 @@ it('gates official publication on source security and native validation', functi
     }
 });
 
+it('uses one reviewed v4 reader dependency and keeps exceptional admission inactive', function (): void {
+    $root = dirname(__DIR__, 2);
+    $publisher = containerPublishingWorkflow();
+    $native = Yaml::parseFile($root.'/.github/workflows/container-image.yml');
+    $references = [];
+
+    foreach ([$publisher['jobs']['prepare'], $publisher['jobs']['accept'], $native['jobs']['validate']] as $job) {
+        $checkouts = array_values(array_filter($job['steps'], static fn (array $step): bool => ($step['with']['path'] ?? null) === '.context/publisher-governance'));
+        expect($checkouts)->toHaveCount(1)
+            ->and($checkouts[0]['with']['repository'])->toBe('SecPal/.github')
+            ->and($checkouts[0]['with']['ref'])->toMatch('/\\A[0-9a-f]{40}\\z/')
+            ->and($checkouts[0]['with']['persist-credentials'])->toBeFalse()
+            ->and(containerPublishingRunScripts($job))->toContain('requirements/vulnerability-policy.txt');
+        $references[] = $checkouts[0]['with']['ref'];
+    }
+
+    expect(array_unique($references))->toHaveCount(1);
+    foreach ($publisher['jobs'] as $job) {
+        if (isset($job['steps'])) {
+            expect(containerPublishingRunScripts($job))->not->toContain('check-security-improvement', 'admit-api-security-patch');
+        }
+    }
+    expect((string) file_get_contents($root.'/scripts/publish-container.sh'))->not->toContain('scan-v2.schema.json')
+        ->and((string) file_get_contents($root.'/scripts/container-publisher.py'))->toContain('secpal-trivy-repository-scan-v4.schema.json');
+});
+
 it('shares database-free native Buildah builds without PR publication or emulation', function (): void {
     $root = dirname(__DIR__, 2);
     $ci = Yaml::parseFile($root.'/.github/workflows/container-image.yml');

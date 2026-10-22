@@ -14,6 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Consume exact-source Trivy v4 evidence through one schema-validating publisher
+  reader, preserving CLEAN-only admission and the producer database deadline.
+  Prepare the separate central API #1609 admission check without activating any
+  exception, changing runtime inputs or authorizing release promotion (refs `api#1445`).
+
 - Consume the accepted shared verified-SPDX Grype execution and provenance
   contract, retaining authoritative Syft input and independent artifact Trivy
   policy admission (refs `api#1445`).

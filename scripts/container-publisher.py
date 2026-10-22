@@ -16,6 +16,7 @@ from pathlib import Path
 import platform
 import re
 import subprocess
+import sys
 
 REPOSITORY = 'ghcr.io/secpal/api'
 SOURCE = 'https://github.com/SecPal/api'
@@ -40,11 +41,15 @@ def canonical(value):
     return json.dumps(value, sort_keys=True, separators=(',', ':')).encode()
 
 
-def read(path):
+def read_bytes(path):
     path = Path(path)
     if path.is_symlink() or not path.is_file() or path.stat().st_size > 32*1024*1024:
         raise ValueError('publisher-evidence-file')
-    return json.loads(path.read_bytes())
+    return path.read_bytes()
+
+
+def read(path):
+    return json.loads(read_bytes(path))
 
 
 def write(path, value):
@@ -185,10 +190,18 @@ def assemble_index(records, sizes):
         for r,size in zip(records,sizes,strict=True)])
 
 
-def admit_source_security(value, commit, observed_at):
+def source_security_schema(root):
+    return read(Path(root)/'.context/publisher-governance/docs/schemas/secpal-trivy-repository-scan-v4.schema.json')
+
+
+def admit_source_security(value, commit, observed_at, *, schema):
     # #1450 owns exact invocation and CLEAN admission; no scanner reinterpretation.
-    if (value.get('schema_version')!='secpal-trivy-repository-scan-v2'
-            or value.get('subject')!={'repository':'SecPal/api','commit':commit}
+    from jsonschema import Draft202012Validator, FormatChecker, ValidationError
+    try:
+        Draft202012Validator(schema,format_checker=FormatChecker()).validate(value)
+    except ValidationError:
+        raise ValueError('publisher-source-security-schema') from None
+    if (value.get('subject')!={'repository':'SecPal/api','commit':commit}
             or value.get('gate_state')!='CLEAN'
             or value.get('operation')!={'name':'TRIVY_REPOSITORY_SCAN','status':'SUCCEEDED'}
             or value.get('database',{}).get('status')!='FRESH'):
@@ -210,7 +223,7 @@ def evidence_time(value):
         raise ValueError('publisher-evidence-time') from None
 
 
-def build_evidence(records, index_digest, sboms, scans, smokes, source_security, run_id, attempt, generated_at, *, expected_source):
+def build_evidence(records, index_digest, sboms, scans, smokes, source_security, run_id, attempt, generated_at, *, expected_source, source_security_schema):
     if (len(records)!=2 or [r['subject']['platform'] for r in records]!=list(PLATFORMS)
             or records[0]['source']!=records[1]['source']
             or records[0]['builder']!=records[1]['builder']
@@ -222,7 +235,7 @@ def build_evidence(records, index_digest, sboms, scans, smokes, source_security,
             or records[0]['builder']['name']!='buildah'
             or not re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+',records[0]['builder']['version'])):
         raise ValueError('publisher-build-identity')
-    admit_source_security(source_security,source_record['commit'],generated_at)
+    admit_source_security(source_security,source_record['commit'],generated_at,schema=source_security_schema)
     if not re.fullmatch('sha256:[0-9a-f]{64}',index_digest):
         raise ValueError('publisher-index-digest')
     for collection, count in ((sboms,2),(scans,4),(smokes,2)):
@@ -271,7 +284,7 @@ def prepare(root, native, output, security_path):
     root, native, output = Path(root), Path(native), Path(output)
     output.mkdir(parents=True,exist_ok=True)
     expected = source(root,os.environ['GITHUB_SHA'])
-    security = admit_source_security(read(security_path),expected['commit'],timestamp(datetime.now(timezone.utc).timestamp()))
+    security = admit_source_security(read(security_path),expected['commit'],timestamp(datetime.now(timezone.utc).timestamp()),schema=source_security_schema(root))
     (output/'source-security.json').write_bytes(canonical(security))
     write(output/'source.json',expected)
     records=[];sizes=[]
@@ -307,14 +320,85 @@ def complete(prepared, scan_root, smoke_root, root, output):
     result = build_evidence(value['records'],value['index_digest'],sboms,scans,smokes,security,
                             os.environ['GITHUB_RUN_ID'],os.environ['GITHUB_RUN_ATTEMPT'],
                             datetime.now(timezone.utc).isoformat(timespec='seconds').replace('+00:00','Z'),
-                            expected_source=expected)
+                            expected_source=expected,source_security_schema=source_security_schema(root))
     # The canonical source-security bytes are retained with this document.
     write(output,result)
+
+
+def check_security_improvement(root, prepared, scan_root, bundle_path, decision_checkout, decision_commit):
+    """Prepare a separate central decision; never admit a release or rewrite scans.
+
+    The existing trusted-control checkout must pin publisher-governance to the
+    reviewed implementation. Neither bundle nor decision selects its code/policy.
+    """
+    root, prepared, scan_root = Path(root), Path(prepared), Path(scan_root)
+    output = prepared/'security-improvement-admission.json'
+    output.unlink(missing_ok=True)  # A previous result is never current authority.
+    expected = source(root,os.environ['GITHUB_SHA'])
+    candidate = read(prepared/'prepared.json')
+    bundle = read(bundle_path)
+    tree = run(['git','rev-parse','HEAD^{tree}'],cwd=root).decode().strip()
+    security = admit_source_security(
+        read(prepared/'source-security.json'),expected['commit'],
+        timestamp(datetime.now(timezone.utc).timestamp()),schema=source_security_schema(root),
+    )
+    if (not isinstance(bundle,dict)
+            or bundle['source']!={'repository':'SecPal/api','commit':expected['commit'],'tree':tree}
+            or bundle['index_digest']!=candidate['index_digest']
+            or bundle['index_digest']!=digest(read_bytes(prepared/'index.json'))
+            or bundle['evidence']['source_security']!=digest(canonical(security))
+            or len(candidate['records'])!=2 or len(bundle['platforms'])!=2):
+        raise ValueError('publisher-admission-source-or-index')
+    manifest_bytes=[read_bytes(prepared/('platform-'+arch+'.json')) for arch in ('amd64','arm64')]
+    if read_bytes(prepared/'index.json')!=canonical(assemble_index(
+        [r['subject'] for r in candidate['records']],[len(raw) for raw in manifest_bytes],
+    )):
+        raise ValueError('publisher-admission-source-or-index')
+    descriptors=read(prepared/'index.json')['manifests']
+    for record, platform_input, platform_name, manifest_raw, descriptor in zip(
+        candidate['records'],bundle['platforms'],PLATFORMS,manifest_bytes,descriptors,strict=True,
+    ):
+        subject=record['subject'];arch=platform_name.split('/')[1]
+        folder=scan_root/arch
+        evaluation=read(folder/'evaluation.json')
+        association=read(folder/'sbom/association.json')
+        observed=admit_platform(
+            manifest_raw,read_bytes(prepared/('config-'+arch+'.json')),
+            descriptor,arch,expected,record['bases'],
+        )
+        if (observed!=subject or record['source']!=expected or subject['platform']!=platform_name
+                or platform_input['config_digest']!=subject['config_digest']
+                or evaluation!=platform_input['evaluation']
+                or evaluation['subject']!={'platform':platform_name,'oci_digest':subject['manifest_digest']}
+                or association['subject']!=evaluation['subject']
+                or association['spdx_digest']!=evaluation['syft']['spdx_digest']
+                or evaluation['syft']['spdx_digest']!=digest(read_bytes(folder/'sbom/syft.spdx.json'))
+                or platform_input['association_sha256']!=digest(read_bytes(folder/'sbom/association.json'))
+                or platform_input['raw_grype_sha256']!=digest(read_bytes(folder/'raw/grype.json'))
+                or platform_input['raw_trivy_sha256']!=digest(read_bytes(folder/'raw/trivy.json'))):
+            raise ValueError('publisher-admission-artifact-evidence')
+    governance=root/'.context/publisher-governance'
+    run([
+        sys.executable,str(governance/'scripts/secpal-vulnerability-reevaluation.py'),
+        'admit-api-security-patch','--bundle',str(bundle_path),
+        '--decision-checkout',str(decision_checkout),'--trusted-commit',decision_commit,
+        '--output',str(output),
+    ])
+    result=read(output)
+    if (result['admission']!='ADMITTED_WITH_KNOWN_FINDINGS'
+            or result['bundle_sha256']!=digest(canonical(bundle))
+            or result['source']!=bundle['source'] or result['index_digest']!=bundle['index_digest']):
+        output.unlink()
+        raise ValueError('publisher-admission-result-binding')
+    return result
 
 
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     sub=parser.add_subparsers(dest='command',required=True)
+    c=sub.add_parser('check-security-improvement')
+    for key in ('root','prepared','scan-root','bundle','decision-checkout','decision-commit'):
+        c.add_argument('--'+key,required=True)
     f=sub.add_parser('attestation-filename');f.add_argument('--digest',required=True)
     v=sub.add_parser('source-security');v.add_argument('--input',required=True);v.add_argument('--commit',required=True)
     s=sub.add_parser('source');s.add_argument('--root',required=True);s.add_argument('--commit',required=True);s.add_argument('--output',required=True)
@@ -328,8 +412,10 @@ def main():
     e=sub.add_parser('complete')
     for key in ('prepared','scan-root','smoke-root','root','output'):e.add_argument('--'+key,required=True)
     args=parser.parse_args()
-    if args.command=='attestation-filename':print(attestation_filename(args.digest))
-    elif args.command=='source-security':admit_source_security(read(args.input),args.commit,timestamp(datetime.now(timezone.utc).timestamp()))
+    if args.command=='check-security-improvement':
+        check_security_improvement(args.root,args.prepared,args.scan_root,args.bundle,args.decision_checkout,args.decision_commit)
+    elif args.command=='attestation-filename':print(attestation_filename(args.digest))
+    elif args.command=='source-security':admit_source_security(read(args.input),args.commit,timestamp(datetime.now(timezone.utc).timestamp()),schema=source_security_schema(Path(__file__).resolve().parents[1]))
     elif args.command=='source':write(args.output,source(args.root,args.commit))
     elif args.command=='bases':write(args.output,bases(args.root,args.arch))
     elif args.command=='record':
