@@ -142,14 +142,7 @@ expected_php=${expected_runtime#* }
 php_version=$(podman run --rm "$image" php -v)
 assert_output_starts_with "$php_version" "PHP ${expected_php} "
 frankenphp_version=$(podman run --rm "$image" frankenphp version)
-# shellcheck disable=SC2016 # PHP variables must not be expanded by the shell.
-php -r '
-    if (preg_match("~\\bFrankenPHP v([0-9]+\\.[0-9]+\\.[0-9]+)\\b~", $argv[1], $matches) !== 1
-        || $matches[1] !== $argv[2]) {
-        fwrite(STDERR, "Runtime does not match the pinned FrankenPHP input\n");
-        exit(1);
-    }
-' "$frankenphp_version" "$expected_frankenphp"
+assert_output_starts_with "$frankenphp_version" "FrankenPHP v${expected_frankenphp} "
 php_modules=$(podman run --rm "$image" php -m)
 if assert_output_has_line "$php_modules" redis; then
     echo "Unsupported PhpRedis extension is installed" >&2
