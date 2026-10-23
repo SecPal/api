@@ -6,6 +6,7 @@
 declare(strict_types=1);
 
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Str;
 
 function makeDomainPolicyCheckFixture(): string
@@ -27,6 +28,9 @@ function runDomainPolicyCheck(string $root): array
     if (! function_exists('proc_open')) {
         test()->markTestSkipped('proc_open is required for domain policy check coverage.');
     }
+
+    Process::path($root)->run(['git', 'init', '--quiet'])->throw();
+    Process::path($root)->run(['git', 'add', '--all'])->throw();
 
     $process = proc_open(
         ['bash', base_path('scripts/check-domains.sh')],
@@ -100,6 +104,25 @@ test('domain policy check allows active SecPal hosts', function (): void {
 
         expect($result['exit_code'])->toBe(0)
             ->and($result['stdout'])->toContain('Domain Policy Check PASSED');
+    } finally {
+        File::deleteDirectory($root);
+    }
+});
+
+test('domain validation checks tracked source without scanning ignored qualification evidence', function (): void {
+    $root = makeDomainPolicyCheckFixture();
+
+    try {
+        file_put_contents($root.'/README.md', 'https://api.secpal.dev/health');
+        file_put_contents($root.'/.gitignore', ".context/\n");
+        mkdir($root.'/.context');
+        file_put_contents($root.'/.context/history.md', 'https://'.retiredChangelogHost().'/historical-evidence');
+
+        expect(runDomainPolicyCheck($root)['exit_code'])->toBe(0);
+
+        Process::path($root)->run(['git', 'add', '--force', '.context/history.md'])->throw();
+
+        expect(runDomainPolicyCheck($root)['exit_code'])->toBe(1);
     } finally {
         File::deleteDirectory($root);
     }

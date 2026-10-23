@@ -184,7 +184,7 @@ bytes. Trivy independently scans each immutable remote runtime manifest.
 The accepted organization adapters and vulnerability policy own database
 freshness, actionability and reviewed VEX admission. A database failure, stale
 evidence blocks acceptance. Review-required or actionable results remain blocked
-unless the separately authorized exact-artifact security-improvement decision
+unless an explicit current exact-artifact operator risk decision
 described below is valid.
 
 GitHub OIDC attestations bind the index, both platforms and both SPDX artifacts
@@ -227,110 +227,72 @@ visibility and linkage remain separately administered; publishing deploys no
 application. Recurring re-evaluation of already released artifacts belongs
 to #1448, and final retired-path documentation cleanup belongs to #1446/#1453.
 
-## Source evidence and exact-artifact admission
+## Source evidence and artifact risk acceptance
 
-The publisher consumes the accepted v4 repository-security schema and preserves
-its scanner/policy identity and exact source commit. Preparation, evidence
-assembly and final acceptance require successful CLEAN source evidence and the
-producer's database interval `updated_at <= observed_at < next_update`.
-RFC3339 `Z` and explicit `+00:00` UTC forms compare as aware instants; raw
-scanner timestamps are retained unchanged.
+The publisher consumes the accepted v4 source-security evidence and schema from
+one immutable shared revision. Source security must be SUCCEEDED, CLEAN and
+FRESH for the exact accepted commit. Its database deadline remains strict;
+expiry is never extended by an artifact decision.
 
-Artifact scanning collects both platforms before admission. Each original
-Syft association, raw Grype/Trivy document, provenance, normalized v1 evaluation,
-policy result and scan record remains retained. Healthy CLEAN results on both
-platforms follow the normal automatic path. Failed, malformed, missing or stale
-evidence never authorizes acceptance.
+Artifact scanning retains both architectures' authoritative Syft associations,
+original Grype/Trivy output, metadata, evaluation inputs and unchanged v1 policy
+results. Ordinary acceptance requires current healthy CLEAN results on both
+platforms. Native runtime tests, source binding, OCI byte verification and all
+five candidate attestations remain mandatory for either admission path.
 
-For the one-time API #1609 scope, the immutable central implementation can instead
-return `ADMITTED_WITH_KNOWN_FINDINGS`. That result is separate from the original
-ACTIONABLE/REVIEW_REQUIRED verdicts; neither verdict nor scanner v1 schema changes.
-The publisher re-derives retained observations with the accepted shared adapters
-and policy, checks exact source/tree/index/platform/config/SPDX/raw bindings, and
-re-authenticates the central decision before discovery. A cached receipt is not
-authority. No active decision or residual-risk approval ships with this code.
+If findings remain, acceptance retains `artifact-security-evidence.json`
+and fails until an explicit administrator decision exists in issue #1445.
+The file is the publisher's existing verified source/index/platform/config/SPDX,
+raw scanner, policy and runtime evidence identity. Its canonical SHA-256 is the
+decision's `evidence_sha256`. Original findings remain available in the scan
+artifacts; no archive upload to a particular reviewer is required.
 
-After the actual main-built candidate exists, its independent security
-assessment and explicit operator risk acceptance must cover the exact bundle
-and expiry. The existing central authority must accept the following data
-together on protected `SecPal/.github` main:
+Use the centrally maintained native comment format in
+[the artifact policy](https://github.com/SecPal/.github/blob/main/docs/vulnerability-triage-policy.md#explicit-artifact-risk-acceptance).
+The decision explicitly names the source commit, index, both platform digests,
+current evidence digest, residual risks, rationale, mitigations, rollback
+strategy and bounded UTC expiry. Its actual GitHub author must currently
+administer SecPal/api. No bot assessment, second approval or decision PR is
+required. This documentation and implementation authorization are not risk
+acceptance for any artifact.
 
-- `policies/api-1609-security-admission.json`: the existing central decision
-  contract, including authenticated assessment/approval comment identities.
-- `policies/api-1609-security-admission.bundle.json`: the exact reviewed bundle
-  whose canonical digest the decision authorizes.
+Set the repository variable
+`ARTIFACT_RISK_ACCEPTANCE_COMMENT_ID` to the exact native comment ID after
+the operator publishes the decision. This value is only a locator, not another
+approval. Leave it unset when no decision is active. The publisher fetches only
+that comment, with no inventory search or fallback to earlier approvals.
+Revoke by editing or deleting the referenced acceptance itself, including to\nstop an in-flight acceptance.
 
-Only data is read from that observed immutable central revision. Scanner,
-adapter, policy and admission implementation continue to execute from the
-separately reviewed pinned governance checkout. The central implementation
-checks current accepted ownership, independent authority, revocation, equivalent
-healthy comparison intelligence, unchanged risks and its at-most-seven-day
-window. No automatic extension or approval transfer is supported.
+The referenced decision is read again immediately before discovery. Missing, edited, deleted, revoked, expired, mismatched or non-admin
+decisions deny acceptance. A successful explicit decision produces a separate
+`ADMITTED_WITH_KNOWN_FINDINGS` receipt, never CLEAN. The receipt and complete
+unchanged policy results are retained as `artifact-risk-acceptance.json`
+with the immutable build-evidence artifact.
 
-The bundle's publisher-specific evidence bindings are derived from existing
-records, without a second manifest or source of truth:
+### Read-only evidence refresh
 
-- `evidence.provenance` hashes canonical JSON
-  `{"candidate": <prepared.json>, "sboms": <sboms.json>}`.
-- `evidence.native_compatibility` hashes the canonical AMD64/ARM64 list of the
-  original `smoke.json` records.
-- Other mandatory evidence and baseline fields retain their central meanings.
-  The runtime identity comes from the central schema and must match the
-  source-bound official FrankenPHP base recorded for both platforms.
+Do not rebuild an unchanged image solely to refresh security evidence.
+The existing scan job downloads the original prepared OCI identities, verifies
+their attestations and Syft associations, and scans those exact manifests again
+read-only. It also refreshes source security for the same accepted commit.
+Re-running only this job produces a new run-attempt scan artifact, without
+invoking build, preparation, attestation generation or registry publication.
 
-When that actual decision is accepted and still valid, the separately authorized
-continuation is GitHub's **Re-run job** for only the failed
-**Accept verified API publication** job in the original publisher run.
-The equivalent CLI is `gh run rerun <original-run-id> --job <failed-accept-job-id>`.
-This is an operational step requiring the actual release authority; source
-implementation/review alone does not authorize it.
+The acceptance job authenticates the original successful native build/runtime
+attempt and the latest successful scan attempt. It rejects absent, expired,
+ambiguous or failed artifacts. Its final build evidence preserves the original
+source, native runner, workflow and OCI identities; current source/scanner
+evidence is separately bound. A new scan changes the evidence identity and
+requires a new explicit operator decision if it remains non-CLEAN.
 
-The job authenticates the original main-push source and successful native build,
-attestation, smoke and scan stages through GitHub. It requires one unambiguous,
-unexpired prepared/scans/smoke artifact set and downloads that original attempt.
-GitHub preserves the original commit and ref when re-running a job. Missing or
-expired evidence, a changed decision, changed bundle/subjects/findings,
-incomplete execution or stale source/database evidence requires reassessment.
+Once the current evidence and any required decision exist, an independently
+authorized rerun of only the existing acceptance job may finish the same
+candidate. No runtime or risk approval is granted by installing this
+implementation. Do not re-run all jobs, transfer approvals, rewrite scanner
+records or manually create discovery. Production deployments remain separate.
 
-Only successful admission permits build-evidence assembly and attestations.
-Exceptional receipts, the exact reviewed bundle and decision are retained in the
-same immutable build-evidence OCI artifact and independently read back.
-The original source, candidate run/attempt and smoke identity remain authoritative;
-a later acceptance attempt is an explicit publisher extension. All original
-candidate attestations are reverified before the final admission recheck and
-discovery read-back. Neither continuation nor publication deploys an application.
-
-## Roles
-
-Override the default command for the non-HTTP roles:
-
-```bash
-# Independently scalable; database queue semantics and business invariants coordinate workers.
-php artisan queue:work --queue=activity-hash-chain --sleep=3 --tries=3
-# Independently scalable where application workload permits.
-php artisan queue:work --queue=merkle,opentimestamp,default --sleep=3 --tries=3
-# One process is sufficient for Single, but PostgreSQL-backed locks permit multiple schedulers.
-php artisan schedule:work
-# Administrative examples.
-php artisan about
-php artisan schedule:list
-php artisan migrate --force
-```
-
-Migration is an explicit deployment operation after a backup or restore point, never an entrypoint or healthcheck action.
-
-## PostgreSQL and secrets
-
-PostgreSQL is the external persistent database and shared authority for sessions, durable queues, cache, and scheduler locks. Production requires `DB_SSLMODE=verify-full` and a deployment-owned trusted CA path in `DB_SSLROOTCERT`; the PostgreSQL service owns SCRAM-SHA-256 authentication policy. The supported Laravel drivers are `SESSION_DRIVER=database`, `QUEUE_CONNECTION=database`, and `CACHE_STORE=database`. Channel binding is not exposed because the currently qualified Laravel PDO connector does not forward that libpq option.
-
-The KEK is an external raw 32-byte secret. Configure `KEK_PATH`, mount the file read-only where practical, make it readable by UID `10001`, and set mode `0600`. The default is `storage/app/keys/kek.key`; `/run/secrets/secpal-kek` is optional. Never place the KEK, `APP_KEY`, `.env`, credentials, tokens, private certificates, or API keys in the image; it creates none of them.
-
-## Health and validation
-
-`GET /health/live` does not require PostgreSQL. `GET /health/ready` checks the configured database, tenant key, KEK readability, scheduler heartbeat, and relevant worker heartbeats. `secpal-http-live` is the reusable liveness probe. `HEALTHCHECK NONE` clears the base probe so deployment can assign role-specific checks.
-
-Run `tests/docker/smoke.sh` for build, CLI, permissions, verified-TLS PostgreSQL 18 with SCRAM-SHA-256, HTTP isolation, proxy-header, log-redaction, and SIGTERM validation. It uses a digest-pinned PostgreSQL 18 Bookworm container on an isolated network without published service ports or persistent test volumes. This disposable container is integration evidence only; production PostgreSQL remains external. The publishing verifier resolves and pulls each immutable platform-manifest digest from the verified index and sets `SKIP_BUILD=1` so the same checks exercise each remote runtime artifact without rebuilding it.
-
-## Boundaries
-
-This repository supplies and publishes only the API image; it does not define frontend delivery, persistent services, edge proxy and public TLS, deployment, security monitoring, backup and restore, updates, or customer provisioning. Operators must provide and validate the components their deployment requires. Nginx, Apache, PHP-FPM, Kubernetes, and hosting-panel stacks are not reference deployments.
+Final build evidence and discovery remain downstream of admission.
+The final stage verifies the document and OCI evidence attestations, rechecks
+the five candidate attestations and current admission, and resolves the unique
+discovery pointer to the exact immutable index. An interrupted or rejected
+acceptance cannot authorize discovery.

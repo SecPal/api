@@ -43,10 +43,9 @@ def digest(value):
     return 'sha256:'+hashlib.sha256(value).hexdigest()
 
 
-def platform(arch, runtime_reference=None):
+def platform(arch):
     base=[dict(stage=s,platform='linux/'+arch,reference='docker.io/'+name+':1@sha256:'+'d'*64,
                digest='sha256:'+'e'*64) for s,name in [('composer','library/composer'),('extensions','dunglas/frankenphp')]]
-    if runtime_reference is not None:base[1]['reference']=runtime_reference
     labels={
         'org.opencontainers.image.source':'https://github.com/SecPal/api',
         'org.opencontainers.image.revision':SHA,
@@ -116,10 +115,10 @@ def source_security():
     )
 
 
-def evidence(runtime_reference=None):
+def evidence():
     records=[];sboms=[];scans=[];smokes=[]
     for arch in ['amd64','arm64']:
-        base,config,manifest,descriptor,subject=platform(arch,runtime_reference)
+        base,config,manifest,descriptor,subject=platform(arch)
         records.append(dict(source=copy.deepcopy(SOURCE),subject=subject,bases=base,
                             builder=dict(name='buildah',version='0.0.1'),runner_architecture=arch,
                             workflow_run_id='42',workflow_run_attempt='2'))
@@ -359,7 +358,7 @@ class ExactArtifactAdmission(unittest.TestCase):
         admission=dict(admission='ADMITTED_WITH_KNOWN_FINDINGS',
                        source=dict(repository='SecPal/api',commit=SHA,tree='c'*40),
                        index_digest=args[1],expires_at='2026-10-18T08:00:00Z',
-                       decision_sha256='sha256:'+'8'*64,bundle_sha256='sha256:'+'9'*64,policy_results=[])
+                       evidence_sha256='sha256:'+'9'*64,policy_results=[])
         with self.assertRaises(ValueError):
             publisher.build_evidence(*args,expected_source=SOURCE,source_security_schema=SOURCE_SCHEMA)
         result=publisher.build_evidence(*args,expected_source=SOURCE,source_security_schema=SOURCE_SCHEMA,
@@ -409,16 +408,24 @@ class CandidateContinuation(unittest.TestCase):
 
     def test_retry_reuses_original_run_and_attempt_without_building_or_repackaging(self):
         result=publisher.candidate_context(SHA,'42','2',api=self.api)
-        self.assertEqual(result,dict(source_commit=SHA,run_id='42',run_attempt='1',execution_attempt='2'))
+        self.assertEqual(result,dict(source_commit=SHA,run_id='42',run_attempt='1',scan_attempt='1',execution_attempt='2'))
         self.assertEqual(publisher.candidate_context(SHA,'42','1',api=self.api)['run_attempt'],'1')
         self.origin['path']+="@main"
         self.assertEqual(publisher.candidate_context(SHA,'42','2',api=self.api)['run_attempt'],'1')
+
+    def test_new_readonly_scan_can_authorize_the_same_original_artifact(self):
+        self.artifacts['artifacts'][1]['name']='api-scans-42-2'
+        result=publisher.candidate_context(SHA,'42','2',api=self.api)
+        self.assertEqual(result['run_attempt'],'1')
+        self.assertEqual(result['scan_attempt'],'2')
+        self.jobs['jobs'][-1]['conclusion']='cancelled'
+        with self.assertRaises(ValueError):
+            publisher.candidate_context(SHA,'42','2',api=self.api)
 
     def test_missing_expired_or_ambiguous_original_artifacts_are_denied(self):
         for mutate in (
             lambda:self.artifacts['artifacts'].pop(),
             lambda:self.artifacts['artifacts'][0].update(expired=True),
-            lambda:self.artifacts['artifacts'][1].update(name='api-scans-42-2'),
             lambda:self.artifacts['artifacts'].append(dict(name='api-prepared-42-2',digest='sha256:'+'a'*64,expired=False)),
         ):
             self.setUp();mutate();self.artifacts['total_count']=len(self.artifacts['artifacts'])
@@ -453,7 +460,7 @@ class CandidateContinuation(unittest.TestCase):
         acceptance=workflow.split('  accept:\n',1)[1]
         self.assertIn('steps.candidate.outputs.candidate_attempt',acceptance)
         self.assertNotIn('build-container.sh',acceptance)
-        self.assertIn('path: .context/admission-decision',acceptance)
+        self.assertNotIn('path: .context/admission-decision',acceptance)
         self.assertNotIn('.context/admission-decision/scripts/',acceptance)
         shell=(ROOT/'scripts/publish-container.sh').read_text()
         accept=shell.split('  accept)\n',1)[1]
@@ -468,7 +475,7 @@ class EvidenceRetention(unittest.TestCase):
         end=script.index('    evidence_digest=',start)
         block=script[start:end]
         normal=['build-evidence.json','source-security.json','build-evidence.bundle.json']
-        extra=['security-improvement-admission.json','security-improvement-bundle.json','security-improvement-decision.json']
+        extra=['artifact-risk-acceptance.json','artifact-security-evidence.json']
         for exceptional in (False,True):
             with self.subTest(exceptional=exceptional),tempfile.TemporaryDirectory() as directory:
                 root=Path(directory);prepared=root/'prepared';prepared.mkdir()
@@ -573,227 +580,154 @@ class ArtifactScanCollection(unittest.TestCase):
 
 
 class AdmissionConsumer(unittest.TestCase):
-    """Synthetic boundary probes; no operator authority or release is asserted."""
+    """Publisher boundary fixtures; never a real operator decision."""
 
     def setUp(self):
-        self.temp=tempfile.TemporaryDirectory()
-        self.addCleanup(self.temp.cleanup)
+        self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
         self.root=Path(self.temp.name)
         (self.root/'.context').mkdir()
         (self.root/'.context/publisher-governance').symlink_to(GOVERNANCE,target_is_directory=True)
         self.prepared=self.root/'prepared';self.prepared.mkdir()
         self.scan=self.root/'scan'
-        schema=json.loads((GOVERNANCE/'docs/schemas/secpal-api-1609-admission-v1.schema.json').read_bytes())
-        self.runtime=schema['$defs']['input']['properties']['bundle']['properties']['runtime']['const']
-        self.runtime_reference=('docker.io/dunglas/frankenphp:'+self.runtime['frankenphp']+'-php'
-                                +self.runtime['php']+'-'+self.runtime['distribution']+'@sha256:'+'d'*64)
-        args=evidence(self.runtime_reference);self.records=args[0];self.smokes=args[4];self.sboms=args[2]
+        args=evidence();self.records=args[0];self.smokes=args[4];self.sboms=args[2]
         index=encoded(publisher.assemble_index(
-            [r['subject'] for r in self.records],
-            [len(platform(a,self.runtime_reference)[2]) for a in ('amd64','arm64')],
-        ))
+            [r['subject'] for r in self.records],[len(platform(a)[2]) for a in ('amd64','arm64')]))
         self.index=digest(index)
-        (self.prepared/'index.json').write_bytes(index)
-        (self.prepared/'prepared.json').write_bytes(encoded(dict(records=self.records,index_digest=self.index)))
-        (self.prepared/'source-security.json').write_bytes(encoded(args[5]))
-        self.bundle=dict(runtime=self.runtime,source=dict(repository='SecPal/api',commit=SHA,tree='c'*40),
-                         index_digest=self.index,platforms=[],
-                         evidence=dict(source_security=digest(encoded(args[5]))))
+        for name,value in [('index.json',json.loads(index)),('prepared.json',dict(records=self.records,index_digest=self.index)),
+                           ('source-security.json',args[5])]:
+            (self.prepared/name).write_bytes(encoded(value))
         for arch in ('amd64','arm64'):
-            record=next(r for r in self.records if r['subject']['platform']=='linux/'+arch)
-            base,config,manifest,_,_=platform(arch,self.runtime_reference)
+            _,config,manifest,_,subject=platform(arch)
             (self.prepared/('config-'+arch+'.json')).write_bytes(config)
             (self.prepared/('platform-'+arch+'.json')).write_bytes(manifest)
-            subject=dict(platform='linux/'+arch,oci_digest=record['subject']['manifest_digest'])
+            target=dict(platform='linux/'+arch,oci_digest=subject['manifest_digest'])
             folder=self.scan/arch
             (folder/'raw').mkdir(parents=True);(folder/'sbom').mkdir()
-            for name in ('grype','trivy'):(folder/'raw'/f'{name}.json').write_bytes(encoded(dict(synthetic=name)))
+            for scanner in ('grype','trivy'):
+                (folder/'raw'/f'{scanner}.json').write_bytes(encoded(dict(synthetic=scanner)))
             (folder/'sbom/syft.spdx.json').write_bytes(encoded(dict(synthetic='SPDX fixture')))
             spdx=digest((folder/'sbom/syft.spdx.json').read_bytes())
             next(x for x in self.sboms if x['platform']=='linux/'+arch)['spdx_sha256']=spdx
-            association=dict(subject=subject,spdx_digest=spdx)
+            association=dict(subject=target,spdx_digest=spdx)
             (folder/'sbom/association.json').write_bytes(encoded(association))
-            value=dict(subject=subject,syft=dict(subject=subject,spdx_digest=spdx),
-                       observations=[dict(synthetic='retained unresolved observation')])
-            (folder/'evaluation.json').write_bytes(encoded(value))
-            self.bundle['platforms'].append(dict(
-                config_digest=record['subject']['config_digest'],
-                evaluation=value,association_sha256=digest(encoded(association)),
-                raw_grype_sha256=digest((folder/'raw/grype.json').read_bytes()),
-                raw_trivy_sha256=digest((folder/'raw/trivy.json').read_bytes()),
-            ))
-        (self.prepared/'sboms.json').write_bytes(encoded(self.sboms))
-        self.bundle['evidence'].update(
-            provenance=digest(encoded(dict(candidate=publisher.read(self.prepared/'prepared.json'),sboms=self.sboms))),
-            native_compatibility=digest(encoded(self.smokes)))
-        self.path=self.root/'bundle.json'
-        self.path.write_bytes(encoded(self.bundle))
-        self.output=self.prepared/'security-improvement-admission.json'
-        self.calls=[]
-
-    def result(self):
-        return dict(admission='ADMITTED_WITH_KNOWN_FINDINGS',source=self.bundle['source'],
-                    index_digest=self.index,bundle_sha256=digest(encoded(self.bundle)),expires_at='2026-10-18T08:00:00Z')
-
-    def invoke(self, *, failure=False, result=None):
-        def observed(args, **kwargs):
-            if args[0]=='git':return ('c'*40+'\n').encode()
-            self.calls.append(args)
-            if failure:raise ValueError('synthetic central authority unavailable')
-            self.output.write_bytes(encoded(self.result() if result is None else result))
-            return b''
-        with patch.object(publisher,'source',return_value=copy.deepcopy(SOURCE)), \
-             patch.object(publisher,'run',side_effect=observed), \
-             patch.object(publisher,'datetime',wraps=datetime) as clock, \
-             patch.dict(os.environ,GITHUB_SHA=SHA):
-            clock.now.return_value=datetime.fromisoformat(NOW.replace('Z','+00:00'))
-            return publisher.check_security_improvement(
-                self.root,self.prepared,self.scan,self.path,GOVERNANCE,
-                subprocess.check_output(['git','-C',str(GOVERNANCE),'rev-parse','HEAD'],text=True).strip(),
-                smokes=self.smokes,
-            )
-
-    def test_prepared_consumer_calls_the_central_authority_and_preserves_its_result(self):
-        result=self.invoke()
-        self.assertEqual(result,self.result())
-        self.assertEqual(len(self.calls),1)
-        args=self.calls[0]
-        self.assertEqual(args[2],'admit-api-security-patch')
-        self.assertEqual(Path(args[1]),self.root/'.context/publisher-governance/scripts/secpal-vulnerability-reevaluation.py')
-        self.assertIn('--decision-checkout',args)
-        self.assertNotIn('--policy',args)
-        self.assertNotIn('--reviewed-vex-manifest',args)
-
-    def test_changed_local_subjects_or_evidence_never_reach_authority(self):
-        for change in ('source','index','platform','spdx','raw','evaluation'):
-            with self.subTest(change=change):
-                before=copy.deepcopy(self.bundle)
-                if change=='source':self.bundle['source']['commit']='0'*40
-                elif change=='index':self.bundle['index_digest']='sha256:'+'0'*64
-                elif change=='platform':self.bundle['platforms'][0]['config_digest']='sha256:'+'0'*64
-                elif change=='spdx':self.bundle['platforms'][0]['association_sha256']='sha256:'+'0'*64
-                elif change=='raw':self.bundle['platforms'][0]['raw_grype_sha256']='sha256:'+'0'*64
-                else:self.bundle['platforms'][0]['evaluation']['observations']=[]
-                self.path.write_bytes(encoded(self.bundle));self.calls=[]
-                with self.assertRaises(ValueError):self.invoke()
-                self.assertEqual(self.calls,[])
-                self.bundle=before
-        self.path.write_bytes(encoded(self.bundle))
-
-    def test_prepared_oci_bytes_and_syft_platform_are_reverified(self):
-        for name in ('config','platform','association'):
-            with self.subTest(name=name):
-                path=(self.scan/'amd64/sbom/association.json' if name=='association'
-                      else self.prepared/(name+'-amd64.json'))
-                original=path.read_bytes()
-                bundle=copy.deepcopy(self.bundle)
-                if name=='association':
-                    value=json.loads(original);value['subject']['platform']='linux/arm64'
-                    path.write_bytes(encoded(value))
-                    self.bundle['platforms'][0]['association_sha256']=digest(path.read_bytes())
-                    self.path.write_bytes(encoded(self.bundle))
-                else:path.write_bytes(original+b' ')
-                self.calls=[]
-                with self.assertRaises(ValueError):self.invoke()
-                self.assertEqual(self.calls,[])
-                path.write_bytes(original);self.bundle=bundle
-                self.path.write_bytes(encoded(self.bundle))
-
-    def test_real_central_command_denies_without_an_active_decision(self):
-        run=publisher.run
-        def observed(args, **kwargs):
-            if args[0]=='git':return ('c'*40+'\n').encode()
-            return run(args,**kwargs)
-        with patch.object(publisher,'source',return_value=copy.deepcopy(SOURCE)), \
-             patch.object(publisher,'run',side_effect=observed), \
-             patch.object(publisher,'datetime',wraps=datetime) as clock, \
-             patch.dict(os.environ,GITHUB_SHA=SHA):
-            clock.now.return_value=datetime.fromisoformat(NOW.replace('Z','+00:00'))
-            commit=subprocess.check_output(['git','-C',str(GOVERNANCE),'rev-parse','HEAD'],text=True).strip()
-            with self.assertRaises(ValueError):
-                publisher.check_security_improvement(
-                    self.root,self.prepared,self.scan,self.path,GOVERNANCE,commit,smokes=self.smokes,
-                )
-        self.assertEqual(json.loads(self.output.read_bytes())['admission'],'DENIED')
-
-    def test_cached_or_mismatched_admission_cannot_authorize(self):
-        self.output.write_bytes(encoded(self.result()))
-        with self.assertRaises(ValueError):self.invoke(failure=True)
-        self.assertFalse(self.output.exists())
-        for change in ('source','index_digest','bundle_sha256'):
-            result=self.result()
-            result[change]={} if change=='source' else 'sha256:'+'0'*64
-            with self.subTest(change=change),self.assertRaises(ValueError):
-                self.invoke(result=result)
-            self.assertFalse(self.output.exists())
-
-    def test_complete_retains_original_attempt_and_separate_admission_without_rewriting_scans(self):
-        smoke_root=self.root/'smokes'
-        for smoke in self.smokes:
-            arch=smoke['platform'].split('/')[1]
-            d=smoke_root/f"api-smoke-{arch}-{smoke['workflow_run_id']}-{smoke['workflow_run_attempt']}"
-            d.mkdir(parents=True);(d/'smoke.json').write_bytes(encoded(smoke))
-        expected_attempt=self.records[0]['workflow_run_attempt']
-        context=dict(source_commit=SHA,run_id='42',run_attempt=expected_attempt,execution_attempt=str(int(expected_attempt)+1))
-        args=evidence(self.runtime_reference)
-        for arch in ('amd64','arm64'):
-            folder=self.scan/arch
+            (folder/'evaluation.json').write_bytes(encoded(dict(subject=target,syft=association,observations=[])))
+            (folder/'policy-result.json').write_bytes(encoded(dict(
+                gate_state='ACTIONABLE',evidence_health=dict(state='HEALTHY'),
+                findings=[dict(synthetic='all original observations retained')])))
             records=[copy.deepcopy(x) for x in args[3] if x['platform']=='linux/'+arch]
             for record in records:
                 record['policy_result']='ACTIONABLE'
-                record['completed_at']=NOW[:-1]+'.400000+00:00'
                 record['evidence_sha256']=digest((folder/'raw'/(record['scanner']+'.json')).read_bytes())
-                if record['scanner']=='grype':
-                    record['subject_digest']=publisher.read(folder/'sbom/association.json')['spdx_digest']
+                if record['scanner']=='grype':record['subject_digest']=spdx
                 (folder/(record['scanner']+'-metadata.json')).write_bytes(encoded(dict(
                     scanner_identity=dict(version=record['scanner_version']),database=record['database'],
                     completed_at=record['completed_at'],status=record['status'])))
             (folder/'scan-records.json').write_bytes(encoded(records))
-            (folder/'policy-result.json').write_bytes(encoded(dict(gate_state='ACTIONABLE',evidence_health=dict(state='HEALTHY'))))
-        decision=self.root/'.context/admission-decision'
-        (decision/'policies').mkdir(parents=True)
-        (decision/'policies/api-1609-security-admission.bundle.json').write_bytes(encoded(self.bundle))
-        (decision/'policies/api-1609-security-admission.json').write_bytes(encoded(dict(synthetic='no real authority')))
-        output=self.root/'build-evidence.json'
-        def external(arguments,**kwargs):
-            if arguments[0]=='git':return ('c'*40+'\n').encode()
-            self.calls.append(arguments)
-            Path(arguments[arguments.index('--output')+1]).write_bytes(encoded(self.result()))
-            return b''
+        (self.prepared/'sboms.json').write_bytes(encoded(self.sboms))
+        self.calls=[]
+        self.output=self.prepared/'artifact-risk-acceptance.json'
+
+    def invoke(self, denied=False, complete=False, locator='123'):
+        from types import SimpleNamespace
+        def acceptance(observed,comment_id,**kwargs):
+            results=[publisher.read(self.scan/arch/'policy-result.json') for arch in ('amd64','arm64')]
+            self.calls.append((observed,results,dict(kwargs,comment_id=comment_id)))
+            if denied:raise ValueError('operator acceptance required')
+            return dict(admission='ADMITTED_WITH_KNOWN_FINDINGS',source=observed['source'],
+                        index_digest=self.index,evidence_sha256=digest(encoded(observed)),
+                        expires_at='2026-10-18T08:00:00Z',
+                        comment=dict(id=comment_id,body_sha256='sha256:'+'7'*64),
+                        operator=dict(id=9,login='synthetic-operator'),policy_results=results)
+        adapter=SimpleNamespace(observe_artifact_risk_acceptance=acceptance)
+        context=dict(source_commit=SHA,run_id='42',run_attempt='2',scan_attempt='2',execution_attempt='3')
         with patch.object(publisher,'source',return_value=copy.deepcopy(SOURCE)), \
+             patch.object(publisher,'run',return_value=('c'*40+'\n').encode()), \
+             patch.object(publisher,'security_modules',return_value=[adapter,None]), \
+             patch.object(publisher,'observe_policy',side_effect=lambda root,folder,now:publisher.read(folder/'policy-result.json')), \
              patch.object(publisher,'candidate_context',return_value=context), \
-             patch.object(publisher,'observe_policy',side_effect=lambda root,folder:publisher.read(folder/'policy-result.json')), \
-             patch.object(publisher,'run',side_effect=external), \
-             patch.object(publisher,'datetime',wraps=datetime) as clock, \
-             patch.dict(os.environ,GITHUB_SHA=SHA,GITHUB_RUN_ID='42',GITHUB_RUN_ATTEMPT=context['execution_attempt']):
-            clock.now.return_value=datetime.fromisoformat(NOW.replace('Z','+00:00'))+timedelta(microseconds=500000)
-            publisher.complete(self.prepared,self.scan,smoke_root,self.root,output)
-        document=publisher.read(output)
-        self.assertEqual(document['workflow']['run_attempt'],expected_attempt)
+             patch.object(publisher,'evidence_now',return_value=NOW), \
+             patch.dict(os.environ,GITHUB_SHA=SHA,GITHUB_RUN_ID='42',GITHUB_RUN_ATTEMPT='3',ARTIFACT_RISK_ACCEPTANCE_COMMENT_ID=locator):
+            if complete:
+                smoke_root=self.root/'smokes'
+                for smoke in self.smokes:
+                    d=smoke_root/f"api-smoke-{smoke['runner_architecture']}-42-2"
+                    d.mkdir(parents=True,exist_ok=True);(d/'smoke.json').write_bytes(encoded(smoke))
+                output=self.prepared/'build-evidence.json'
+                publisher.complete(self.prepared,self.scan,smoke_root,self.root,output)
+                return publisher.read(output)
+            return publisher.publication_admission(self.root,self.prepared,self.scan,self.smokes)
+
+    def test_actual_shared_interface_rejects_missing_locator_without_github_reads(self):
+        adapter,_=publisher.security_modules(ROOT)
+        with self.assertRaisesRegex(ValueError,'ARTIFACT_RISK_AUTHORITY_LOCATION'):
+            adapter.observe_artifact_risk_acceptance(
+                dict(source=dict(repository='SecPal/api')),0,issue_number=1445,
+                get=lambda endpoint:self.fail('invalid locator must not query GitHub'))
+
+    def test_nonclean_without_authority_never_assembles_build_evidence(self):
+        (self.prepared/'build-evidence.json').write_text('{}')
+        self.output.write_text('{}')
+        with self.assertRaises(ValueError):self.invoke(denied=True,complete=True)
+        self.assertFalse((self.prepared/'build-evidence.json').exists())
+        self.assertFalse(self.output.exists())
+        self.assertTrue((self.prepared/'artifact-security-evidence.json').exists())
+
+    def test_no_locator_cannot_select_an_old_approval(self):
+        with self.assertRaisesRegex(ValueError,'publisher-operator-risk-acceptance-required'):
+            self.invoke(complete=True,locator='')
+        self.assertEqual(self.calls,[])
+        self.assertFalse((self.prepared/'build-evidence.json').exists())
+
+    def test_exact_acceptance_retains_original_records_and_complete_findings(self):
+        document=self.invoke(complete=True)
+        receipt=publisher.read(self.output)
+        self.assertTrue(all(s['policy_result']=='ACTIONABLE' for s in document['scans']))
+        self.assertTrue(all(p['findings'] for p in receipt['policy_results']))
+        self.assertEqual(receipt['evidence_sha256'],digest((self.prepared/'artifact-security-evidence.json').read_bytes()))
+        self.assertEqual(document['workflow']['run_attempt'],'2')
+        self.assertEqual(self.calls[0][2]['issue_number'],1445)
         self.assertEqual(document['smoke_tests'],self.smokes)
-        self.assertTrue(all(x['policy_result']=='ACTIONABLE' for x in document['scans']))
-        self.assertEqual(document['extensions'][publisher.SOURCE]['acceptance_execution']['run_attempt'],
-                         context['execution_attempt'])
-        self.assertEqual(publisher.read(self.prepared/'security-improvement-bundle.json'),self.bundle)
-        self.assertEqual(len(self.calls),1)
 
-    def test_changed_published_sbom_or_native_receipt_never_reaches_authority(self):
-        path=self.prepared/'sboms.json';original=path.read_bytes()
-        value=json.loads(original);value[0]['artifact']='ghcr.io/secpal/api@sha256:'+'0'*64
-        path.write_bytes(encoded(value))
-        with self.assertRaises(ValueError):self.invoke()
+    def test_clean_does_not_need_an_operator_or_cached_exceptional_receipt(self):
+        for arch in ('amd64','arm64'):
+            folder=self.scan/arch
+            result=publisher.read(folder/'policy-result.json');result['gate_state']='CLEAN';result['findings']=[]
+            (folder/'policy-result.json').write_bytes(encoded(result))
+            records=publisher.read(folder/'scan-records.json')
+            for r in records:r['policy_result']='CLEAN'
+            (folder/'scan-records.json').write_bytes(encoded(records))
+        document=self.invoke(denied=True,complete=True)
         self.assertEqual(self.calls,[])
-        path.write_bytes(original)
-        self.smokes[0]['result']='FAILED'
-        with self.assertRaises(ValueError):self.invoke()
-        self.assertEqual(self.calls,[])
+        self.assertNotIn('artifact_security_admission',document['extensions'][publisher.SOURCE])
 
-    def test_prepared_admission_does_not_change_the_live_clean_gate(self):
-        self.invoke()
-        args=evidence()
-        args[3][0]['policy_result']='ACTIONABLE'
-        with self.assertRaises(ValueError):
-            publisher.build_evidence(*args,expected_source=SOURCE,source_security_schema=SOURCE_SCHEMA)
+    def test_stale_refreshed_source_cannot_reach_admission(self):
+        source=self.scan/'source';source.mkdir()
+        value=source_security();value['database']['next_update']=NOW
+        (source/'result.json').write_bytes(encoded(value))
+        with self.assertRaises(ValueError):self.invoke(complete=True)
+        self.assertEqual(self.calls,[])
+        self.assertFalse((self.prepared/'build-evidence.json').exists())
+
+    def test_wrong_oci_spdx_raw_source_and_unhealthy_results_deny_before_authority(self):
+        for name in ('config','platform','association','raw','policy'):
+            with self.subTest(name=name):
+                path=(self.prepared/('config-amd64.json') if name=='config' else
+                      self.prepared/'platform-amd64.json' if name=='platform' else
+                      self.scan/'amd64/sbom/association.json' if name=='association' else
+                      self.scan/'amd64/raw/grype.json' if name=='raw' else
+                      self.scan/'amd64/policy-result.json')
+                before=path.read_bytes()
+                if name=='association':
+                    value=json.loads(before);value['subject']['platform']='linux/arm64'
+                    path.write_bytes(encoded(value))
+                elif name=='policy':
+                    value=json.loads(before);value['gate_state']='UNKNOWN_STALE'
+                    path.write_bytes(encoded(value))
+                else:path.write_bytes(before+b' ')
+                self.calls=[]
+                with self.assertRaises(ValueError):self.invoke()
+                self.assertEqual(self.calls,[])
+                path.write_bytes(before)
 
 
 if __name__=='__main__':
