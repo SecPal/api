@@ -261,7 +261,8 @@ Set the repository variable
 the operator publishes the decision. This value is only a locator, not another
 approval. Leave it unset when no decision is active. The publisher fetches only
 that comment, with no inventory search or fallback to earlier approvals.
-Revoke by editing or deleting the referenced acceptance itself, including to\nstop an in-flight acceptance.
+Revoke by editing or deleting the referenced acceptance itself, including to
+stop an in-flight acceptance.
 
 The referenced decision is read again immediately before discovery. Missing, edited, deleted, revoked, expired, mismatched or non-admin
 decisions deny acceptance. A successful explicit decision produces a separate
