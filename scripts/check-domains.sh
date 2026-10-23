@@ -24,22 +24,13 @@ echo "Deprecated web hosts: api.secpal.app"
 echo "Forbidden: secpal.com, secpal.org, secpal.net, secpal.io, secpal.example, ANY other"
 echo ""
 
-matches=$(grep -r -n -E "secpal\.[A-Za-z0-9.-]+" \
-    --include="*.md" \
-    --include="*.yaml" \
-    --include="*.yml" \
-    --include="*.json" \
-    --include="*.sh" \
-    --include="*.ts" \
-    --include="*.tsx" \
-    --include="*.js" \
-    --include="*.jsx" \
-    --include="*.php" \
-    --include="*.html" \
-    --exclude-dir=".git" \
-    --exclude-dir="node_modules" \
-    --exclude-dir="vendor" \
-    . 2>/dev/null | \
+# Validate the actual Git candidate, not ignored qualification/tool workspaces.
+# Preserve the historical ./path representation used by the filters below.
+test "$(git rev-parse --is-inside-work-tree)" = true
+matches=$(git grep -n -E "secpal\.[A-Za-z0-9.-]+" -- \
+    '*.md' '*.yaml' '*.yml' '*.json' '*.sh' '*.ts' '*.tsx' '*.js' '*.jsx' '*.php' '*.html' \
+    ':(exclude,glob)**/node_modules/**' ':(exclude,glob)**/vendor/**') || test "$?" -eq 1
+matches=$(printf '%s\n' "$matches" | sed 's#^#./#' | \
     grep -v -- "check-domains.sh" | \
     grep -v -- "Forbidden:" | \
     grep -v -- "FORBIDDEN:" | \

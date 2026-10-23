@@ -58,7 +58,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: SecPal/.github
-          ref: ca3100cc360a0cd1f0b549fa97e12c730c597877
+          ref: 57a1b7ce698a2ef7e253a05e6cf008b9fdab646c
           path: .context/publisher-governance
           persist-credentials: false
           fetch-depth: 0
@@ -216,7 +216,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: SecPal/.github
-          ref: 6a6758681f4ebc46b4a33d442846d33d6b79785c
+          ref: 57a1b7ce698a2ef7e253a05e6cf008b9fdab646c
           path: .context/publisher-governance
           persist-credentials: false
           fetch-depth: 0
@@ -271,7 +271,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: SecPal/.github
-          ref: 6a6758681f4ebc46b4a33d442846d33d6b79785c
+          ref: 57a1b7ce698a2ef7e253a05e6cf008b9fdab646c
           path: .context/publisher-governance
           persist-credentials: false
           fetch-depth: 0
@@ -279,7 +279,7 @@ jobs:
         # v8.0.2
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
         with:
-          pattern: api-prepared-${{ github.run_id }}-${{ github.run_attempt }}
+          pattern: api-prepared-${{ github.run_id }}-*
           path: .context/publisher
           merge-multiple: true
       - name: Install pinned publisher tools
@@ -290,6 +290,19 @@ jobs:
           "$RUNNER_TEMP/secpal-policy/bin/pip" install --requirement .context/publisher-governance/requirements/vulnerability-policy.txt
 
           printf ''%s\n'' "$RUNNER_TEMP/secpal-policy/bin" >> "$GITHUB_PATH"'
+      - name: Refresh exact source security without rebuilding
+        id: source-scan
+        uses: SecPal/.github/.github/actions/trivy-repository-scan@86c921a638669c7c9e9995bee276cf672e126bef
+      - name: Read refreshed source evidence
+        # v8.0.2
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          name: ${{ steps.source-scan.outputs.evidence-artifact }}
+          path: .context/scan/source
+      - name: Require fresh CLEAN source evidence
+        env:
+          GATE_STATE: ${{ steps.source-scan.outputs.gate-state }}
+        run: test "$GATE_STATE" = CLEAN
       - name: Observe exact artifacts and apply accepted central policy
         env:
           GH_TOKEN: ${{ github.token }}
@@ -337,7 +350,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: SecPal/.github
-          ref: ca3100cc360a0cd1f0b549fa97e12c730c597877
+          ref: 57a1b7ce698a2ef7e253a05e6cf008b9fdab646c
           path: .context/publisher-governance
           persist-credentials: false
           fetch-depth: 0
@@ -357,7 +370,7 @@ jobs:
         # v8.0.2
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
         with:
-          pattern: api-scans-${{ github.run_id }}-${{ steps.candidate.outputs.candidate_attempt }}
+          pattern: api-scans-${{ github.run_id }}-${{ steps.candidate.outputs.scan_attempt }}
           path: .context/scan
           merge-multiple: true
       - name: Read exact native smoke evidence
@@ -366,21 +379,6 @@ jobs:
         with:
           pattern: api-smoke-*-${{ github.run_id }}-${{ steps.candidate.outputs.candidate_attempt }}
           path: .context/smoke
-      - name: Select current protected decision data when required
-        id: decision
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: python3 scripts/container-publisher.py decision-revision --scan-root .context/scan
-      - name: Read accepted central decision as data only
-        if: steps.decision.outputs.commit != ''
-        # v7.0.1
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          repository: SecPal/.github
-          ref: ${{ steps.decision.outputs.commit }}
-          path: .context/admission-decision
-          persist-credentials: false
-          fetch-depth: 0
       - name: Install pinned publisher tools
         run: scripts/container-tools.sh registry "$RUNNER_TEMP/secpal-publisher-tools"
       - name: Install locked central policy dependencies
@@ -392,6 +390,7 @@ jobs:
       - name: Assemble complete builder-independent evidence
         env:
           GH_TOKEN: ${{ github.token }}
+          ARTIFACT_RISK_ACCEPTANCE_COMMENT_ID: ${{ vars.ARTIFACT_RISK_ACCEPTANCE_COMMENT_ID }}
         run: scripts/publish-container.sh evidence
       - name: Attest immutable build evidence document
         id: document
@@ -441,6 +440,7 @@ jobs:
       - name: Verify all subjects and publish only unique discovery tag
         env:
           GH_TOKEN: ${{ github.token }}
+          ARTIFACT_RISK_ACCEPTANCE_COMMENT_ID: ${{ vars.ARTIFACT_RISK_ACCEPTANCE_COMMENT_ID }}
           EVIDENCE_DIGEST: ${{ steps.retain.outputs.evidence_digest }}
         run: scripts/publish-container.sh accept "$EVIDENCE_DIGEST"
       - name: Retain bounded publisher evidence

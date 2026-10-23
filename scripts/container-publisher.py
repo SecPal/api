@@ -350,7 +350,13 @@ def candidate_context(commit, run_id, execution_attempt, *, api=github):
     attempt=prepared[0]['name'].rsplit('-',1)[1]
     if int(attempt)>int(execution_attempt):
         raise ValueError('publisher-candidate-attempt')
-    expected={f'api-prepared-{run_id}-{attempt}',f'api-scans-{run_id}-{attempt}',
+    scans=[a for a in artifacts if re.fullmatch(r'api-scans-'+run_id+r'-[1-9][0-9]*',a['name'])]
+    if not scans:
+        raise ValueError('publisher-incomplete-candidate-artifacts')
+    scan_attempt=str(max(int(a['name'].rsplit('-',1)[1]) for a in scans))
+    if not int(attempt)<=int(scan_attempt)<=int(execution_attempt):
+        raise ValueError('publisher-scan-attempt')
+    expected={f'api-prepared-{run_id}-{attempt}',f'api-scans-{run_id}-{scan_attempt}',
               *(f'api-smoke-{a}-{run_id}-{attempt}' for a in ('amd64','arm64'))}
     retained=[a for a in artifacts if a['name'] in expected]
     if (len(retained)!=len(expected) or {a['name'] for a in retained}!=expected
@@ -373,14 +379,19 @@ def candidate_context(commit, run_id, execution_attempt, *, api=github):
               'Repository Security / Accept API Repository Security',
               'Build native API candidates / Native API (amd64)',
               'Build native API candidates / Native API (arm64)',
-              'Published native runtime (amd64)','Published native runtime (arm64)',
-              'Verify authoritative SPDX and independent artifact scans'}
+              'Published native runtime (amd64)','Published native runtime (arm64)'}
     selected=[j for j in jobs['jobs'] if j['name'] in required]
     if (jobs['total_count']!=len(jobs['jobs']) or len(selected)!=len(required)
             or {j['name'] for j in selected}!=required
             or any(j['status']!='completed' or j['conclusion']!='success' for j in selected)):
         raise ValueError('publisher-original-execution-incomplete')
-    return dict(source_commit=commit,run_id=run_id,run_attempt=attempt,execution_attempt=execution_attempt)
+    scan_jobs=jobs if scan_attempt==attempt else api(f'{prefix}/actions/runs/{run_id}/attempts/{scan_attempt}/jobs?per_page=100')
+    scan_job=[j for j in scan_jobs['jobs'] if j['name']=='Verify authoritative SPDX and independent artifact scans']
+    if (scan_jobs['total_count']!=len(scan_jobs['jobs']) or len(scan_job)!=1
+            or scan_job[0]['status']!='completed' or scan_job[0]['conclusion']!='success'):
+        raise ValueError('publisher-scan-execution-incomplete')
+    return dict(source_commit=commit,run_id=run_id,run_attempt=attempt,
+                scan_attempt=scan_attempt,execution_attempt=execution_attempt)
 
 
 def native_smokes(smoke_root, run_id, attempt):
@@ -389,8 +400,8 @@ def native_smokes(smoke_root, run_id, attempt):
 
 
 
-def observe_policy(root, folder):
-    """Re-observe retained bytes through the accepted adapters and policy, without rescanning."""
+def security_modules(root):
+    """Load the two existing owners from the accepted immutable checkout."""
     governance=Path(root)/'.context/publisher-governance'
     modules=[]
     for name in ('secpal-vulnerability-reevaluation','secpal-vulnerability-policy'):
@@ -398,7 +409,13 @@ def observe_policy(root, folder):
         if spec is None or spec.loader is None:
             raise ValueError('publisher-trusted-adapter-unavailable')
         module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module);modules.append(module)
-    adapter,policy=modules
+    return modules
+
+
+def observe_policy(root, folder, observed_at):
+    """Re-observe retained bytes with the existing adapters and current policy."""
+    adapter,policy=security_modules(root)
+    governance=Path(root)/'.context/publisher-governance'
     spdx=read_bytes(folder/'sbom/syft.spdx.json')
     subject=read(folder/'subject.json')
     association=adapter.verify_syft_association(read(folder/'sbom/association.json'),spdx,subject)
@@ -409,7 +426,7 @@ def observe_policy(root, folder):
     ]
     evaluation=adapter.assemble_evaluation(subject,{
         'format':association['format'],'spdx_digest':association['spdx_digest'],'subject':association['subject'],
-    },native,evidence_now())
+    },native,observed_at)
     recorded=read(folder/'evaluation.json')
     if dict(evaluation,evaluated_at=recorded['evaluated_at'])!=recorded:
         raise ValueError('publisher-normalized-evidence-mismatch')
@@ -457,21 +474,26 @@ def observe_candidate(root, prepared, scan_root, smokes):
             config_digest=subject['config_digest'],evaluation=evaluation,
             association_sha256=digest(read_bytes(folder/'sbom/association.json')),
             raw_grype_sha256=digest(read_bytes(folder/'raw/grype.json')),
-            raw_trivy_sha256=digest(read_bytes(folder/'raw/trivy.json'))))
+            raw_trivy_sha256=digest(read_bytes(folder/'raw/trivy.json')),
+            policy_result_sha256=digest(canonical(read(folder/'policy-result.json')))))
     return dict(source=dict(repository='SecPal/api',commit=expected['commit'],
                             tree=run(['git','rev-parse','HEAD^{tree}'],cwd=root).decode().strip()),
                 index_digest=candidate['index_digest'],platforms=platforms,
-                evidence=dict(source_security=digest(canonical(security)),
+                evidence=dict(policy_sha256=digest(canonical(read(root/'.context/publisher-governance/policies/vulnerability-triage-v1.json'))),
+                              source_security=digest(canonical(security)),
                               provenance=digest(canonical(dict(candidate=candidate,sboms=sboms))),
                               native_compatibility=digest(canonical(smokes))))
 
 def publication_admission(root, prepared, scan_root, smokes, *, output_path=None):
     """Only the immutable central implementation may grant exceptional admission."""
     root,prepared,scan_root=Path(root),Path(prepared),Path(scan_root)
+    output=Path(output_path) if output_path is not None else prepared/'artifact-risk-acceptance.json'
+    output.unlink(missing_ok=True)
     observed=observe_candidate(root,prepared,scan_root,smokes)
-    states=[]
+    results=[]
+    observed_at=evidence_now()
     for arch in ('amd64','arm64'):
-        policy=observe_policy(root,scan_root/arch)
+        policy=observe_policy(root,scan_root/arch,observed_at)
         records=read(scan_root/arch/'scan-records.json')
         if len(records)!=2 or sorted(r['scanner'] for r in records)!=['grype','trivy']:
             raise ValueError('publisher-scan-set')
@@ -491,26 +513,24 @@ def publication_admission(root, prepared, scan_root, smokes, *, output_path=None
                        or r['evidence_sha256']!=digest(read_bytes(scan_root/arch/'raw'/(r['scanner']+'.json')))
                        for r in records)):
             raise ValueError('publisher-artifact-evidence')
-        states.append(policy['gate_state'])
-    if states==['CLEAN','CLEAN']:
+        results.append(policy)
+    if all(result['gate_state']=='CLEAN' for result in results):
         return None
-    decision=root/'.context/admission-decision'
-    commit=run(['git','rev-parse','HEAD'],cwd=decision).decode().strip()
-    bundle=decision/'policies/api-1609-security-admission.bundle.json'
-    if not bundle.is_file() or not (decision/'policies/api-1609-security-admission.json').is_file():
-        raise ValueError('publisher-exact-artifact-admission-required')
-    if not bundle.resolve().is_relative_to(decision.resolve()):
-        raise ValueError('publisher-admission-bundle-path')
-    result=check_security_improvement(
-        root,prepared,scan_root,bundle,decision,commit,smokes=smokes,output_path=output_path,observed=observed,
+    # Retain the exact current evidence identity even when no decision exists.
+    # It is derived from the ordinary publisher verification, not a second bundle.
+    (prepared/'artifact-security-evidence.json').write_bytes(canonical(observed))
+    adapter,_=security_modules(root)
+    comment_id=os.environ.get('ARTIFACT_RISK_ACCEPTANCE_COMMENT_ID','')
+    if not re.fullmatch(r'[1-9][0-9]{0,19}',comment_id):
+        raise ValueError('publisher-operator-risk-acceptance-required')
+    result=adapter.observe_artifact_risk_acceptance(
+        observed,int(comment_id),issue_number=1445,get=github,
     )
-    if output_path is None:
-        (prepared/'security-improvement-bundle.json').write_bytes(read_bytes(bundle))
-        (prepared/'security-improvement-decision.json').write_bytes(
-            read_bytes(decision/'policies/api-1609-security-admission.json'))
+    write(output,result)
     return result
 
 def complete(prepared, scan_root, smoke_root, root, output):
+    Path(output).unlink(missing_ok=True)
     expected=source(root,os.environ['GITHUB_SHA'])
     context=candidate_context(os.environ['GITHUB_SHA'],os.environ['GITHUB_RUN_ID'],os.environ['GITHUB_RUN_ATTEMPT'])
     value=read(Path(prepared)/'prepared.json')
@@ -519,6 +539,10 @@ def complete(prepared, scan_root, smoke_root, root, output):
     for arch in ('amd64','arm64'):
         scans.extend(read(Path(scan_root)/arch/'scan-records.json'))
     smokes=native_smokes(smoke_root,context['run_id'],context['run_attempt'])
+    fresh_source=Path(scan_root)/'source/result.json'
+    if fresh_source.is_file():
+        admit_source_security(read(fresh_source),expected['commit'],evidence_now(),schema=source_security_schema(root))
+        (Path(prepared)/'source-security.json').write_bytes(read_bytes(fresh_source))
     admission=publication_admission(root,prepared,scan_root,smokes)
     result=build_evidence(
         value['records'],value['index_digest'],sboms,scans,smokes,
@@ -530,43 +554,6 @@ def complete(prepared, scan_root, smoke_root, root, output):
         result['extensions'][SOURCE]['acceptance_execution']=dict(
             run_id=context['run_id'],run_attempt=context['execution_attempt'],commit=os.environ['GITHUB_SHA'])
     write(output,result)
-
-
-def check_security_improvement(root, prepared, scan_root, bundle_path, decision_checkout, decision_commit, *, smokes=None, output_path=None, observed=None):
-    """Prepare a separate central decision; never admit a release or rewrite scans.
-
-    The existing trusted-control checkout must pin publisher-governance to the
-    reviewed implementation. Neither bundle nor decision selects its code/policy.
-    """
-    root, prepared, scan_root = Path(root), Path(prepared), Path(scan_root)
-    output = Path(output_path) if output_path is not None else prepared/'security-improvement-admission.json'
-    output.unlink(missing_ok=True)  # A previous result is never current authority.
-    bundle=read(bundle_path)
-    observed=observe_candidate(root,prepared,scan_root,smokes) if observed is None else observed
-    if (not isinstance(bundle,dict) or any(bundle[key]!=observed[key] for key in ('source','index_digest','platforms'))
-            or any(bundle['evidence'][key]!=value for key,value in observed['evidence'].items())):
-        raise ValueError('publisher-admission-artifact-evidence')
-    runtime=bundle['runtime']
-    prefix=f"docker.io/dunglas/frankenphp:{runtime['frankenphp']}-php{runtime['php']}-{runtime['distribution']}@sha256:"
-    for record in read(prepared/'prepared.json')['records']:
-        base=next(b for b in record['bases'] if b['stage']=='extensions')
-        if not base['reference'].startswith(prefix):
-            raise ValueError('publisher-admission-runtime')
-    governance=root/'.context/publisher-governance'
-    run([
-        sys.executable,str(governance/'scripts/secpal-vulnerability-reevaluation.py'),
-        'admit-api-security-patch','--bundle',str(bundle_path),
-        '--decision-checkout',str(decision_checkout),'--trusted-commit',decision_commit,
-        '--output',str(output),
-    ])
-    result=read(output)
-    if (result['admission']!='ADMITTED_WITH_KNOWN_FINDINGS'
-            or result['bundle_sha256']!=digest(canonical(bundle))
-            or result['source']!=bundle['source'] or result['index_digest']!=bundle['index_digest']):
-        output.unlink()
-        raise ValueError('publisher-admission-result-binding')
-    return result
-
 
 
 def recheck_admission(root, prepared, scan_root, smoke_root):
@@ -585,10 +572,10 @@ def recheck_admission(root, prepared, scan_root, smoke_root):
         if recorded is not None or any(s['policy_result']!='CLEAN' for s in document['scans']):
             raise ValueError('publisher-admission-path-changed')
     else:
-        retained=read(Path(prepared)/'security-improvement-admission.json')
+        retained=read(Path(prepared)/'artifact-risk-acceptance.json')
         if (recorded is None or recorded['result_sha256']!=digest(canonical(retained))
                 or any(retained[key]!=current[key] for key in (
-                    'admission','expires_at','decision_sha256','bundle_sha256','source','index_digest'))):
+                    'admission','expires_at','comment','operator','evidence_sha256','source','index_digest'))):
             raise ValueError('publisher-admission-decision-changed')
     temporary.unlink(missing_ok=True)
 
@@ -597,13 +584,8 @@ def main():
     sub=parser.add_subparsers(dest='command',required=True)
     c=sub.add_parser('candidate-context')
     c.add_argument('--output',required=True)
-    c=sub.add_parser('decision-revision')
-    c.add_argument('--scan-root',required=True)
     c=sub.add_parser('admission')
     for key in ('root','prepared','scan-root','smoke-root'):
-        c.add_argument('--'+key,required=True)
-    c=sub.add_parser('check-security-improvement')
-    for key in ('root','prepared','scan-root','smoke-root','bundle','decision-checkout','decision-commit'):
         c.add_argument('--'+key,required=True)
     f=sub.add_parser('attestation-filename');f.add_argument('--digest',required=True)
     v=sub.add_parser('source-security');v.add_argument('--input',required=True);v.add_argument('--commit',required=True)
@@ -622,22 +604,9 @@ def main():
         context=candidate_context(os.environ['GITHUB_SHA'],os.environ['GITHUB_RUN_ID'],os.environ['GITHUB_RUN_ATTEMPT'])
         write(args.output,context)
         with open(os.environ['GITHUB_OUTPUT'],'a') as output:
-            output.write('candidate_attempt='+context['run_attempt']+'\n')
-    elif args.command=='decision-revision':
-        policies=[read(Path(args.scan_root)/arch/'policy-result.json') for arch in ('amd64','arm64')]
-        if any(p['gate_state']!='CLEAN' for p in policies):
-            commit=github('repos/SecPal/.github/commits/main')['sha']
-            if not re.fullmatch(r'[a-f0-9]{40}',commit):
-                raise ValueError('publisher-central-decision-revision')
-            with open(os.environ['GITHUB_OUTPUT'],'a') as output:
-                output.write('commit='+commit+'\n')
+            output.write('candidate_attempt='+context['run_attempt']+'\nscan_attempt='+context['scan_attempt']+'\n')
     elif args.command=='admission':
         recheck_admission(args.root,args.prepared,args.scan_root,args.smoke_root)
-    elif args.command=='check-security-improvement':
-        records=read(Path(args.prepared)/'prepared.json')['records']
-        check_security_improvement(
-            args.root,args.prepared,args.scan_root,args.bundle,args.decision_checkout,args.decision_commit,
-            smokes=native_smokes(args.smoke_root,records[0]['workflow_run_id'],records[0]['workflow_run_attempt']))
     elif args.command=='attestation-filename':print(attestation_filename(args.digest))
     elif args.command=='source-security':admit_source_security(read(args.input),args.commit,evidence_now(),schema=source_security_schema(Path(__file__).resolve().parents[1]))
     elif args.command=='source':write(args.output,source(args.root,args.commit))

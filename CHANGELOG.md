@@ -14,6 +14,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Replace the one-off API security-improvement machinery with a native,
+  exact-artifact administrator risk decision under the shared policy. Preserve
+  all findings and ordinary CLEAN admission; remove the decision checkout,
+  duplicate bundle and bot-assessment requirement. Reuse the existing read-only
+  scan job to refresh the same immutable candidate without rebuilding it
+  (refs #1445 and SecPal/.github#696). Domain validation now checks the Git
+  candidate instead of ignored local qualification evidence; its domain rules
+  remain unchanged.
+
 - Pin the qualified FrankenPHP/PHP Bookworm security update, verify runtime
   versions against the immutable Containerfile input, and model verified TLS
   contexts correctly in the OpenTimestamps test double. Artifact admission

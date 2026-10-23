@@ -108,8 +108,8 @@ case "$stage" in
     # The file attestation already exists; retain its exact bytes and bundle as
     # one immutable OCI artifact in the existing official package, never a new tag.
     evidence_files=(build-evidence.json:application/json source-security.json:application/json build-evidence.bundle.json:application/json)
-    if [ -f "$prepared/security-improvement-admission.json" ]; then
-      evidence_files+=(security-improvement-admission.json:application/json security-improvement-bundle.json:application/json security-improvement-decision.json:application/json)
+    if [ -f "$prepared/artifact-risk-acceptance.json" ]; then
+      evidence_files+=(artifact-risk-acceptance.json:application/json artifact-security-evidence.json:application/json)
     fi
     (
       cd "$prepared"
@@ -130,8 +130,8 @@ case "$stage" in
     readback=$(mktemp -d "$RUNNER_TEMP/secpal-evidence-readback.XXXXXX")
     "$tools/oras" pull --registry-config "$REGISTRY_AUTH_FILE" --output "$readback" "$repository@$evidence_digest"
     evidence_files=(build-evidence.json source-security.json build-evidence.bundle.json)
-    if [ -f "$prepared/security-improvement-admission.json" ]; then
-      evidence_files+=(security-improvement-admission.json security-improvement-bundle.json security-improvement-decision.json)
+    if [ -f "$prepared/artifact-risk-acceptance.json" ]; then
+      evidence_files+=(artifact-risk-acceptance.json artifact-security-evidence.json)
     fi
     for name in "${evidence_files[@]}"; do
       cmp "$prepared/$name" "$readback/$name"

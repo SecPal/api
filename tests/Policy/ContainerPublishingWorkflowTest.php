@@ -294,14 +294,8 @@ it('uses immutable v4 code and separately authenticated decision data', function
 
     expect(array_unique($references))->toHaveCount(1);
     $accept = $publisher['jobs']['accept'];
-    $decision = array_values(array_filter($accept['steps'],
-        static fn (array $step): bool => ($step['with']['path'] ?? null) === '.context/admission-decision'));
-    expect($decision)->toHaveCount(1)
-        ->and($decision[0]['with']['repository'])->toBe('SecPal/.github')
-        ->and($decision[0]['with']['persist-credentials'])->toBeFalse()
-        ->and($decision[0]['with']['ref'])->toBe('${{ steps.decision.outputs.commit }}')
-        ->and(containerPublishingRunScripts($accept))->toContain('candidate-context', 'decision-revision')
-        ->not->toContain('.context/admission-decision/scripts/');
+    expect(containerPublishingRunScripts($accept))->toContain('candidate-context')
+        ->not->toContain('decision-revision', '.context/admission-decision');
 
     foreach ($publisher['jobs'] as $job) {
         if (isset($job['steps'])) {
