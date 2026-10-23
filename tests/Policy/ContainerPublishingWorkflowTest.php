@@ -276,6 +276,16 @@ it('gates official publication on source security and native validation', functi
     }
 });
 
+it('refreshes source evidence on the pristine checkout before materializing publisher inputs', function (): void {
+    $steps = containerPublishingWorkflow()['jobs']['scan']['steps'];
+
+    expect($steps[0]['name'])->toBe('Checkout exact publisher source')
+        ->and($steps[1]['id'] ?? null)->toBe('source-scan')
+        ->and($steps[1]['uses'] ?? '')->toStartWith('SecPal/.github/.github/actions/trivy-repository-scan@')
+        ->and($steps[2]['name'])->toBe('Read refreshed source evidence')
+        ->and($steps[3]['name'])->toBe('Require fresh CLEAN source evidence');
+});
+
 it('uses immutable v4 code and separately authenticated decision data', function (): void {
     $root = dirname(__DIR__, 2);
     $publisher = containerPublishingWorkflow();

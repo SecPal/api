@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Refresh publisher source security on the pristine checkout before materializing
+  SDK or OCI evidence files, preserving strict source identity verification
+  and fail-closed artifact admission (refs #1445).
+
 - Replace the one-off API security-improvement machinery with a native,
   exact-artifact administrator risk decision under the shared policy. Preserve
   all findings and ordinary CLEAN admission; remove the decision checkout,
