@@ -64,6 +64,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   PostgreSQL integration fixture's TCP server before migrations; exercise the
   actual pinned registry CLI offline before native publisher builds (api#1445)
 
+### Removed
+
+- Remove the unused Laravel Sail Docker/Compose development tooling after the
+  native Containerfile/Buildah cutover; keep its absence covered by the existing
+  container policy suite (refs #1446).
+
 ### Changed
 
 - Bind OpenPLZ address imports to the application release's reviewed commit and
