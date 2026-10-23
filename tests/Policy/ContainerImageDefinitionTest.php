@@ -154,3 +154,12 @@ it('distinguishes a listening TCP port from a closed port', function (): void {
     $unresolvedProbe->run();
     expect($unresolvedProbe->getExitCode())->toBe(2, $unresolvedProbe->getErrorOutput());
 });
+
+it('excludes obsolete Laravel Sail from the dependency graph', function (): void {
+    $root = dirname(__DIR__, 2);
+    $composer = json_decode(file_get_contents($root.'/composer.json'), true, 512, JSON_THROW_ON_ERROR);
+    $lock = json_decode(file_get_contents($root.'/composer.lock'), true, 512, JSON_THROW_ON_ERROR);
+
+    expect($composer['require'] + $composer['require-dev'])->not->toHaveKey('laravel/sail')
+        ->and(array_column(array_merge($lock['packages'], $lock['packages-dev']), 'name'))->not->toContain('laravel/sail');
+});
