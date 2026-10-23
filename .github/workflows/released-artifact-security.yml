@@ -1,0 +1,124 @@
+# SPDX-FileCopyrightText: 2026 SecPal Contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+---
+name: Released API Artifact Security
+
+on:
+  schedule:
+    # One platform per run; separate the large finding-triage batches.
+    # AMD64 daily, UTC
+    - cron: "17 3 * * *"
+    # ARM64 daily, UTC
+    - cron: "17 5 * * *"
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: Exact released platform to re-evaluate.
+        required: true
+        default: linux/amd64
+        type: choice
+        options: [linux/amd64, linux/arm64]
+      index-digest:
+        description: Optional exact monitored release index; empty uses the reviewed release.
+        required: false
+        default: ""
+        type: string
+
+permissions: {}
+
+jobs:
+  subject:
+    name: Select the reviewed released subject
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions: {}
+    env:
+      # Derived from the attested build evidence of the accepted #1445 release.
+      # Updating this tuple requires another reviewed, genuinely released subject.
+      MONITORED_RELEASE: |
+        {
+          "index-digest": "sha256:4fa4d9d961e7599375e9151fbc2b2f60bf3578ba1aa2661afa5c313f678dced7",
+          "publisher-workflow-sha": "c22109585fe5f97d04fd0d6372b6045728f462e4",
+          "platforms": {
+            "linux/amd64": {
+              "platform-digest": "sha256:78bf5ee518677d21a09266fcd116039904a8204488e36c1a0d0e569086a5ef10",
+              "syft-spdx-artifact":
+                "ghcr.io/secpal/api@sha256:58781cb3e839e6c3a0cef0c4a5d57e00790db7683ed044cfd171f05e1dae6d77"
+            },
+            "linux/arm64": {
+              "platform-digest": "sha256:453cd0ddd8fc9b22922bf19941281ae9f8d0bd87dd1dae5437ae9f924331f2db",
+              "syft-spdx-artifact":
+                "ghcr.io/secpal/api@sha256:59dcbffc6e603bcabe2976589342332269b92e6427fa7cd30e3729aad79c09f2"
+            }
+          }
+        }
+    outputs:
+      index-digest: ${{ steps.subject.outputs.index-digest }}
+      platform: ${{ steps.subject.outputs.platform }}
+      platform-digest: ${{ steps.subject.outputs.platform-digest }}
+      syft-spdx-artifact: ${{ steps.subject.outputs.syft-spdx-artifact }}
+      publisher-workflow-sha: ${{ steps.subject.outputs.publisher-workflow-sha }}
+    steps:
+      - name: Select reviewed release and platform
+        id: subject
+        shell: python3 -I {0}
+        env:
+          EVENT: ${{ github.event_name }}
+          SCHEDULE: ${{ github.event.schedule }}
+          PLATFORM: ${{ inputs.platform }}
+          INDEX_DIGEST: ${{ inputs.index-digest }}
+        run: |
+          import json
+          import os
+
+          if (os.environ["GITHUB_REPOSITORY"] != "SecPal/api"
+                  or os.environ["GITHUB_REF"] != "refs/heads/main"):
+              raise SystemExit("Unsupported monitoring context.")
+
+          release = json.loads(os.environ["MONITORED_RELEASE"])
+          event, schedule = os.environ["EVENT"], os.environ["SCHEDULE"]
+          platform, requested = os.environ["PLATFORM"], os.environ["INDEX_DIGEST"]
+          schedules = {"17 3 * * *": "linux/amd64", "17 5 * * *": "linux/arm64"}
+          if event == "schedule" and schedule in schedules and not platform and not requested:
+              platform = schedules[schedule]
+          elif event != "workflow_dispatch" or schedule:
+              raise SystemExit("Unsupported monitoring event.")
+
+          if (set(release["platforms"]) != {"linux/amd64", "linux/arm64"}
+                  or platform not in release["platforms"]
+                  or requested and requested != release["index-digest"]):
+              raise SystemExit("Unknown released artifact or platform.")
+
+          subject = release["platforms"][platform]
+          values = {
+              "index-digest": release["index-digest"],
+              "platform": platform,
+              "platform-digest": subject["platform-digest"],
+              "syft-spdx-artifact": subject["syft-spdx-artifact"],
+              "publisher-workflow-sha": release["publisher-workflow-sha"],
+          }
+          with open(os.environ["GITHUB_OUTPUT"], "a") as output:
+              for key, value in values.items():
+                  output.write(f"{key}={value}\n")
+
+  reevaluate:
+    name: Re-evaluate the exact released platform
+    needs: subject
+    # Only the callee's independently validated triage job receives issue writes.
+    permissions:
+      attestations: read
+      contents: read
+      issues: write
+      packages: read
+    uses: >-
+      SecPal/.github/.github/workflows/reusable-vulnerability-reevaluation.yml@57a1b7ce698a2ef7e253a05e6cf008b9fdab646c
+    with:
+      artifact-repository: ghcr.io/secpal/api
+      index-digest: ${{ needs.subject.outputs.index-digest }}
+      platform-digest: ${{ needs.subject.outputs.platform-digest }}
+      platform: ${{ needs.subject.outputs.platform }}
+      syft-spdx-artifact: ${{ needs.subject.outputs.syft-spdx-artifact }}
+      publisher-repository: SecPal/api
+      publisher-workflow: SecPal/api/.github/workflows/publish-container.yml
+      publisher-workflow-sha: ${{ needs.subject.outputs.publisher-workflow-sha }}
+      triage: true

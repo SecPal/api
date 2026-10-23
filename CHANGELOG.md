@@ -64,6 +64,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   PostgreSQL integration fixture's TCP server before migrations; exercise the
   actual pinned registry CLI offline before native publisher builds (api#1445)
 
+### Added
+
+- Re-evaluate reviewed released API platform digests daily and on manual dispatch
+  through the shared Grype/Trivy workflow, preserving raw findings and isolated
+  deterministic triage without rebuilding or changing release admission
+  (refs #1448).
+
 ### Removed
 
 - Remove the unused Laravel Sail Docker/Compose development tooling after the
