@@ -224,8 +224,34 @@ podman pull ghcr.io/secpal/api@sha256:<index-digest>
 
 GHCR authentication may be needed while the package is private. Package
 visibility and linkage remain separately administered; publishing deploys no
-application. Recurring re-evaluation of already released artifacts belongs
-to #1448, and final retired-path documentation cleanup belongs to #1446/#1453.
+application. Broader production-boundary documentation remains owned by #1453.
+
+## Released-artifact re-evaluation
+
+`.github/workflows/released-artifact-security.yml` re-evaluates the reviewed
+released index and both native platform subjects daily at 03:17 UTC (AMD64)
+and 05:17 UTC (ARM64). Manual dispatch selects a platform and optionally the
+same exact index digest. Platform runs are separated to avoid combining large
+finding-triage batches within one GitHub API rate window. Other digests,
+including incomplete publisher
+candidates, are rejected before scanning.
+
+The workflow's `MONITORED_RELEASE` tuple is derived from accepted, attested
+build evidence. Updating it requires a reviewed released subject; the workflow
+does not automatically enroll newer candidates or discover arbitrary registry
+tags. Publisher repository/workflow identities are fixed in the caller.
+
+The immutable shared workflow owns publisher-attestation and authoritative
+Syft association verification, fresh Grype/Trivy evidence, unchanged policy
+evaluation and deterministic finding-issue triage. Registry access is read-only;
+only its isolated validated triage job has issue-write permission. Raw and
+normalized evidence is retained for 14 days. Failed or stale evidence remains
+fail-closed.
+
+A successful monitoring execution can report ACTIONABLE or REVIEW_REQUIRED:
+operational monitoring success is not CLEAN or release permission. Original
+findings and historical acceptance are preserved. Monitoring never rebuilds,
+publishes, extends risk acceptance or deploys an image.
 
 ## Source evidence and artifact risk acceptance
 
