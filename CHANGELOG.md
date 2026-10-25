@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Remove Linux/libc development headers from the final API runtime after builds,
+  and verify package/file absence in native smoke tests. Retain runtime libraries,
+  existing functional tests and unchanged artifact security admission.
+
 - Install the exact Debian Bookworm libbrotli1 security update for
   CVE-2026-111497 and verify the installed runtime package in native image smoke tests.
   Existing unrelated artifact findings and release-admission requirements remain unchanged.
