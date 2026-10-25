@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Install the exact Debian Bookworm libbrotli1 security update for
+  CVE-2026-111497 and verify the installed runtime package in native image smoke tests.
+  Existing unrelated artifact findings and release-admission requirements remain unchanged.
+
 - Refresh publisher source security on the pristine checkout before materializing
   SDK or OCI evidence files, preserving strict source identity verification
   and fail-closed artifact admission (refs #1445).

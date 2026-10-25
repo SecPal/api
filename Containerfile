@@ -21,7 +21,7 @@ RUN install-php-extensions \
         xml \
         zip \
     && apt-get update \
-    && apt-get install -y --no-install-recommends python3 python3-pip \
+    && apt-get install -y --no-install-recommends python3 python3-pip libbrotli1=1.0.9-2+deb12u1 \
     && pip3 install --break-system-packages --no-cache-dir --only-binary=:all: \
         --require-hashes -r /tmp/opentimestamps-requirements.txt \
     && rm /tmp/opentimestamps-requirements.txt \
