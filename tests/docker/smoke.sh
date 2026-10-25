@@ -143,6 +143,11 @@ php_version=$(podman run --rm "$image" php -v)
 assert_output_starts_with "$php_version" "PHP ${expected_php} "
 frankenphp_version=$(podman run --rm "$image" frankenphp version)
 assert_output_starts_with "$frankenphp_version" "FrankenPHP v${expected_frankenphp} "
+# CVE-2026-111497: check the actual Debian-patched shared runtime library.
+podman run --rm "$image" sh -eu -c '
+    version=$(dpkg-query --show --showformat="\${Version}" libbrotli1)
+    dpkg --compare-versions "$version" ge 1.0.9-2+deb12u1
+'
 php_modules=$(podman run --rm "$image" php -m)
 if assert_output_has_line "$php_modules" redis; then
     echo "Unsupported PhpRedis extension is installed" >&2
