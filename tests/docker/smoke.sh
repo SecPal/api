@@ -148,6 +148,20 @@ podman run --rm "$image" sh -eu -c '
     version=$(dpkg-query --show --showformat="\${Version}" libbrotli1)
     dpkg --compare-versions "$version" ge 1.0.9-2+deb12u1
 '
+# Build-only headers must be absent from the actual final runtime, not just its recipe.
+podman run --rm "$image" sh -eu -c '
+    packages=$(dpkg-query --show --showformat="\${Package}\n")
+    test -n "$packages"
+    for package in linux-libc-dev libc6-dev libc-dev-bin; do
+        if printf "%s\n" "$packages" | grep -Fx "$package" >/dev/null; then
+            echo "Build-only runtime package remains: $package" >&2
+            exit 1
+        fi
+    done
+    test ! -e /usr/include/linux/bpf.h
+    test ! -e /usr/include/stdio.h
+    test ! -e /usr/bin/gencat
+'
 php_modules=$(podman run --rm "$image" php -m)
 if assert_output_has_line "$php_modules" redis; then
     echo "Unsupported PhpRedis extension is installed" >&2

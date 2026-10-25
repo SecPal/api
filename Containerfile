@@ -73,7 +73,9 @@ ENV APP_ENV=production \
 
 WORKDIR /app
 
-RUN groupadd --gid "${APP_GID}" secpal \
+# Extension and Composer builds are complete; retain runtime libraries and remove only headers.
+RUN apt-get purge --yes --no-download linux-libc-dev libc6-dev libc-dev-bin \
+    && groupadd --gid "${APP_GID}" secpal \
     && useradd --uid "${APP_UID}" --gid "${APP_GID}" --create-home \
         --home-dir /home/secpal --shell /usr/sbin/nologin secpal \
     && if [ -n "$(getcap /usr/local/bin/frankenphp)" ]; then setcap -r /usr/local/bin/frankenphp; fi \
