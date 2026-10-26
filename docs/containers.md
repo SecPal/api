@@ -9,7 +9,7 @@ SecPal uses one production API image for HTTP, queues, scheduling, and administr
 
 ## Architecture
 
-The authoritative base references are the exact version tags and multi-architecture SHA-256 digests in `Containerfile`. The runtime uses official FrankenPHP with PHP 8.4 on Debian 12 Bookworm; the smoke test verifies the actual binaries against that input and requires at least PHP 8.4.27 for the PHP2Shell repair. The native build verifies the `amd64`/`arm64` platform identities. Composer is independently pinned for the build stage. The Debian variant avoids Alpine/musl compatibility differences.
+The authoritative base references are the exact version tags and multi-architecture SHA-256 digests in `Containerfile`. The runtime uses official FrankenPHP with PHP 8.4 on Alpine 3.24; the smoke test verifies the actual binaries against that input and requires at least PHP 8.4.27 for the PHP2Shell repair. The native build verifies the `amd64`/`arm64` platform identities. Composer is independently pinned for the build stage. The musl variant uses the same native extension installer and Classic Mode. Python/OpenTimestamps uses hash-locked musllinux wheels for both architectures; no glibc compatibility packages or distribution mixing are used. Stable Alpine curl and Brotli security packages are pinned in the same Containerfile, and native smoke verifies their installed versions.
 
 The security patch does not imply artifact-policy CLEAN. Fresh per-platform scans and any separately authorized exact-artifact admission remain required before release acceptance.
 

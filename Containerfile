@@ -2,11 +2,10 @@
 # SPDX-License-Identifier: CC0-1.0
 
 ARG COMPOSER_IMAGE=docker.io/library/composer:2.10.2@sha256:5946476338742b200bb9ff88f8be56275ddae4b3949c72305cb0dbf10cfcb760
-ARG FRANKENPHP_IMAGE=docker.io/dunglas/frankenphp:1.13.2-php8.4.27-bookworm@sha256:49369ff211d81dc30a15890d58c0651d639aef0d9c0a9b91bcc6f387a77bd7a2
+ARG FRANKENPHP_IMAGE=docker.io/dunglas/frankenphp:1.13.3-php8.4.27-alpine@sha256:0a7f02a9694dec87d705dbe1967567cc97cf20c80cbf0d32b911ab621cdd7ce5
 FROM ${COMPOSER_IMAGE} AS composer
 FROM ${FRANKENPHP_IMAGE} AS extensions
 COPY docker/python/opentimestamps-requirements.txt /tmp/opentimestamps-requirements.txt
-# hadolint ignore=DL3008
 RUN install-php-extensions \
         bcmath \
         curl \
@@ -20,17 +19,12 @@ RUN install-php-extensions \
         sodium \
         xml \
         zip \
-    && apt-get update \
-    && apt-get install -y --no-install-recommends python3 python3-pip libbrotli1=1.0.9-2+deb12u1 \
+    && apk add --no-cache python3=3.14.8-r0 py3-pip=26.1.2-r0 curl=8.23.0-r0 libcurl=8.23.0-r0 brotli-libs=1.2.1-r0 \
     && pip3 install --break-system-packages --no-cache-dir --only-binary=:all: \
         --require-hashes -r /tmp/opentimestamps-requirements.txt \
-    && rm /tmp/opentimestamps-requirements.txt \
-    && rm -rf /var/lib/apt/lists/*
+    && rm /tmp/opentimestamps-requirements.txt
 FROM extensions AS dependencies
-# hadolint ignore=DL3008
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends unzip \
-    && rm -rf /var/lib/apt/lists/*
+RUN apk add --no-cache unzip=6.0-r16
 COPY --from=composer /usr/bin/composer /usr/local/bin/composer
 WORKDIR /app
 COPY composer.json composer.lock ./
@@ -73,11 +67,9 @@ ENV APP_ENV=production \
 
 WORKDIR /app
 
-# Extension and Composer builds are complete; retain runtime libraries and remove only headers.
-RUN apt-get purge --yes --no-download linux-libc-dev libc6-dev libc-dev-bin \
-    && groupadd --gid "${APP_GID}" secpal \
-    && useradd --uid "${APP_UID}" --gid "${APP_GID}" --create-home \
-        --home-dir /home/secpal --shell /usr/sbin/nologin secpal \
+# The extension installer removes build dependencies; native smoke rejects retained headers.
+RUN addgroup -g "${APP_GID}" secpal \
+    && adduser -D -u "${APP_UID}" -G secpal -h /home/secpal -s /sbin/nologin secpal \
     && if [ -n "$(getcap /usr/local/bin/frankenphp)" ]; then setcap -r /usr/local/bin/frankenphp; fi \
     && install -d -m 0750 -o secpal -g secpal /config/caddy /config/psysh /data/caddy
 

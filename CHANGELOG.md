@@ -14,6 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Use the official FrankenPHP 1.13.3 / PHP 8.4.27 Alpine runtime with stable
+  curl/Brotli security updates and hash-locked musllinux OpenTimestamps wheels.
+  Preserve Classic Mode, non-root source permissions, PostgreSQL/TLS and
+  independent exact-artifact security admission (refs #1609).
+
 - Remove Linux/libc development headers from the final API runtime after builds,
   and verify package/file absence in native smoke tests. Retain runtime libraries,
   existing functional tests and unchanged artifact security admission.
