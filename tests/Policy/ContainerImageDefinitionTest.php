@@ -51,7 +51,7 @@ it('defines the production API image contract', function (): void {
         ->not->toContain('octane');
 
     expect($pythonRequirements)
-        ->toContain('opentimestamps==0.4.5 --hash=sha256:', '6bbcb1dd0f646484939e142462d9e532482bc74475cecf9c4903d4e1cd21f003', '55ccbe27f049743a4caf4f4221b166560d3438d0b1e5ab929e07ae1702a4d6fd')
+        ->toContain('opentimestamps==0.4.5 --hash=sha256:', '6bbcb1dd0f646484939e142462d9e532482bc74475cecf9c4903d4e1cd21f003', '55ccbe27f049743a4caf4f4221b166560d3438d0b1e5ab929e07ae1702a4d6fd', '43c446e2ba8df8889e0e16f02211c25b4934898384c1ec1ec04d7889c0333587', 'f489c4765093fb60e2edafdf223397bc716491b2b69fe74367b70d6999257a5c')
         ->not->toContain('opentimestamps-client', 'gitpython', 'gitdb', 'smmap', 'appdirs', 'pysocks');
 
     expect($smokeScript)
