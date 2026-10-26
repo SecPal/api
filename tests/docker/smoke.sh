@@ -126,7 +126,7 @@ fi
 # shellcheck disable=SC2016 # PHP variables must not be expanded by the shell.
 expected_runtime=$(php -r '
     $count = preg_match_all(
-        "~^ARG FRANKENPHP_IMAGE=docker\\.io/dunglas/frankenphp:([0-9]+\\.[0-9]+\\.[0-9]+)-php(8\\.4\\.[0-9]+)-bookworm@sha256:[a-f0-9]{64}$~m",
+        "~^ARG FRANKENPHP_IMAGE=docker\\.io/dunglas/frankenphp:([0-9]+\\.[0-9]+\\.[0-9]+)-php(8\\.4\\.[0-9]+)-alpine@sha256:[a-f0-9]{64}$~m",
         file_get_contents("Containerfile"),
         $matches,
         PREG_SET_ORDER,
@@ -143,16 +143,17 @@ php_version=$(podman run --rm "$image" php -v)
 assert_output_starts_with "$php_version" "PHP ${expected_php} "
 frankenphp_version=$(podman run --rm "$image" frankenphp version)
 assert_output_starts_with "$frankenphp_version" "FrankenPHP v${expected_frankenphp} "
-# CVE-2026-111497: check the actual Debian-patched shared runtime library.
+# Check the actual stable-Alpine fixes independently of the Containerfile recipe.
 podman run --rm "$image" sh -eu -c '
-    version=$(dpkg-query --show --showformat="\${Version}" libbrotli1)
-    dpkg --compare-versions "$version" ge 1.0.9-2+deb12u1
+    apk info --installed curl=8.23.0-r0
+    apk info --installed libcurl=8.23.0-r0
+    apk info --installed brotli-libs=1.2.1-r0
 '
 # Build-only headers must be absent from the actual final runtime, not just its recipe.
 podman run --rm "$image" sh -eu -c '
-    packages=$(dpkg-query --show --showformat="\${Package}\n")
+    packages=$(apk info)
     test -n "$packages"
-    for package in linux-libc-dev libc6-dev libc-dev-bin; do
+    for package in linux-headers musl-dev libc-dev; do
         if printf "%s\n" "$packages" | grep -Fx "$package" >/dev/null; then
             echo "Build-only runtime package remains: $package" >&2
             exit 1
@@ -161,6 +162,16 @@ podman run --rm "$image" sh -eu -c '
     test ! -e /usr/include/linux/bpf.h
     test ! -e /usr/include/stdio.h
     test ! -e /usr/bin/gencat
+'
+# Exercise required extensions under the deployment privilege/read-only boundary.
+podman run --rm --read-only --cap-drop=all --security-opt=no-new-privileges "$image" php -r '
+    foreach (["bcmath", "curl", "gettext", "intl", "mbstring", "Zend OPcache",
+              "pcntl", "pdo_pgsql", "pgsql", "sodium", "xml", "zip"] as $extension) {
+        if (!extension_loaded($extension)) {
+            fwrite(STDERR, "Missing runtime extension: $extension\n");
+            exit(1);
+        }
+    }
 '
 php_modules=$(podman run --rm "$image" php -m)
 if assert_output_has_line "$php_modules" redis; then
@@ -309,6 +320,12 @@ run_api php artisan tinker --execute='throw_unless(DB::scalar("SHOW password_enc
 run_api php artisan tenant:setup
 run_api php artisan tinker --execute='app(\App\Services\RuntimeHeartbeatService::class)->recordSchedulerHeartbeat();'
 podman run -d --name "$api" --network "$network" --env-file "$api_env" \
+    --read-only --cap-drop=all --security-opt=no-new-privileges \
+    --tmpfs /tmp:rw,nosuid,nodev,noexec \
+    --mount type=tmpfs,destination=/config,tmpfs-mode=0750,chown=true \
+    --mount type=tmpfs,destination=/data,tmpfs-mode=0750,chown=true \
+    --mount type=tmpfs,destination=/app/storage,tmpfs-mode=0750,chown=true \
+    --mount type=tmpfs,destination=/app/bootstrap/cache,tmpfs-mode=0750,chown=true \
     -v "${cert_dir}/ca.crt:/run/secrets/postgresql-ca.crt:ro" \
     -v "${kek_file}:/run/secrets/secpal-kek:ro" "$image" >/dev/null
 # Keep one independent client on the isolated network. Repeated rootless network

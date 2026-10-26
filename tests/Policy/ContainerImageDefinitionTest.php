@@ -26,16 +26,16 @@ it('defines the production API image contract', function (): void {
     $dependenciesStage = explode('FROM extensions AS runtime', $dependenciesStage, 2)[0];
 
     expect($dockerfile)
-        ->toMatch('/^ARG FRANKENPHP_IMAGE=docker\\.io\\/dunglas\\/frankenphp:[0-9]+\\.[0-9]+\\.[0-9]+-php8\\.4\\.[0-9]+-bookworm@sha256:[a-f0-9]{64}$/m')
+        ->toMatch('/^ARG FRANKENPHP_IMAGE=docker\\.io\\/dunglas\\/frankenphp:[0-9]+\\.[0-9]+\\.[0-9]+-php8\\.4\\.[0-9]+-alpine@sha256:[a-f0-9]{64}$/m')
         ->toMatch('/^ARG COMPOSER_IMAGE=docker\\.io\\/library\\/composer:[0-9]+\\.[0-9]+\\.[0-9]+@sha256:[a-f0-9]{64}$/m')
         ->toContain('FROM ${COMPOSER_IMAGE} AS composer', 'FROM ${FRANKENPHP_IMAGE} AS extensions')
         ->toContain('composer install')
-        ->toContain('python3 python3-pip')
+        ->toContain('python3=3.14.8-r0 py3-pip=26.1.2-r0', 'curl=8.23.0-r0', 'libcurl=8.23.0-r0', 'brotli-libs=1.2.1-r0')
         ->toContain('--no-dev')
         ->toContain('--no-scripts')
         ->toContain('--require-hashes', '--only-binary=:all:', 'opentimestamps-requirements.txt')
         ->toContain('rm -f bootstrap/cache/*.php', '/config/caddy /config/psysh')
-        ->not->toContain('redis-6.3.0')
+        ->not->toContain('redis-6.3.0', 'apt-get', 'dpkg', '--allow-untrusted', 'edge/')
         ->toContain('COPY --chown=root:root --chmod=0644 docker/frankenphp/Caddyfile /etc/frankenphp/Caddyfile')
         ->toContain('COPY --chown=root:root --chmod=0644 docker/php/conf.d/production.ini /usr/local/etc/php/conf.d/zz-secpal-production.ini')
         ->toContain('COPY --chown=root:root --chmod=0755 docker/healthchecks/http-live.sh /usr/local/bin/secpal-http-live')
@@ -51,11 +51,11 @@ it('defines the production API image contract', function (): void {
         ->not->toContain('octane');
 
     expect($pythonRequirements)
-        ->toContain('opentimestamps==0.4.5 --hash=sha256:')
+        ->toContain('opentimestamps==0.4.5 --hash=sha256:', '6bbcb1dd0f646484939e142462d9e532482bc74475cecf9c4903d4e1cd21f003', '55ccbe27f049743a4caf4f4221b166560d3438d0b1e5ab929e07ae1702a4d6fd')
         ->not->toContain('opentimestamps-client', 'gitpython', 'gitdb', 'smmap', 'appdirs', 'pysocks');
 
     expect($smokeScript)
-        ->toContain('DB_SSLMODE=verify-full')
+        ->toContain('DB_SSLMODE=verify-full', 'apk info --installed curl=8.23.0-r0', '--read-only', '--cap-drop=all', '--security-opt=no-new-privileges')
         ->toContain('DB_SSLROOTCERT=/run/secrets/postgresql-ca.crt')
         ->toContain("POSTGRES_INITDB_ARGS='--auth-host=scram-sha-256'")
         ->toContain('-c password_encryption=scram-sha-256')
@@ -64,8 +64,7 @@ it('defines the production API image contract', function (): void {
 
     expect($extensionsStage)->not->toContain('unzip');
     expect($dependenciesStage)
-        ->toContain('apt-get install -y --no-install-recommends unzip')
-        ->toContain('rm -rf /var/lib/apt/lists/*');
+        ->toContain('apk add --no-cache unzip=6.0-r16');
 
     expect($caddyfile)
         ->toContain('admin off', 'auto_https off', ':8080')
