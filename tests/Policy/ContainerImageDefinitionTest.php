@@ -30,7 +30,6 @@ it('defines the production API image contract', function (): void {
         ->toMatch('/^ARG COMPOSER_IMAGE=docker\\.io\\/library\\/composer:[0-9]+\\.[0-9]+\\.[0-9]+@sha256:[a-f0-9]{64}$/m')
         ->toContain('FROM ${COMPOSER_IMAGE} AS composer', 'FROM ${FRANKENPHP_IMAGE} AS extensions')
         ->toContain('composer install')
-        ->toMatch('/\bpython3=3\.14\.\d+-r\d+ py3-pip=\d+\.\d+\.\d+-r\d+\b/')
         ->toContain('curl=8.23.0-r0', 'libcurl=8.23.0-r0', 'brotli-libs=1.2.1-r0')
         ->toContain('--no-dev')
         ->toContain('--no-scripts')
@@ -51,7 +50,7 @@ it('defines the production API image contract', function (): void {
         ->not->toContain('artisan migrate')
         ->not->toContain('octane');
 
-    preg_match('/\bpython3=(\d+\.\d+\.\d+)-r\d+\b/', $extensionsStage, $pythonInput);
+    expect(preg_match('/^[ \t]*&& apk add --no-cache python3=(3\.14\.\d+)-r\d+ py3-pip=\d+\.\d+\.\d+-r\d+\b/m', $extensionsStage, $pythonInput))->toBe(1);
     expect(version_compare($pythonInput[1] ?? '0', '3.14.8', '>='))->toBeTrue();
 
     expect($pythonRequirements)
