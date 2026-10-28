@@ -19,7 +19,7 @@ RUN install-php-extensions \
         sodium \
         xml \
         zip \
-    && apk add --no-cache python3=3.14.8-r0 py3-pip=26.1.2-r0 curl=8.23.0-r0 libcurl=8.23.0-r0 brotli-libs=1.2.1-r0 \
+    && apk add --no-cache python3=3.14.10-r1 py3-pip=26.1.2-r0 curl=8.23.0-r0 libcurl=8.23.0-r0 brotli-libs=1.2.1-r0 \
     && pip3 install --break-system-packages --no-cache-dir --only-binary=:all: \
         --require-hashes -r /tmp/opentimestamps-requirements.txt \
     && rm /tmp/opentimestamps-requirements.txt

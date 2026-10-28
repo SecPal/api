@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Refresh the exact stable Alpine Python input after its previous revision left
+  the package index; validate the maintained input and security floor without
+  duplicating the current Python/pip revisions in policy tests (refs #2557).
+
 - Use the official FrankenPHP 1.13.3 / PHP 8.4.27 Alpine runtime with stable
   curl/Brotli security updates and hash-locked musllinux OpenTimestamps wheels.
   Preserve Classic Mode, non-root source permissions, PostgreSQL/TLS and
