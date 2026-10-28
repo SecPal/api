@@ -268,7 +268,7 @@ jobs:
           persist-credentials: false
       - name: Refresh exact source security without rebuilding
         id: source-scan
-        uses: SecPal/.github/.github/actions/trivy-repository-scan@57a1b7ce698a2ef7e253a05e6cf008b9fdab646c
+        uses: SecPal/.github/.github/actions/trivy-repository-scan@f94b47c6a44f924b11b2802ac1c334f20b2e93a9
       - name: Read refreshed source evidence
         # v8.0.2
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
