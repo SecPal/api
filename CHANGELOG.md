@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Update Symfony MIME from 8.0.15 to 8.1.10 to fix CVE-2026-45070 header
+  injection through parameter names, retaining Laravel and all other locked
+  dependencies unchanged (refs #2635).
+
 - Refresh the exact stable Alpine Python input after its previous revision left
   the package index; validate the maintained input and security floor without
   duplicating the current Python/pip revisions in policy tests (refs #2557).
