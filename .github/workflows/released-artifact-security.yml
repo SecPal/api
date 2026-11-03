@@ -111,7 +111,7 @@ jobs:
       issues: write
       packages: read
     uses: >-
-      SecPal/.github/.github/workflows/reusable-vulnerability-reevaluation.yml@3cf192d1c74f7d8d223683d7196ddebd205cc428
+      SecPal/.github/.github/workflows/reusable-vulnerability-reevaluation.yml@12cc0feddc25ac5e3cb5bcba5383db10c0332c9a
     with:
       artifact-repository: ghcr.io/secpal/api
       index-digest: ${{ needs.subject.outputs.index-digest }}
