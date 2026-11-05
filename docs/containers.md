@@ -419,3 +419,30 @@ both digest-only references together. Deploying either role with an arbitrary
 companion is unsupported. Deployment/Quadlet and dynamic Polyscope workspace
 routing require separately reviewed consumer changes; this API implementation
 does not change those repositories or any running service.
+
+### SQLite package provenance
+
+Until Alpine 3.24 ships the upstream repair, the PHP-FPM build uses the
+versioned `docker/sqlite/APKBUILD` to package unmodified SQLite 3.54.0.
+Both source archives are SHA-512 pinned; the amalgamation additionally matches
+SQLite.org's published SHA3-256. Only Alpine 3.24 SDK packages are used.
+No edge repository is added. The package remains `sqlite-libs`, with origin
+`sqlite`, the genuine upstream version and its regular APK file ownership.
+
+Two clean builds in one pinned SDK must produce byte-identical APKs. Standard
+APK signatures are verified with the disposable SDK's public key; only that
+key is supplied to the local install command. No build private key or extra
+system trust key enters the runtime. Independent runs may differ in their
+ephemeral signing envelope; bit-identical OCI images are not claimed.
+
+The builder checks the existing `libsqlite3.so.0` SONAME and preservation of
+all old public SQLite exports. `/usr/share/secpal/sqlite-build.json` records
+source, recipe, package and installed-library hashes, source ID, build-package
+versions, architecture and repeat-build evidence. Native smoke tests check
+APK ownership, actual loaded library/source identity, PHP SQLite3/PDO, Python
+SQLite/FTS5/session support and the existing OpenTimestamps contract.
+
+This is a SecPal-built package, not an Alpine vendor security package.
+It fixes the three library CVEs without filtering scanner output.
+The separate SQLite CLI `.recover` CPE finding remains visible until its
+component scope is correctly classified by the trusted scanner implementation.

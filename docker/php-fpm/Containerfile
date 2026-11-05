@@ -4,7 +4,20 @@
 ARG COMPOSER_IMAGE=docker.io/library/composer:2.10.2@sha256:5946476338742b200bb9ff88f8be56275ddae4b3949c72305cb0dbf10cfcb760
 ARG PHP_IMAGE=docker.io/library/php:8.4.27-fpm-alpine3.24@sha256:93aa3f61216b73cc6f878235c9772849449f4efc18dfe3d6678eed645076c00d
 FROM ${COMPOSER_IMAGE} AS composer
+FROM ${PHP_IMAGE} AS sqlite-build
+ARG SOURCE_DATE_EPOCH=0
+RUN apk add --no-cache alpine-sdk=1.1-r1 abuild=3.17.0-r0 binutils=2.45.1-r1 \
+        gcc=15.2.0-r5 musl-dev=1.2.6-r3 make=4.4.1-r4 readline-dev=8.3.3-r1 \
+        tcl=8.6.17-r1 unzip=6.0-r16 openssl=3.5.9-r0
+COPY docker/sqlite /build/sqlite
+WORKDIR /build/sqlite
+RUN ./build.sh
+
 FROM ${PHP_IMAGE} AS extensions
+RUN --mount=type=bind,from=sqlite-build,source=/out,target=/tmp/secpal-sqlite,ro \
+    apk add --no-cache --no-network --keys-dir=/tmp/secpal-sqlite/keys \
+        --repositories-file=/dev/null --repository=/tmp/secpal-sqlite sqlite-libs=3.54.0-r0 \
+    && install -D -m 0644 /tmp/secpal-sqlite/provenance.json /usr/share/secpal/sqlite-build.json
 COPY docker/python/opentimestamps-requirements.txt /tmp/opentimestamps-requirements.txt
 RUN apk add --no-cache --virtual .php-build-deps \
         autoconf=2.73-r0 dpkg-dev=1.23.7-r0 dpkg=1.23.7-r0 file=5.47-r2 \

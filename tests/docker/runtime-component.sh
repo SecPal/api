@@ -33,6 +33,15 @@ case "$component" in
         exit(Locale::getDisplayRegion("en_DE","de") === "Deutschland"
             && ini_get("upload_max_filesize") === "10M" && ini_get("post_max_size") === "12M" ? 0 : 1);
     '
+    # Both existing PHP SQLite drivers must load the authenticated replacement library.
+    # shellcheck disable=SC2016 # These are PHP variables.
+    podman run "${args[@]}" "$image" php -r '
+        $proof = json_decode(file_get_contents("/usr/share/secpal/sqlite-build.json"), true, flags: JSON_THROW_ON_ERROR);
+        $db = new PDO("sqlite::memory:");
+        exit(SQLite3::version()["versionString"] === $proof["version"]
+            && $db->query("SELECT sqlite_source_id()")->fetchColumn() === $proof["source_id"] ? 0 : 1);
+    '
+    podman run -i "${args[@]}" "$image" python3 - < tests/docker/sqlite-runtime.py
     podman run "${args[@]}" "$image" python3 -c 'import opentimestamps'
     podman run "${args[@]}" "$image" python3 -m pip check
     podman run "${args[@]}" "$image" php-fpm --test

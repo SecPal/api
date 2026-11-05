@@ -1,0 +1,61 @@
+# SPDX-FileCopyrightText: 2026 SecPal Contributors
+# SPDX-License-Identifier: MIT
+# Derived from Alpine aports main/sqlite/APKBUILD (3.24-stable).
+# Build an honest upstream version using only the Alpine 3.24 SDK.
+pkgname=sqlite
+pkgver=3.54.0
+pkgrel=0
+pkgdesc="C library that implements an SQL database engine"
+url="https://www.sqlite.org/"
+arch="all"
+license="blessing"
+makedepends="readline-dev"
+subpackages="$pkgname-static $pkgname-doc $pkgname-dev $pkgname-libs:libs"
+source="https://www.sqlite.org/2026/sqlite-autoconf-3540000.tar.gz
+    https://www.sqlite.org/2026/sqlite-src-3540000.zip"
+builddir="$srcdir/sqlite-autoconf-3540000"
+
+prepare() {
+    default_prepare
+    test "$(openssl dgst -sha3-256 sqlite3.c | awk '{print $NF}')" = \
+        8efd453d08a7cfc4c79de5923153036cdc4dcaa254d4f1e617be6a2a98828f9e
+}
+
+build() {
+    export CFLAGS="$CFLAGS -O2 -DSQLITE_ENABLE_FTS3_PARENTHESIS \
+        -DSQLITE_ENABLE_COLUMN_METADATA -DSQLITE_SECURE_DELETE \
+        -DSQLITE_ENABLE_UNLOCK_NOTIFY -DSQLITE_ENABLE_RTREE \
+        -DSQLITE_ENABLE_GEOPOLY -DSQLITE_USE_URI -DSQLITE_ENABLE_DBSTAT_VTAB \
+        -DSQLITE_SOUNDEX -DSQLITE_MAX_VARIABLE_NUMBER=250000"
+    ./configure --build="$CBUILD" --host="$CHOST" --prefix=/usr \
+        --enable-threadsafe --enable-readline \
+        --with-readline-header=/usr/include/readline/readline.h \
+        --enable-session --enable-static --enable-fts3 --enable-fts4 --enable-fts5 \
+        --soname=legacy
+    make -j2
+}
+
+check() {
+    test "$(./sqlite3 :memory: 'SELECT sqlite_version()')" = "$pkgver"
+    test "$(./sqlite3 :memory: 'SELECT sqlite_source_id()')" = \
+        '2026-10-09 15:46:58 be8d059e9a49089ab2dce5ed26dd87aaf598fdc5fbe0b107c0dd758464bcd5e3'
+    test "$(./sqlite3 :memory: "SELECT sqlite_compileoption_used('ENABLE_FTS5') AND sqlite_compileoption_used('ENABLE_SESSION')")" = 1
+    test "$(./sqlite3 :memory: "CREATE VIRTUAL TABLE f USING fts5(value,detail=none,prefix='1 2'); INSERT INTO f(rowid,value) VALUES(-1,'alpha'),(1,'alphabet'); SELECT rowid FROM f WHERE f MATCH 'al*' ORDER BY rowid;")" = "$(printf '%s\n' -1 1)"
+}
+
+package() {
+    make DESTDIR="$pkgdir" install
+}
+
+libs() {
+    pkgdesc="SQLite shared library, built by SecPal from upstream 3.54.0"
+    install -d "$subpkgdir/usr/lib" "$subpkgdir/usr/share/licenses/sqlite-libs"
+    mv "$pkgdir"/usr/lib/libsqlite3.so.* "$subpkgdir/usr/lib/"
+    install -m 0644 "$srcdir/sqlite-src-3540000/LICENSE.md" \
+        "$subpkgdir/usr/share/licenses/sqlite-libs/LICENSE.md"
+}
+
+sha512sums="
+b54e6329627990ad567d948c9a29abbc8178c4dfd6c1aa3923684827aa0830df2cef06b94ddfd0496293b0c503d981ef0b62fd2044abbee887012107d405c366  sqlite-autoconf-3540000.tar.gz
+f0eb165c62481e661c5d8c90d4f992544022cf5711d5428a9ada11fa889112ba75b59a6fea3d973200b9ce078ae94a528787fba0523f1060e7133fb398c1ac46  sqlite-src-3540000.zip
+"

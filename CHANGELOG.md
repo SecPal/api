@@ -21,6 +21,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Build SQLite 3.54.0 as a source-verified Alpine 3.24 APK for the PHP-FPM
+  runtime, fixing CVE-2026-119373, CVE-2026-119374 and CVE-2026-119379.
+  Verify repeat-build equality, the existing SONAME/exported ABI and PHP/Python
+  loading; retain all scanner findings and the independent CLI-only
+  classification blocker (refs #2639).
+
 - Patch the Symfony HTTP, routing, serializer and YAML security advisories found
   during runtime qualification, including CVE-2026-118514, CVE-2026-118515 and
   CVE-2026-118516. Update only the eight-package required Composer closure;
