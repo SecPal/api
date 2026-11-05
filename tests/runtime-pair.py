@@ -199,6 +199,22 @@ class RuntimePairTests(unittest.TestCase):
             self.assertEqual(result.returncode, 78)
             self.assertNotIn('app_podman', result.stderr)
 
+    def test_read_only_php_cli_supplies_its_writable_runtime_directories(self):
+        script = (Path(__file__).resolve().parents[1]/'tests/docker/smoke.sh').read_text()
+        body = script[script.index('run_api() {'):script.index('\nif [ "$runtime_set" = pair ]; then\n    podman exec -i')]
+        setup = (
+            'runtime_set=pair; network=fixture; api_env=fixture; secret_root=fixture; '
+            'bootstrap_source=fixture; bootstrap_ini=fixture; image=fixture; '
+            'podman() { printf "%s\\n" "$@"; };\n'
+        )
+        result = subprocess.run(['sh', '-c', setup+body+'\nrun_api php artisan tinker --execute=fixture'],
+                                capture_output=True, text=True, check=True)
+        args = result.stdout.splitlines()
+        self.assertIn('--read-only', args)
+        for directory in ('/tmp', '/config', '/data', '/app/storage', '/app/bootstrap/cache'):
+            self.assertTrue(any(v.startswith('type=tmpfs,destination='+directory+',')
+                                and 'chown=true' in v for v in args), directory)
+
     def test_unpublished_pair_observes_four_images_and_rejects_incomplete_or_nonclean_inputs(self):
         for change in (None, 'missing', 'companion', 'source', 'policy', 'raw', 'sbom', 'run'):
             with self.subTest(change=change), tempfile.TemporaryDirectory() as directory:

@@ -390,6 +390,8 @@ run_api() {
         podman run --rm --userns=keep-id:uid=10001,gid=10001 --user=10001:10001 \
             --network "$network" --env-file "$api_env" --read-only --cap-drop=all --security-opt=no-new-privileges \
             --mount type=tmpfs,destination=/tmp,tmpfs-mode=0700,chown=true \
+            --mount type=tmpfs,destination=/config,tmpfs-mode=0750,chown=true \
+            --mount type=tmpfs,destination=/data,tmpfs-mode=0750,chown=true \
             --mount type=tmpfs,destination=/app/storage,tmpfs-mode=0750,chown=true \
             --mount type=tmpfs,destination=/app/bootstrap/cache,tmpfs-mode=0750,chown=true \
             -v "$secret_root:/run/secpal/secrets:ro,z" \
