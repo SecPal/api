@@ -423,6 +423,11 @@ else
     token_output=$(run_api php artisan tinker --execute='$tenant = \App\Models\TenantKey::firstOrFail(); $user = \App\Models\User::forceCreate(["tenant_id" => $tenant->id, "name" => "Container smoke", "email" => "container-smoke@secpal.dev", "email_verified_at" => now(), "password" => bin2hex(random_bytes(32))]); echo "SMOKE-TOKEN:".$user->issueApiToken("container-smoke")->plainTextToken;')
     smoke_token=$(printf '%s\n' "$token_output" | sed -n 's/^SMOKE-TOKEN://p')
     test -n "$smoke_token"
+    # Seed only disposable smoke data; use real application permissions and encryption.
+    # shellcheck disable=SC2016 # PHP variables must remain literal.
+    employee_output=$(run_api php artisan tinker --execute='$tenant = \App\Models\TenantKey::firstOrFail(); $user = \App\Models\User::where("email", "container-smoke@secpal.dev")->firstOrFail(); $registrar = app(\Spatie\Permission\PermissionRegistrar::class); $registrar->setPermissionsTeamId($tenant->id); foreach (["employee_document.read", "employee_document.write"] as $permission) { $user->givePermissionTo(\App\Models\Permission::findOrCreate($permission, "sanctum")); } $registrar->forgetCachedPermissions(); $legal = \App\Models\LegalEntity::forceCreate(["tenant_id" => $tenant->id, "name" => "Container smoke"]); $site = \App\Models\Establishment::forceCreate(["tenant_id" => $tenant->id, "legal_entity_id" => $legal->id, "name" => "Container smoke"]); $employee = \App\Models\Employee::withoutEvents(fn () => \App\Models\Employee::forceCreate(["tenant_id" => $tenant->id, "legal_entity_id" => $legal->id, "establishment_id" => $site->id, "employee_number" => "CONTAINER-SMOKE", "first_name" => "Container", "last_name" => "Smoke", "contract_type" => "full_time", "status" => "applicant"])); echo "SMOKE-EMPLOYEE:".$employee->id;')
+    smoke_employee=$(printf '%s\n' "$employee_output" | sed -n 's/^SMOKE-EMPLOYEE://p')
+    test -n "$smoke_employee"
     run_api php artisan tinker --execute='\App\Models\Activity::create(["tenant_id" => \App\Models\TenantKey::firstOrFail()->id, "log_name" => "system", "description" => "container queue smoke", "properties" => []]);'
     run_api php artisan queue:work --queue=activity-hash-chain --stop-when-empty --tries=1 --timeout=60 --max-time=60
     # shellcheck disable=SC2016 # PHP variables must remain literal.
@@ -498,7 +503,46 @@ if [ "$runtime_set" = pair ]; then
         if ($status !== 419) { exit(1); }
         [$status] = probe("/v1/auth/token", "POST", [], str_repeat("x", 12*1024*1024+1));
         if ($status !== 413) { exit(1); }
-    ' "http://${api}:8080" "$smoke_token"
+        // Real multipart upload, encrypted private storage and chunked client reads
+        // through the unchanged Laravel front controller; no synthetic HTTP route.
+        $pdf = "%PDF-1.4\n%".str_repeat("runtime-transfer", 65536)."\n%%EOF\n";
+        $file = tempnam(sys_get_temp_dir(), "runtime-upload-");
+        try {
+            file_put_contents($file, $pdf);
+            $path = "/v1/employees/".$argv[3]."/documents";
+            $upload = curl_init($argv[1].$path);
+            curl_setopt_array($upload, [
+                CURLOPT_POST => true, CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 15,
+                CURLOPT_HTTPHEADER => ["Accept: application/json", "Authorization: Bearer ".$argv[2]],
+                CURLOPT_POSTFIELDS => ["file" => new CURLFile($file, "application/pdf", "runtime.pdf"),
+                    "title" => "Container smoke", "document_type" => "contract", "visible_to_employee" => "1"],
+            ]);
+            $body = curl_exec($upload);
+            $status = curl_getinfo($upload, CURLINFO_RESPONSE_CODE);
+            curl_close($upload);
+            if ($status !== 201) { fwrite(STDERR, "Multipart upload status: ".$status."\n"); exit(1); }
+            $document = json_decode($body, true, flags: JSON_THROW_ON_ERROR)["data"];
+            if (isset($document["file_path"]) || $document["file_size"] !== strlen($pdf)) { exit(1); }
+            $download = $path."/".$document["id"]."/download";
+            [$status] = probe($download);
+            if ($status !== 401) { exit(1); }
+            $stream = fopen($argv[1].$download, "rb", false, stream_context_create(["http" => [
+                "timeout" => 15, "follow_location" => 0,
+                "header" => "Authorization: Bearer ".$argv[2]."\r\nConnection: close\r\n",
+            ]]));
+            if (!is_resource($stream) || !str_contains($http_response_header[0], " 200 ")) { exit(1); }
+            $hash = hash_init("sha256"); $length = 0;
+            while (!feof($stream)) {
+                $chunk = fread($stream, 8192);
+                if ($chunk === false || ($chunk === "" && !feof($stream))) { exit(1); }
+                $length += strlen($chunk); hash_update($hash, $chunk);
+            }
+            fclose($stream);
+            if ($length !== strlen($pdf) || hash_final($hash) !== hash("sha256", $pdf)) { exit(1); }
+        } finally {
+            unlink($file);
+        }
+    ' "http://${api}:8080" "$smoke_token" "$smoke_employee"
     test "$(stat -c '%u:%g' "$socket_dir")" = "$(id -u):$(id -g)"
     test "$(podman exec "$fpm" stat -c '%u:%g' /run/secpal-fpm/api.sock)" = 10001:10001
 fi

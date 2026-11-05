@@ -10,7 +10,7 @@ COPY LICENSE /usr/share/licenses/secpal-api/LICENSE
 COPY public /app/public
 COPY --chown=root:root --chmod=0444 docker/nginx/nginx.conf /etc/nginx/nginx.conf
 COPY --chown=root:root --chmod=0444 docker/nginx/fastcgi.conf /etc/nginx/secpal-fastcgi.conf
-COPY --chown=root:root --chmod=0555 docker/healthchecks/http-live.sh /usr/local/bin/secpal-http-live
+COPY --chown=root:root --chmod=0555 docker/nginx/http-live.sh /usr/local/bin/secpal-http-live
 RUN find /app -type d -exec chmod 0555 {} + \
     && find /app -type f -exec chmod 0444 {} +
 USER secpal

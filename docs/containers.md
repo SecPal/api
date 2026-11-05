@@ -365,7 +365,7 @@ verify-full TLS/SCRAM. No startup command generates secrets or migrates data.
 FPM and Nginx drain HTTP requests with SIGQUIT. CLI consumers of the same PHP
 image must select their existing SIGTERM lifecycle and role-specific health
 probe. The FPM image probe speaks FastCGI to its private ping path; the HTTP
-probe checks Laravel liveness. OCI-format builds do not retain Docker
+probe checks Laravel liveness; Nginx uses curl without a PHP dependency. OCI-format builds do not retain Docker
 HEALTHCHECK metadata: deployment consumers must explicitly supply these
 Podman/Quadlet health commands. Consumers must preserve private storage,
 bootstrap-cache and temporary-directory ownership and their existing worker

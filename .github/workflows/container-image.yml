@@ -17,6 +17,7 @@ name: Container Image
       - tests/container-publisher.py
       - tests/runtime-pair.py
       - tests/fpm-health.py
+      - tests/nginx-health.py
       - tests/container-attestation-auth.py
       - scripts/*container*
       - scripts/container-*
@@ -106,7 +107,9 @@ jobs:
 
           python3 tests/runtime-pair.py
 
-          python3 tests/fpm-health.py"
+          python3 tests/fpm-health.py
+
+          python3 tests/nginx-health.py"
       - name: Lint Containerfile and shell
         run:
           'podman run --rm -i docker.io/hadolint/hadolint:v2.14.0-debian@sha256:158cd0184dcaa18bd8ec20b61f4c1cabdf8b32a592d062f57bdcb8e4c1d312e2

@@ -10,7 +10,7 @@ import sys
 import unittest
 import os
 import subprocess
-from unittest import mock
+import unittest.mock
 import tempfile
 
 sys.dont_write_bytecode = True
@@ -271,12 +271,12 @@ class RuntimePairTests(unittest.TestCase):
                 def observe(_root, own, arch, expected):
                     self.assertEqual(own, native/f'api-native-{arch}-123-1'/expected['runtime'])
                     return records[(arch, expected['runtime'])], b'manifest', b'config'
-                with mock.patch.dict(os.environ, GITHUB_SHA=SHA, GITHUB_RUN_ID='123', GITHUB_RUN_ATTEMPT='1'), \
-                     mock.patch.object(publisher, 'source', side_effect=lambda _r, sha, role: dict(repository=publisher.SOURCE, commit=sha, runtime=role)), \
-                     mock.patch.object(publisher, 'observe_native', side_effect=observe) as observation, \
-                     mock.patch.object(publisher, 'observe_policy', return_value=policy), \
-                     mock.patch.object(publisher, 'evidence_now', return_value=NOW), \
-                     mock.patch.object(publisher, 'run', return_value=b'fixture-tree'):
+                with unittest.mock.patch.dict(os.environ, GITHUB_SHA=SHA, GITHUB_RUN_ID='123', GITHUB_RUN_ATTEMPT='1'), \
+                     unittest.mock.patch.object(publisher, 'source', side_effect=lambda _r, sha, role: dict(repository=publisher.SOURCE, commit=sha, runtime=role)), \
+                     unittest.mock.patch.object(publisher, 'observe_native', side_effect=observe) as observation, \
+                     unittest.mock.patch.object(publisher, 'observe_policy', return_value=policy), \
+                     unittest.mock.patch.object(publisher, 'evidence_now', return_value=NOW), \
+                     unittest.mock.patch.object(publisher, 'run', return_value=b'fixture-tree'):
                     if change is None:
                         publisher.qualify_unpublished_pair(root, native, scans, output)
                         value = publisher.read(output)
@@ -300,7 +300,7 @@ class RuntimePairTests(unittest.TestCase):
                     raise ValueError('second component rejected')
                 own.mkdir()
                 publisher.write(destination, self.documents()['php-fpm'])
-            with mock.patch.object(publisher, 'complete', side_effect=complete):
+            with unittest.mock.patch.object(publisher, 'complete', side_effect=complete):
                 with self.assertRaisesRegex(ValueError, 'second component rejected'):
                     publisher.complete_runtime_pair(root, root, root, root, output)
             self.assertFalse(output.exists())
