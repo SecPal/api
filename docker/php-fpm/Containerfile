@@ -57,6 +57,7 @@ ARG APP_UID=10001
 ARG APP_GID=10001
 
 ENV APP_ENV=production \
+    APP_NAME=Laravel \
     APP_DEBUG=false \
     LOG_CHANNEL=stderr \
     XDG_CONFIG_HOME=/config \
