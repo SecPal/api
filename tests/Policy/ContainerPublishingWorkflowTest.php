@@ -251,7 +251,12 @@ function secPalApiImageReferenceIsCanonical(string $reference): bool
 
 it('gates official publication on source security and native validation', function (): void {
     $w = containerPublishingWorkflow();
-    expect($w['on'])->toBe(['push' => ['branches' => ['main']]])
+    expect($w['on']['push'])->toBe(['branches' => ['main']])
+        ->and(array_keys($w['on']))->toBe(['push', 'workflow_dispatch'])
+        ->and($w['on']['workflow_dispatch']['inputs']['runtime-set'])->toBe([
+            'description' => 'Explicitly publish the qualified replacement runtime pair',
+            'type' => 'choice', 'options' => ['pair'], 'default' => 'pair', 'required' => true,
+        ])
         ->and($w['permissions'])->toBe([])
         ->and($w['jobs']['repository-security']['uses'])->toBe('./.github/workflows/reusable-repository-security.yml')
         ->and($w['jobs']['build']['needs'])->toBe(['repository-security'])
@@ -336,7 +341,7 @@ it('shares database-free native Buildah builds without PR publication or emulati
             'hadolint/hadolint:v2.14.0-debian@sha256:', 'koalaman/shellcheck:v0.10.0@sha256:')
         ->and($ci['jobs']['validate'])->not->toHaveKeys(['services', 'env'])
         ->and($build)->toContain('buildah build --format oci', '--timestamp "$epoch"', '--pull=never',
-            '--file "$snapshot/Containerfile"', 'prepare-snapshot', '--http-proxy=false',
+            '--file "$snapshot/$containerfile"', 'runtime-definition --runtime "$runtime"', 'prepare-snapshot', '--http-proxy=false',
             'Foreign-architecture emulation is not native evidence', 'SKIP_BUILD=1', 'EXPECTED_ARCH="$arch"');
     foreach (['container-image.yml', 'publish-container.yml'] as $file) {
         $w = Yaml::parseFile($root.'/.github/workflows/'.$file);
@@ -352,7 +357,7 @@ it('shares database-free native Buildah builds without PR publication or emulati
 it('binds remote manifest config and native runtime content before acceptance', function (): void {
     $root = dirname(__DIR__, 2);
     $script = (string) file_get_contents($root.'/scripts/publish-container.sh');
-    expect($script)->toContain('= SecPal/api', '= push', '= refs/heads/main',
+    expect($script)->toContain('= SecPal/api', 'legacy:legacy:push|pair:legacy:workflow_dispatch', '= refs/heads/main',
         'container-publisher.py prepare', 'cmp "$prepared/index.json" "$prepared/remote-index.json"',
         'cmp "$prepared/platform-$arch.json" "$prepared/remote-platform-$arch.json"',
         'cmp "$prepared/config-$arch.json" "$prepared/remote-config-$arch.json"',
@@ -399,7 +404,7 @@ it('attests index platforms SBOMs and build evidence through exact GitHub identi
     }
     expect($subjects)->toHaveCount(5);
     foreach (['index_digest', 'amd64_digest', 'arm64_digest', 'amd64_sbom_digest', 'arm64_sbom_digest'] as $key) {
-        expect(implode("\n", $subjects))->toContain('needs.prepare.outputs.'.$key);
+        expect(implode("\n", $subjects))->toContain('fromJSON(needs.prepare.outputs.candidates)[matrix.component].'.$key);
     }
     foreach (['publish-container.sh', 'scan-container-artifact.sh'] as $name) {
         expect((string) file_get_contents($root.'/scripts/'.$name))->toContain(
@@ -420,9 +425,11 @@ it('writes one discovery pointer only after verified acceptance and retains tags
     expect(substr_count($script, '"$tools/oras" tag '))->toBe(1)
         ->and($accept)->toContain('published_tag="build-$GITHUB_SHA-$GITHUB_RUN_ID-$candidate_attempt"',
             'verify_attestation "$evidence_digest"', 'cmp "$prepared/index.json" "$prepared/accepted-index.json"',
-            'cmp "$prepared/index.json" "$prepared/discovery-index.json"',
+            'publish_discovery "$index_digest" "$published_tag" "$prepared/index.json"',
             'The discovery tag is not a deployment or trust reference.')
-        ->and(strpos($accept, 'verify_attestation "$evidence_digest"'))->toBeLessThan(strpos($accept, '"$tools/oras" tag '))
+        ->and(strpos($accept, 'verify_attestation "$evidence_digest"'))->toBeLessThan(strpos($accept, 'publish_discovery "$index_digest"'))
+        ->and($script)->toContain('cmp "$source_manifest" "$prepared/existing-discovery.json"',
+            'cmp "$source_manifest" "$prepared/discovery-index.json"')
         ->and($script)->not->toContain(':latest', ':main', 'crane copy');
     expect((string) file_get_contents($root.'/docs/containers.md'))->toContain(
         '## Run-tag retention', 'GHCR does not provide a proven tag-only deletion operation',
@@ -598,4 +605,16 @@ it('limits the pinned credential handoff to OCI attestation windows and always r
     }
 
     expect($handoffJobs)->toBe(['attest', 'accept']);
+});
+
+it('keeps replacement pairing explicit and separate from the accepted legacy discovery contract', function (): void {
+    $root = dirname(__DIR__, 2);
+    $w = containerPublishingWorkflow();
+    expect($w['env']['API_RUNTIME_SET'])->toContain("github.event_name == 'workflow_dispatch'", "'pair'", "'legacy'")
+        ->and($w['jobs']['attest']['strategy']['matrix']['component'])
+        ->toBe('${{ fromJSON(needs.prepare.outputs.components) }}');
+    $script = (string) file_get_contents($root.'/scripts/publish-container.sh');
+    expect($script)->toContain('runtime-pair-$GITHUB_SHA-$GITHUB_RUN_ID-$candidate_attempt',
+        'admission-pair', 'if [ "$component" != legacy ]; then exit 0; fi',
+        'build-$GITHUB_SHA-$GITHUB_RUN_ID-$candidate_attempt');
 });

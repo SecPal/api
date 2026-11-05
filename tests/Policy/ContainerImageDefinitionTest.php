@@ -165,3 +165,42 @@ it('excludes obsolete Laravel Sail from the dependency graph', function (): void
     expect($composer['require'] + $composer['require-dev'])->not->toHaveKey('laravel/sail')
         ->and(array_column(array_merge($lock['packages'], $lock['packages-dev']), 'name'))->not->toContain('laravel/sail');
 });
+
+it('keeps the qualified FPM and public HTTP runtimes separate from the accepted legacy image', function (): void {
+    $root = dirname(__DIR__, 2);
+    foreach (['docker/php-fpm/Containerfile', 'docker/php-fpm/pool.conf', 'docker/nginx/Containerfile', 'docker/nginx/nginx.conf', 'docker/nginx/fastcgi.conf'] as $path) {
+        expect(is_file($root.'/'.$path))->toBeTrue("Missing paired runtime artifact: {$path}");
+    }
+
+    $php = (string) file_get_contents($root.'/docker/php-fpm/Containerfile');
+    $pool = (string) file_get_contents($root.'/docker/php-fpm/pool.conf');
+    $http = (string) file_get_contents($root.'/docker/nginx/Containerfile');
+    $nginx = (string) file_get_contents($root.'/docker/nginx/nginx.conf');
+    $fastcgi = (string) file_get_contents($root.'/docker/nginx/fastcgi.conf');
+
+    expect($php)->toContain('php:8.4.', '-fpm-alpine3.24@sha256:', 'icu-data-full=', '--require-hashes', 'USER secpal', 'STOPSIGNAL SIGQUIT')
+        ->not->toContain('frankenphp', 'caddy', 'artisan migrate');
+    expect($pool)->toContain('listen=/run/secpal-fpm/api.sock', 'listen.mode=0660', 'clear_env=yes', 'security.limit_extensions=.php', 'pm.max_children=4');
+    expect($http)->toContain('nginx:', '-alpine3.24-slim@sha256:', 'COPY public /app/public', 'USER secpal', 'EXPOSE 8080')
+        ->not->toContain('COPY app ', 'COPY vendor ', 'COPY config ', 'COPY storage ', 'APP_KEY', 'DB_PASSWORD');
+    expect($nginx)->toContain('listen 8080;', 'root /app/public;', 'disable_symlinks on from=/app/public;', 'error_log /dev/null;', '"path":"$uri"')
+        ->not->toContain('$request_uri', '$http_authorization', '$args');
+    expect($fastcgi)->toContain('fastcgi_pass unix:/run/secpal-fpm/api.sock;', 'SCRIPT_FILENAME /app/public/index.php;', 'PATH_INFO "";', 'HTTP_PROXY "";', 'fastcgi_buffering off;');
+    expect((string) file_get_contents($root.'/Containerfile'))->toContain('FRANKENPHP_IMAGE=', 'CMD ["frankenphp"');
+});
+
+it('keeps secrets out of the FPM environment allowlist and reuses the qualified secret bootstrap', function (): void {
+    $root = dirname(__DIR__, 2);
+    $pool = (string) file_get_contents($root.'/docker/php-fpm/pool.conf');
+    $smoke = (string) file_get_contents($root.'/tests/docker/smoke.sh');
+    expect($pool)->toContain('clear_env=yes')->not->toContain('env[APP_KEY]', 'env[DB_PASSWORD]');
+    expect($smoke)->toContain('production-secret-bootstrap.php', 'bf2282e3e112ac003360ecb3dff390eafe282dbd', 'NOCREATEDB', 'NOSUPERUSER');
+});
+
+it('cleans only smoke resources carrying its unique ownership label including PostgreSQL data', function (): void {
+    $script = (string) file_get_contents(dirname(__DIR__, 2).'/tests/docker/smoke.sh');
+    expect($script)->toContain('secpal.dev/smoke', 'podman volume create --label',
+        'podman volume inspect', 'podman volume rm', 'podman network inspect',
+        'podman inspect --format');
+    expect($script)->not->toContain('podman rm -f "$client" "$api" "$fpm" "$postgres"');
+});

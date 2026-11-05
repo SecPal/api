@@ -7,11 +7,21 @@ name: Publish Container
   push:
     branches:
       - main
+  workflow_dispatch:
+    inputs:
+      runtime-set:
+        description: Explicitly publish the qualified replacement runtime pair
+        type: choice
+        options:
+          - pair
+        default: pair
+        required: true
 permissions: {}
 concurrency:
   group: publish-container-${{ github.repository }}-${{ github.sha }}
   cancel-in-progress: false
 env:
+  API_RUNTIME_SET: ${{ github.event_name == 'workflow_dispatch' && 'pair' || 'legacy' }}
   GHCR_HOST: ghcr.io
   GHCR_REPOSITORY_PATH: secpal/api
   CANONICAL_IMAGE: ghcr.io/secpal/api
@@ -28,6 +38,8 @@ jobs:
     permissions:
       contents: read
     uses: ./.github/workflows/container-image.yml
+    with:
+      runtime-set: ${{ github.event_name == 'workflow_dispatch' && 'pair' || 'legacy' }}
   prepare:
     name: Prepare exact digest subjects
     needs:
@@ -39,6 +51,8 @@ jobs:
       contents: read
       packages: write
     outputs:
+      components: ${{ steps.prepare.outputs.components }}
+      candidates: ${{ steps.prepare.outputs.candidates }}
       index_digest: ${{ steps.prepare.outputs.index_digest }}
       amd64_digest: ${{ steps.prepare.outputs.amd64_digest }}
       arm64_digest: ${{ steps.prepare.outputs.arm64_digest }}
@@ -106,7 +120,11 @@ jobs:
           if-no-files-found: error
           retention-days: 14
   attest:
-    name: Attest candidate index platforms and Syft artifacts
+    name: Attest candidate index platforms and Syft artifacts${{ matrix.component == 'legacy' && '' || format(' ({0})', matrix.component) }}
+    strategy:
+      fail-fast: false
+      matrix:
+        component: ${{ fromJSON(needs.prepare.outputs.components) }}
     needs: prepare
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -143,7 +161,7 @@ jobs:
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6
         with:
           subject-name: ghcr.io/secpal/api
-          subject-digest: ${{ needs.prepare.outputs.index_digest }}
+          subject-digest: ${{ fromJSON(needs.prepare.outputs.candidates)[matrix.component].index_digest }}
           push-to-registry: true
           create-storage-record: false
       - name: Attest exact amd64
@@ -152,7 +170,7 @@ jobs:
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6
         with:
           subject-name: ghcr.io/secpal/api
-          subject-digest: ${{ needs.prepare.outputs.amd64_digest }}
+          subject-digest: ${{ fromJSON(needs.prepare.outputs.candidates)[matrix.component].amd64_digest }}
           push-to-registry: true
           create-storage-record: false
       - name: Attest exact arm64
@@ -161,7 +179,7 @@ jobs:
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6
         with:
           subject-name: ghcr.io/secpal/api
-          subject-digest: ${{ needs.prepare.outputs.arm64_digest }}
+          subject-digest: ${{ fromJSON(needs.prepare.outputs.candidates)[matrix.component].arm64_digest }}
           push-to-registry: true
           create-storage-record: false
       - name: Attest exact sbom-amd64
@@ -170,7 +188,7 @@ jobs:
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6
         with:
           subject-name: ghcr.io/secpal/api
-          subject-digest: ${{ needs.prepare.outputs.amd64_sbom_digest }}
+          subject-digest: ${{ fromJSON(needs.prepare.outputs.candidates)[matrix.component].amd64_sbom_digest }}
           push-to-registry: true
           create-storage-record: false
       - name: Attest exact sbom-arm64
@@ -179,7 +197,7 @@ jobs:
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6
         with:
           subject-name: ghcr.io/secpal/api
-          subject-digest: ${{ needs.prepare.outputs.arm64_sbom_digest }}
+          subject-digest: ${{ fromJSON(needs.prepare.outputs.candidates)[matrix.component].arm64_sbom_digest }}
           push-to-registry: true
           create-storage-record: false
       - name: Remove exact ephemeral registry credentials
@@ -227,6 +245,15 @@ jobs:
           pattern: api-prepared-${{ github.run_id }}-${{ github.run_attempt }}
           path: .context/publisher
           merge-multiple: true
+      - name: Read qualified production secret contract
+        if: github.event_name == 'workflow_dispatch'
+        # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: SecPal/deployment
+          ref: bf2282e3e112ac003360ecb3dff390eafe282dbd
+          path: .context/runtime-contracts
+          persist-credentials: false
       - name: Install native runtime client
         run: "sudo apt-get update
 
@@ -268,7 +295,7 @@ jobs:
           persist-credentials: false
       - name: Refresh exact source security without rebuilding
         id: source-scan
-        uses: SecPal/.github/.github/actions/trivy-repository-scan@f94b47c6a44f924b11b2802ac1c334f20b2e93a9
+        uses: SecPal/.github/.github/actions/trivy-repository-scan@9468a2bdcca4d8dd1ae6ac49776932f5215aa750
       - name: Read refreshed source evidence
         # v8.0.2
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
@@ -336,6 +363,7 @@ jobs:
     outputs:
       image_digest: ${{ needs.prepare.outputs.index_digest }}
       evidence_digest: ${{ steps.retain.outputs.evidence_digest }}
+      runtime_pair_digest: ${{ steps.accept.outputs.runtime_pair_digest }}
     steps:
       - name: Select ephemeral attestation credential directory
         run: printf 'DOCKER_CONFIG=%s\n' "$RUNNER_TEMP/secpal-final-attest-auth" >> "$GITHUB_ENV"
@@ -358,7 +386,7 @@ jobs:
         id: candidate
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python3 scripts/container-publisher.py candidate-context --output .context/publisher-candidate-context.json
+        run: python3 scripts/container-publisher.py candidate-context --runtime-set "$API_RUNTIME_SET" --output .context/publisher-candidate-context.json
       - name: Read exact prepared subjects
         # v8.0.2
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
@@ -397,18 +425,25 @@ jobs:
         # v4.2.1
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6
         with:
-          subject-path: .context/publisher/build-evidence.json
+          subject-path: |
+            ${{ github.event_name == 'workflow_dispatch' && '.context/publisher/runtime-pair.json' || '.context/publisher/build-evidence.json' }}
+            ${{ github.event_name == 'workflow_dispatch' && '.context/publisher/php-fpm/build-evidence.json' || '' }}
+            ${{ github.event_name == 'workflow_dispatch' && '.context/publisher/nginx/build-evidence.json' || '' }}
           create-storage-record: false
       - name: Verify exact document and retain its bundle
         env:
           GH_TOKEN: ${{ github.token }}
           BUNDLE: ${{ steps.document.outputs.bundle-path }}
-        run:
-          'gh attestation verify .context/publisher/build-evidence.json --bundle "$BUNDLE" --repo SecPal/api --signer-workflow
-          SecPal/api/.github/workflows/publish-container.yml --signer-digest "$GITHUB_SHA" --source-ref refs/heads/main
-          --source-digest "$GITHUB_SHA" --deny-self-hosted-runners
-
-          cp "$BUNDLE" .context/publisher/build-evidence.bundle.json'
+        run: |
+          documents=(.context/publisher/build-evidence.json)
+          if [ "$API_RUNTIME_SET" = pair ]; then
+            documents=(.context/publisher/runtime-pair.json .context/publisher/php-fpm/build-evidence.json .context/publisher/nginx/build-evidence.json)
+          fi
+          for document in "${documents[@]}"; do
+            gh attestation verify "$document" --bundle "$BUNDLE" --repo SecPal/api --signer-workflow SecPal/api/.github/workflows/publish-container.yml \
+              --signer-digest "$GITHUB_SHA" --source-ref refs/heads/main --source-digest "$GITHUB_SHA" --deny-self-hosted-runners
+          done
+          cp "$BUNDLE" .context/publisher/build-evidence.bundle.json
       - name: Retain immutable evidence by digest
         id: retain
         env:
@@ -438,6 +473,7 @@ jobs:
         if: always()
         run: python3 scripts/container-attestation-auth.py cleanup
       - name: Verify all subjects and publish only unique discovery tag
+        id: accept
         env:
           GH_TOKEN: ${{ github.token }}
           ARTIFACT_RISK_ACCEPTANCE_COMMENT_ID: ${{ vars.ARTIFACT_RISK_ACCEPTANCE_COMMENT_ID }}

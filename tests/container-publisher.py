@@ -413,6 +413,22 @@ class CandidateContinuation(unittest.TestCase):
         self.origin['path']+="@main"
         self.assertEqual(publisher.candidate_context(SHA,'42','2',api=self.api)['run_attempt'],'1')
 
+    def test_runtime_pair_requires_explicit_event_and_both_component_attestation_jobs(self):
+        self.origin['event']='workflow_dispatch'
+        with self.assertRaisesRegex(ValueError,'original-run-binding'):
+            publisher.candidate_context(SHA,'42','1',api=self.api)
+        self.jobs['jobs']=[j for j in self.jobs['jobs']
+                           if j['name']!='Attest candidate index platforms and Syft artifacts']
+        for role in publisher.RUNTIME_COMPONENTS:
+            self.jobs['jobs'].append(dict(
+                name='Attest candidate index platforms and Syft artifacts ('+role+')',
+                status='completed',conclusion='success'))
+        self.jobs['total_count']=len(self.jobs['jobs'])
+        self.assertEqual(publisher.candidate_context(SHA,'42','1',api=self.api,runtime_set='pair')['source_commit'],SHA)
+        self.jobs['jobs'].pop();self.jobs['total_count']-=1
+        with self.assertRaisesRegex(ValueError,'original-execution-incomplete'):
+            publisher.candidate_context(SHA,'42','1',api=self.api,runtime_set='pair')
+
     def test_new_readonly_scan_can_authorize_the_same_original_artifact(self):
         self.artifacts['artifacts'][1]['name']='api-scans-42-2'
         result=publisher.candidate_context(SHA,'42','2',api=self.api)
@@ -456,15 +472,15 @@ class CandidateContinuation(unittest.TestCase):
 
     def test_only_existing_acceptance_job_gains_continuation_and_discovery_is_last(self):
         workflow=(ROOT/'.github/workflows/publish-container.yml').read_text()
-        self.assertNotIn('workflow_dispatch',workflow)
+        self.assertIn("github.event_name == 'workflow_dispatch' && 'pair' || 'legacy'",workflow)
         acceptance=workflow.split('  accept:\n',1)[1]
         self.assertIn('steps.candidate.outputs.candidate_attempt',acceptance)
         self.assertNotIn('build-container.sh',acceptance)
         self.assertNotIn('path: .context/admission-decision',acceptance)
         self.assertNotIn('.context/admission-decision/scripts/',acceptance)
         shell=(ROOT/'scripts/publish-container.sh').read_text()
-        accept=shell.split('  accept)\n',1)[1]
-        self.assertLess(accept.index('container-publisher.py admission'),accept.index('"$tools/oras" tag'))
+        accept=shell.rsplit('  accept)\n',1)[1]
+        self.assertLess(accept.index('container-publisher.py admission'),accept.index('publish_discovery "$index_digest"'))
         self.assertIn('candidate_attempt=$(jq -er .workflow.run_attempt',accept)
 
 
@@ -484,7 +500,7 @@ class EvidenceRetention(unittest.TestCase):
                 tools=root/'tools';tools.mkdir()
                 (tools/'oras').symlink_to(Path(os.environ['SECPAL_TEST_ORAS']).resolve())
                 result=subprocess.run(['bash','-c','set -euo pipefail'+chr(10)+block],
-                                      env=dict(os.environ,prepared=str(prepared),tools=str(tools),RUNNER_TEMP=str(root)),
+                                      env=dict(os.environ,prepared=str(prepared),tools=str(tools),RUNNER_TEMP=str(root),runtime_set='legacy',component='legacy'),
                                       capture_output=True,text=True)
                 self.assertEqual(result.returncode,0,result.stderr)
                 manifest=json.loads((prepared/'build-evidence-manifest.json').read_bytes())
@@ -496,11 +512,39 @@ class EvidenceRetention(unittest.TestCase):
                     self.assertEqual(blob.read_bytes(),(prepared/name).read_bytes())
 
 
+    def test_pair_retains_both_complete_evidence_documents_and_shared_bundle(self):
+        script=(ROOT/'scripts/publish-container.sh').read_text()
+        start=script.index('    # The file attestation already exists')
+        block=script[start:script.index('    evidence_digest=',start)]
+        expected=['runtime-pair.json','build-evidence.bundle.json',
+                  'php-fpm/build-evidence.json','php-fpm/source-security.json',
+                  'nginx/build-evidence.json','nginx/source-security.json']
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);prepared=root/'prepared';prepared.mkdir()
+            for name in expected:
+                path=prepared/name;path.parent.mkdir(exist_ok=True);path.write_bytes(encoded(dict(fixture=name)))
+            # A legacy exceptional receipt must not enter replacement evidence.
+            (prepared/'artifact-risk-acceptance.json').write_text('{}')
+            tools=root/'tools';tools.mkdir()
+            (tools/'oras').symlink_to(Path(os.environ['SECPAL_TEST_ORAS']).resolve())
+            result=subprocess.run(['bash','-c','set -euo pipefail'+chr(10)+block],
+                                  env=dict(os.environ,prepared=str(prepared),tools=str(tools),RUNNER_TEMP=str(root),
+                                           runtime_set='pair',component='legacy'),capture_output=True,text=True)
+            self.assertEqual(result.returncode,0,result.stderr)
+            manifest=json.loads((prepared/'build-evidence-manifest.json').read_bytes())
+            titles=[layer['annotations']['org.opencontainers.image.title'] for layer in manifest['layers']]
+            self.assertEqual(set(titles),set(expected))
+            for layer in manifest['layers']:
+                name=layer['annotations']['org.opencontainers.image.title']
+                self.assertEqual((root/'build-evidence/blobs/sha256'/layer['digest'].split(':')[1]).read_bytes(),
+                                 (prepared/name).read_bytes())
+
+
 class InterruptedContinuation(unittest.TestCase):
     def test_failed_final_admission_cannot_reach_discovery(self):
         script=(ROOT/'scripts/publish-container.sh').read_text()
         start=script.index('    # Reauthenticate current authority')
-        end=script.index('    "$tools/oras" manifest fetch',start)
+        end=script.index('    {\n      printf',start)
         block=script[start:end]
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory);(root/'oras').write_text('#!/bin/sh\nprintf invoked > "$MARKER"\n')
@@ -547,7 +591,7 @@ class DiscoveryContinuation(unittest.TestCase):
                     env=dict(os.environ,tools=str(root),prepared=str(root),RUNNER_TEMP=str(root),
                              REGISTRY_AUTH_FILE=str(root/'auth.json'),DOCKER_CONFIG=str(root),
                              repository=f'127.0.0.1:{server.server_address[1]}/fixture/api',published_tag='original-run',
-                             index_digest=digest(expected),MARKER=str(root/'tag-called'),
+                             index_digest=digest(expected),source_manifest=str(root/'index.json'),MARKER=str(root/'tag-called'),
                              PINNED_ORAS=os.environ['SECPAL_TEST_ORAS'])
                     result=subprocess.run(['bash','-c','set -eu\n'+block],env=env,capture_output=True,text=True,timeout=20)
                     self.assertEqual(result.returncode==0,allowed,result.stderr)
@@ -594,7 +638,7 @@ class AdmissionConsumer(unittest.TestCase):
             [r['subject'] for r in self.records],[len(platform(a)[2]) for a in ('amd64','arm64')]))
         self.index=digest(index)
         for name,value in [('index.json',json.loads(index)),('prepared.json',dict(records=self.records,index_digest=self.index)),
-                           ('source-security.json',args[5])]:
+                           ('source-security.json',args[5]),('source.json',copy.deepcopy(SOURCE))]:
             (self.prepared/name).write_bytes(encoded(value))
         for arch in ('amd64','arm64'):
             _,config,manifest,_,subject=platform(arch)
