@@ -323,3 +323,99 @@ The final stage verifies the document and OCI evidence attestations, rechecks
 the five candidate attestations and current admission, and resolves the unique
 discovery pointer to the exact immutable index. An interrupted or rejected
 acceptance cannot authorize discovery.
+
+## Qualified replacement runtime pair (issue #2639)
+
+The accepted FrankenPHP contract above remains available. The replacement is
+defined separately in `docker/php-fpm/Containerfile` and
+`docker/nginx/Containerfile`; this source does not activate it or change an
+existing deployment reference.
+
+The PHP image uses the official PHP 8.4.27 FPM/CLI Alpine 3.24 base, full ICU
+data, the existing extensions, OPcache configuration and hash-locked
+OpenTimestamps dependencies. It contains the application, private storage and
+the CLI used by queues, the activity hash chain, scheduling and migrations.
+Nginx uses the official 1.30.6 Alpine 3.24 slim base and contains only public
+application files, HTTP configuration and the license. Both bases and Composer
+are pinned to immutable multi-platform digests in their Containerfiles.
+
+Both processes run as UID/GID 10001 with read-only root filesystems, dropped
+capabilities, no-new-privileges and explicit writable paths. Share only a
+dedicated directory at `/run/secpal-fpm`, mode 0700, using the same rootless
+keep-id mapping for both containers. FPM creates `api.sock` with mode 0660;
+Nginx mounts that directory read-only. On SELinux hosts this shared socket
+mount uses the narrow shared `:z` label. Do not disable container labeling.
+There is no published FastCGI TCP listener, host networking or extra daemon.
+
+Nginx listens on 8080, serves only `/app/public` and sends application requests
+to the fixed Laravel front controller. Arbitrary PHP files, dotfiles, license
+sidecars and the private FPM ping endpoint cannot be executed or exposed.
+Application health endpoints run through Laravel: Nginx alone is insufficient
+for liveness. Access logs omit query strings and credentials; request-specific
+Nginx error logs are disabled to prevent raw request lines from leaking tokens.
+Lifecycle errors remain on stderr.
+
+FPM retains `clear_env=yes`. Its allowlist contains only non-secret deployment
+settings. The existing production secret bootstrap is mounted externally using
+`auto_prepend_file`, as qualified at
+`SecPal/deployment@bf2282e3e112ac003360ecb3dff390eafe282dbd`; do not replace it
+with a new loader or pass application secrets to Nginx. PostgreSQL remains
+verify-full TLS/SCRAM. No startup command generates secrets or migrates data.
+
+FPM and Nginx drain HTTP requests with SIGQUIT. CLI consumers of the same PHP
+image must select their existing SIGTERM lifecycle and role-specific health
+probe. The FPM image probe speaks FastCGI to its private ping path; the HTTP
+probe checks Laravel liveness. OCI-format builds do not retain Docker
+HEALTHCHECK metadata: deployment consumers must explicitly supply these
+Podman/Quadlet health commands. Consumers must preserve private storage,
+bootstrap-cache and temporary-directory ownership and their existing worker
+stop budgets.
+
+### Build, evidence and atomic pairing
+
+The existing `scripts/build-container.sh ARCH OUTPUT pair` builds both roles
+on one native runner and executes the shared HTTP/PostgreSQL smoke against
+that exact pair. The existing Container Image workflow performs separate
+AMD64/ARM64 builds, Syft inventories and independent Grype/Trivy qualification
+of the unpublished OCI layouts. A local Trivy input uses its supported
+OCI-directory `repository@sha256:manifest` selector. The repository-named
+directory is a local content-addressed transport, not a registry publication.
+The existing native observer verifies the manifest, configuration and every
+layer before scanning; `local-input.json` records that distinction. Raw Trivy
+results and the central scanner adapters/policy are unchanged.
+
+After scanning, the same publisher's `qualify-unpublished-pair` command
+re-observes all four native layouts, SBOM and raw scanner bindings, fresh CLEAN
+policy decisions and successful smoke records naming both exact companions.
+It retains `unpublished-runtime-pair.json` with source/tree, manifest/config
+digests, candidate index digests and a shared pair identity. Missing, substituted,
+non-CLEAN or mismatched-run evidence removes any stale result and fails closed.
+This explicitly unpublished qualification grants no registry admission or
+attestation; those remain in the protected publication workflow.
+
+Normal main pushes retain legacy publication and its existing digest output.
+An explicit `workflow_dispatch` selecting `pair` is the separate replacement
+publication entry point; running it requires release authorization. This issue
+does not authorize invoking it or publishing to GHCR.
+
+The single publisher model in `scripts/container-publisher.py` selects the two
+reviewed Containerfiles. Both component admissions must bind the same exact
+accepted source commit, workflow run and attempt, complete native AMD64/ARM64
+evidence, component labels, authoritative SBOMs, independent successful CLEAN
+scanner decisions and smoke tests naming both exact companion manifests.
+Replacement components cannot use the legacy exceptional-admission path.
+Missing, substituted, stale, failed or non-CLEAN evidence prevents a pair.
+
+`runtime-pair.json` binds both multi-platform image digests, all four native
+manifest/configuration identities and the hashes of both complete build-evidence
+documents. The existing attestation/evidence artifact retains and verifies all
+three documents before final revalidation and the separate
+`runtime-pair-COMMIT-RUN-ATTEMPT` discovery pointer. No component alone creates
+an accepted pair. The existing `build-COMMIT-RUN-ATTEMPT` pointer and legacy
+digest consumer are unchanged; discovery tags are never deployment authority.
+
+A future deployment consumer must verify the attested pair artifact and use
+both digest-only references together. Deploying either role with an arbitrary
+companion is unsupported. Deployment/Quadlet and dynamic Polyscope workspace
+routing require separately reviewed consumer changes; this API implementation
+does not change those repositories or any running service.

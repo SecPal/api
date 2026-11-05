@@ -12,7 +12,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Add the qualified Alpine PHP-FPM/CLI and separate Nginx runtime pair with a
+  private Unix socket, non-root execution and digest-bound dual-artifact
+  Buildah evidence. Preserve the accepted FrankenPHP publication and consumer
+  contract until the replacement is independently accepted (refs #2639).
+
 ### Fixed
+
+- Patch the Symfony HTTP, routing, serializer and YAML security advisories found
+  during runtime qualification, including CVE-2026-118514, CVE-2026-118515 and
+  CVE-2026-118516. Update only the eight-package required Composer closure;
+  retain Laravel and Symfony MIME unchanged (refs #2639).
 
 - Update Symfony MIME from 8.0.15 to 8.1.10 to fix CVE-2026-45070 header
   injection through parameter names, retaining Laravel and all other locked
