@@ -94,7 +94,7 @@ it('retains explicit source strings without changing their bytes', function (str
 
 it('allows seeder progress output to be absent without a console', function (): void {
     $previousApplication = Facade::getFacadeApplication();
-    $previousSchema = Schema::getFacadeRoot();
+    $previousSchema = $previousApplication?->bound('db.schema') ? Schema::getFacadeRoot() : null;
     $application = new Container;
     $application->instance('db.schema', new class
     {
