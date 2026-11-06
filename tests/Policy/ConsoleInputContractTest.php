@@ -69,7 +69,7 @@ it('retains explicit source strings without changing their bytes', function (str
 })->with([
     ['sourcePath', 'source', '/tmp/addresses.csv'],
     ['sourcePath', 'source', '  /tmp/addresses.csv  '],
-    ['expectedSha256', 'expected-sha256', str_repeat('a', 64)],
+    ['expectedSha256', 'expected-sha256', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'],
 ]);
 
 it('allows seeder progress output to be absent without a console', function (): void {
