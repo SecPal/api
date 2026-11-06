@@ -7,6 +7,8 @@ use App\Console\Commands\DeleteExpiredEmployees;
 use App\Console\Commands\ImportAddressDataCommand;
 use App\Console\Commands\RebuildIndexCommand;
 use App\Console\Commands\RotateDekCommand;
+use App\Console\Commands\UpdateEmployeeStatus;
+use App\Console\Commands\UpdateQualificationStatus;
 use App\Services\ExpiredEmployeeDeletionService;
 use Database\Seeders\AddressDataSeeder;
 use Illuminate\Console\Command;
@@ -48,6 +50,24 @@ it('rejects an array tenant option before retention deletion', function (): void
         restore_error_handler();
     }
 });
+
+it('rejects malformed dry-run flags before lifecycle work', function (string $class, mixed $flag): void {
+    $command = Mockery::mock($class)->makePartial();
+    $command->shouldReceive('option')->once()->with('dry-run')->andReturn($flag);
+    $command->shouldReceive('info')->never();
+    $command->shouldReceive('error')->once()->with('The --dry-run option must be a boolean flag.');
+
+    expect($command->handle())->toBe(Command::FAILURE);
+})->with([[UpdateEmployeeStatus::class], [UpdateQualificationStatus::class]])->with([
+    'empty array' => [[]],
+    'nonempty array' => [['unexpected']],
+    'missing value' => [null],
+    'integer zero' => [0],
+    'integer one' => [1],
+    'string true' => ['true'],
+    'string false' => ['false'],
+    'fractional value' => [1.5],
+]);
 
 it('rejects array source options without falling back to another source', function (string $method, string $option): void {
     $command = Mockery::mock(ImportAddressDataCommand::class)->makePartial();

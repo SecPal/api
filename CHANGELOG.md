@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Preserve console command input contracts with Symfony Console 8: reject non-scalar tenant/source inputs before work, normalize dry-run flags, and keep optional seeder progress output safe without an attached console.
+- Preserve console command input contracts with Symfony Console 8: reject non-scalar tenant/source inputs before work, validate dry-run booleans, and keep optional seeder progress output safe without an attached console.
 
 - Refresh the eight already-qualified Symfony lock entries, including HTTP Foundation, Routing and Serializer 8.1.11, to remove the vulnerable repository-scan baseline without changing Composer constraints or runtime definitions.
 

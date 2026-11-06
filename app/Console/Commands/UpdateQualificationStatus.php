@@ -50,7 +50,12 @@ class UpdateQualificationStatus extends Command
      */
     public function handle(): int
     {
-        $isDryRun = (bool) $this->option('dry-run');
+        $isDryRun = $this->option('dry-run');
+        if (! is_bool($isDryRun)) {
+            $this->error('The --dry-run option must be a boolean flag.');
+
+            return self::FAILURE;
+        }
         $today = Carbon::today();
 
         $this->info('Checking qualification status updates for '.$today->format('Y-m-d'));
