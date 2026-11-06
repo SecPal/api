@@ -6,6 +6,7 @@ import { pathToFileURL } from "node:url";
 const nonRuntimeAutomation = new Set([
   ".github/workflows/oci-pr-gate.yml",
   ".github/workflows/php-ci.yml",
+  ".github/workflows/reusable-repository-security.yml",
   ".github/workflows/dependabot-auto-merge.yml",
   ".github/dependabot.yml",
   "scripts/required-oci-checks.mjs",
