@@ -1,0 +1,64 @@
+# SPDX-FileCopyrightText: 2026 SecPal Contributors
+# SPDX-License-Identifier: CC0-1.0
+---
+name: OCI PR Acceptance
+on:
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+  pull-requests: read
+  actions: read
+concurrency:
+  group: oci-pr-acceptance-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  scope:
+    name: Classify OCI inputs
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      required: ${{ steps.scope.outputs.required }}
+    steps:
+      - name: Checkout without persistent credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "26.11.1"
+      - name: Test fail-closed OCI admission
+        run: node --test tests/required-oci-checks.test.mjs
+      - name: Read complete authenticated PR diff
+        id: scope
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/required-oci-checks.mjs scope
+  native:
+    name: Native OCI qualification
+    needs: scope
+    if: ${{ needs.scope.outputs.required == 'true' }}
+    uses: ./.github/workflows/container-image.yml
+  acceptance:
+    name: OCI Runtime Acceptance
+    if: ${{ always() }}
+    needs: [scope, native]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout without persistent credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "26.11.1"
+      - name: Require every applicable native and pair job
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          SCOPE_RESULT: ${{ needs.scope.result }}
+          RELEVANT: ${{ needs.scope.outputs.required }}
+          NATIVE_RESULT: ${{ needs.native.result }}
+        run: node scripts/required-oci-checks.mjs
