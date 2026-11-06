@@ -89,7 +89,7 @@ class OnboardingFormTemplatesSeeder extends Seeder
             );
         }
 
-        $this->command->info('Created 6 standard onboarding form templates.');
+        $this->command?->info('Created 6 standard onboarding form templates.');
     }
 
     /**
