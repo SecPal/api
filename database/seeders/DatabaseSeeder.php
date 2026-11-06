@@ -113,6 +113,6 @@ class DatabaseSeeder extends Seeder
             ]
         );
 
-        $this->command->info('Test user created with direct permissions and organizational scopes (0-0 for Guards, 1-255 for Leadership).');
+        $this->command?->info('Test user created with direct permissions and organizational scopes (0-0 for Guards, 1-255 for Leadership).');
     }
 }

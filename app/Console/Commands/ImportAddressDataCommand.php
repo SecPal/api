@@ -7,6 +7,7 @@ namespace App\Console\Commands;
 
 use App\Services\AddressData\AddressDataImportService;
 use Illuminate\Console\Command;
+use InvalidArgumentException;
 
 class ImportAddressDataCommand extends Command
 {
@@ -64,6 +65,9 @@ class ImportAddressDataCommand extends Command
     private function sourcePath(): ?string
     {
         $explicitSource = $this->option('source');
+        if ($explicitSource !== null && ! is_scalar($explicitSource)) {
+            throw new InvalidArgumentException('The --source option must be a scalar value.');
+        }
         if ($explicitSource !== null && trim((string) $explicitSource) !== '') {
             return (string) $explicitSource;
         }
@@ -78,6 +82,9 @@ class ImportAddressDataCommand extends Command
     private function expectedSha256(): ?string
     {
         $explicitDigest = $this->option('expected-sha256');
+        if ($explicitDigest !== null && ! is_scalar($explicitDigest)) {
+            throw new InvalidArgumentException('The --expected-sha256 option must be a scalar value.');
+        }
         if ($explicitDigest !== null) {
             return (string) $explicitDigest;
         }

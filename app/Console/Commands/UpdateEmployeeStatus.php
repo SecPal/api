@@ -45,7 +45,7 @@ class UpdateEmployeeStatus extends Command
      */
     public function handle(): int
     {
-        $isDryRun = $this->option('dry-run');
+        $isDryRun = (bool) $this->option('dry-run');
         $today = Carbon::today();
 
         $this->info('Checking employee status updates for '.$today->format('Y-m-d'));

@@ -113,7 +113,7 @@ class OnboardingDemoUserSeeder extends Seeder
                 $employee->save();
             }
 
-            $this->command->info('Onboarding demo user: onboarding@example.com / password (pre-contract, SecPal Holding).');
+            $this->command?->info('Onboarding demo user: onboarding@example.com / password (pre-contract, SecPal Holding).');
         });
     }
 

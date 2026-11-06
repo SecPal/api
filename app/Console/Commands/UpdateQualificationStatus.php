@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -50,7 +50,7 @@ class UpdateQualificationStatus extends Command
      */
     public function handle(): int
     {
-        $isDryRun = $this->option('dry-run');
+        $isDryRun = (bool) $this->option('dry-run');
         $today = Carbon::today();
 
         $this->info('Checking qualification status updates for '.$today->format('Y-m-d'));
