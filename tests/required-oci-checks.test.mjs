@@ -12,6 +12,7 @@ for (const path of [
   "docker/nginx.conf",
   "composer.lock",
   ".github/workflows/container-image.yml",
+  ".github/workflows/reusable-repository-security.yml",
   "scripts/container-publisher.py",
   "unknown-input",
 ]) {
