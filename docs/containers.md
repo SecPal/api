@@ -323,3 +323,26 @@ The final stage verifies the document and OCI evidence attestations, rechecks
 the five candidate attestations and current admission, and resolves the unique
 discovery pointer to the exact immutable index. An interrupted or rejected
 acceptance cannot authorize discovery.
+
+## Required OCI PR admission
+
+`OCI Runtime Acceptance` appears on every pull request. It reads the complete
+GitHub PR diff, including rename sources, and binds the decision to the exact
+head and base. Known documentation, PR-test/dependency-enrollment automation,
+and the admission helper itself do not modify runtime inputs. All other paths,
+including application Markdown and packaged license notices, require native
+qualification.
+
+The existing Container Image reusable workflow supplies native builds and
+security qualification in the same dependency graph. The final job requires
+successful validation, AMD64 and ARM64 jobs, and unpublished PHP-FPM/Nginx pair
+admission. Missing, skipped, cancelled or failed qualification cannot pass.
+Documentation-only PRs require successful scope detection and a skipped native
+call. Database freshness, raw scans and digest binding remain owned by the
+existing publisher contract.
+
+Main's legacy build workflow alone cannot qualify the new pair. Until the pair
+workflow from #2643 is accepted, applicable updates remain blocked. Integrating
+this gate into #2643 must remove its separate PR trigger from the called
+Container Image workflow, leaving `workflow_call`, to avoid duplicate builds.
+No publication or production migration is authorized by this PR gate.

@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Require fail-closed native OCI runtime admission for applicable PR changes,
+  including both architectures and the complete digest-bound PHP-FPM/Nginx pair.
+  Documentation-only changes use a complete authenticated GitHub diff.
+
 - Update Symfony MIME from 8.0.15 to 8.1.10 to fix CVE-2026-45070 header
   injection through parameter names, retaining Laravel and all other locked
   dependencies unchanged (refs #2635).
