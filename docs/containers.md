@@ -328,8 +328,10 @@ acceptance cannot authorize discovery.
 
 `OCI Runtime Acceptance` appears on every pull request. It reads the complete
 GitHub PR diff, including rename sources, and binds the decision to the exact
-head and base. Only documentation and the admission helper's own implementation
-are exempt; unknown inputs require native qualification.
+head and base. Known documentation, PR-test/dependency-enrollment automation,
+and the admission helper itself do not modify runtime inputs. All other paths,
+including application Markdown and packaged license notices, require native
+qualification.
 
 The existing Container Image reusable workflow supplies native builds and
 security qualification in the same dependency graph. The final job requires
