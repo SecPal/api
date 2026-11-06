@@ -22,7 +22,7 @@
     "web-auth/webauthn-lib": "^5.3"
   },
   "require-dev": {
-    "barryvdh/laravel-ide-helper": "^3.7",
+    "barryvdh/laravel-ide-helper": "^3.8",
     "fakerphp/faker": "^1.23",
     "larastan/larastan": "^3.13",
     "laravel/boost": "^2.10.3",
