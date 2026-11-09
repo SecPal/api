@@ -499,8 +499,7 @@ def observe_policy(root, folder, observed_at):
     if dict(evaluation,evaluated_at=recorded['evaluated_at'])!=recorded:
         raise ValueError('publisher-normalized-evidence-mismatch')
     vex=[]
-    vex_checkout = (Path(root)/'.context/reviewed-vex'
-                    if os.environ.get('GITHUB_EVENT_NAME') == 'pull_request' else governance)
+    vex_checkout = Path(root)/'.context/reviewed-vex'
     for path in adapter.discover_reviewed_vex_manifests(vex_checkout/'reviewed-vex'):
         commit=run(['git','rev-parse','HEAD'],cwd=vex_checkout).decode().strip()
         adapter.verify_reviewed_vex_checkout(vex_checkout,path,'SecPal/.github',commit)

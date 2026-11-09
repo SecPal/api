@@ -383,7 +383,8 @@ The existing native observer verifies the manifest, configuration and every
 layer before scanning; `local-input.json` records that distinction. Raw Trivy
 results and the central scanner adapters/policy are unchanged.
 
-For PR qualification, the policy engine stays at its accepted immutable pin.
+For PR qualification and the manual publisher, the policy engine stays at its
+accepted immutable pin.
 Reviewed VEX data is read separately from protected `SecPal/.github` main;
 the resolved checkout commit is retained as `reviewed-vex-checkout.json`.
 The existing trusted adapter verifies each committed manifest and its ancestor

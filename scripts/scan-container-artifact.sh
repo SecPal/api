@@ -40,8 +40,7 @@ env -i HOME="$cache" "$tools/trivy" --config "$cache/config.yaml" image \
   --download-db-only --cache-dir "$cache/trivy"
 env -i HOME="$cache" "$tools/trivy" --config "$cache/config.yaml" image \
   --download-java-db-only --cache-dir "$cache/trivy"
-vex_checkout="$governance"
-if [ "$mode" = local ]; then vex_checkout="$repo_root/.context/reviewed-vex"; fi
+vex_checkout="$repo_root/.context/reviewed-vex"
 # Policy code remains immutable; only accepted protected-main VEX data is newer.
 test -d "$vex_checkout/reviewed-vex"
 vex_commit=$(git -C "$vex_checkout" rev-parse HEAD)

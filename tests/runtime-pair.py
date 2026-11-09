@@ -308,6 +308,10 @@ class RuntimePairTests(unittest.TestCase):
         self.assertIn('--trusted-commit "$vex_commit"', scan)
         self.assertIn('reviewed-vex-checkout.json', scan)
         self.assertNotIn('"$vex_checkout/scripts/', scan)
+        publication = (root/'.github/workflows/publish-container.yml').read_text()
+        self.assertEqual(publication.count('path: .context/reviewed-vex'), 2)
+        self.assertIn('vex_checkout="$repo_root/.context/reviewed-vex"', scan)
+        self.assertNotIn('vex_checkout="$governance"', scan)
 
     def test_retained_native_attempt_is_bounded_and_only_available_to_pr_qualification(self):
         for event, attempt in (('pull_request', '1'), ('pull_request', '2'),
