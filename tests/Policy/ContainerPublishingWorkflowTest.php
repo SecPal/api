@@ -308,6 +308,15 @@ it('uses immutable v4 code and separately authenticated decision data', function
     }
 
     expect(array_unique($references))->toHaveCount(1);
+    foreach ([$publisher, $native] as $workflow) {
+        foreach ($workflow['jobs'] as $job) {
+            foreach ($job['steps'] ?? [] as $step) {
+                if (($step['with']['path'] ?? null) === '.context/publisher-governance') {
+                    expect($step['with']['ref'])->toBe($references[0]);
+                }
+            }
+        }
+    }
     $accept = $publisher['jobs']['accept'];
     expect(containerPublishingRunScripts($accept))->toContain('candidate-context')
         ->not->toContain('decision-revision', '.context/admission-decision');
