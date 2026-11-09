@@ -25,6 +25,9 @@ it('defines the production API image contract', function (): void {
     $dependenciesStage = explode('FROM extensions AS dependencies', $dockerfile, 2)[1];
     $dependenciesStage = explode('FROM extensions AS runtime', $dependenciesStage, 2)[0];
 
+    preg_match('/^ARG FRANKENPHP_IMAGE=.*:([0-9]+\.[0-9]+\.[0-9]+)-php/m', $dockerfile, $frankenInput);
+    expect(version_compare($frankenInput[1] ?? '0', '1.13.5', '>='))->toBeTrue();
+
     expect($dockerfile)
         ->toMatch('/^ARG FRANKENPHP_IMAGE=docker\\.io\\/dunglas\\/frankenphp:[0-9]+\\.[0-9]+\\.[0-9]+-php8\\.4\\.[0-9]+-alpine@sha256:[a-f0-9]{64}$/m')
         ->toMatch('/^ARG COMPOSER_IMAGE=docker\\.io\\/library\\/composer:[0-9]+\\.[0-9]+\\.[0-9]+@sha256:[a-f0-9]{64}$/m')
