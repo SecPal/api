@@ -14,6 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Preserve unresolved released-image CVE issues when scanner findings disappear;
+  adopt the reviewed central triage fix without changing release security policy.
+
 - Consume the canonical v5 repository scan schema from the accepted shared
   publisher SDK, retaining exact source, freshness and CLEAN admission checks.
 
