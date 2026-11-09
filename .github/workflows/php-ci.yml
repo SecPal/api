@@ -21,9 +21,7 @@ jobs:
     uses: ./.github/workflows/container-image.yml
 
   test:
-    name: PEST Tests
-    needs: native
-    if: ${{ always() }}
+    name: PHP Test Suite
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -43,12 +41,6 @@ jobs:
           - 5432:5432
 
     steps:
-      - name: Require successful native OCI qualification
-        if: github.event_name == 'pull_request'
-        env:
-          NATIVE_RESULT: ${{ needs.native.result }}
-        run: test "$NATIVE_RESULT" = success
-
       - name: Checkout repository
         # v7.0.1
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -164,3 +156,20 @@ jobs:
         # Allow step to succeed even if upload fails for dependabot
         # This prevents blocking the PR when CODECOV_TOKEN is unavailable
         continue-on-error: ${{ contains(fromJSON('["dependabot[bot]", "renovate[bot]"]'), github.actor) }}
+
+  acceptance:
+    name: PEST Tests
+    needs: [native, test]
+    if: ${{ always() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Require the complete PHP and native results
+        env:
+          NATIVE_RESULT: ${{ needs.native.result }}
+          TEST_RESULT: ${{ needs.test.result }}
+        run: |
+          test "$TEST_RESULT" = success
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+            test "$NATIVE_RESULT" = success
+          fi

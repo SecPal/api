@@ -124,6 +124,6 @@ jobs:
       php-version: "8.4"
 
   # NOTE: PEST tests are owned by .github/workflows/php-ci.yml (job: `test`,
-  # context: `PEST Tests`). Do not re-add a PEST job here — duplicate
+  # required context: `PEST Tests` aggregates PHP and native results). Do not add a PEST job here — duplicate
   # required-check context names confuse GitHub branch-protection gates.
   # See: https://github.com/SecPal/api/issues/1157

@@ -331,10 +331,11 @@ reusable workflow for every PR to main, including documentation and workflow
 changes. The native workflow is called once through PHP CI; it has no separate
 PR trigger or path classifier. GitHub owns matrix and job dependency evaluation.
 
-The Pest job always runs and first requires the native workflow result to be
-`success`. A failed, missing, skipped or cancelled native result cannot become a
-successful skipped required check. On main pushes, Pest runs normally while the
-existing publisher owns native release qualification.
+The PHP suite and native qualification run independently. The terminal
+`PEST Tests` job always reports their results and requires both to be `success`
+on PRs. A failed, missing, skipped or cancelled result cannot become a successful
+skipped required check. On main pushes, the PHP suite still runs normally while
+the existing publisher owns native release qualification.
 
 The called workflow owns validation, both native architectures and, for the
 paired runtime introduced by #2643, the unpublished digest-bound PHP-FPM/Nginx

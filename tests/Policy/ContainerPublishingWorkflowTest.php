@@ -322,21 +322,27 @@ it('keeps the required Pest context blocking for every unsuccessful native resul
     expect($ci['jobs']['native']['uses'] ?? null)->toBe('./.github/workflows/container-image.yml')
         ->and($ci['jobs']['native']['if'] ?? null)->toBe("github.event_name == 'pull_request'")
         ->and($ci['on']['pull_request'])->toBe(['branches' => ['main']])
-        ->and($ci['jobs']['test']['name'])->toBe('PEST Tests')
-        ->and($ci['jobs']['test']['needs'] ?? null)->toBe('native')
-        ->and($ci['jobs']['test']['if'] ?? null)->toBe('${{ always() }}');
+        ->and($ci['jobs']['test'])->not->toHaveKeys(['needs', 'if'])
+        ->and($ci['jobs']['acceptance']['name'] ?? null)->toBe('PEST Tests')
+        ->and($ci['jobs']['acceptance']['needs'] ?? null)->toBe(['native', 'test'])
+        ->and($ci['jobs']['acceptance']['if'] ?? null)->toBe('${{ always() }}');
 
-    $gate = $ci['jobs']['test']['steps'][0];
-    expect($gate['if'] ?? null)->toBe("github.event_name == 'pull_request'")
-        ->and($gate['env']['NATIVE_RESULT'] ?? null)->toBe('${{ needs.native.result }}');
+    $gate = $ci['jobs']['acceptance']['steps'][0];
+    expect($gate['env']['NATIVE_RESULT'] ?? null)->toBe('${{ needs.native.result }}')
+        ->and($gate['env']['TEST_RESULT'] ?? null)->toBe('${{ needs.test.result }}');
 
-    foreach (['success', 'failure', 'cancelled', 'skipped', 'neutral', 'timed_out', ''] as $result) {
-        $process = new Symfony\Component\Process\Process(
-            ['bash', '-e', '-c', $gate['run']],
-            env: ['NATIVE_RESULT' => $result],
-        );
-        $process->run();
-        expect($process->isSuccessful())->toBe($result === 'success');
+    $results = ['success', 'failure', 'cancelled', 'skipped', 'neutral', 'timed_out', ''];
+    foreach (['pull_request', 'push'] as $event) {
+        foreach ($results as $native) {
+            foreach ($results as $tests) {
+                $process = new Symfony\Component\Process\Process(
+                    ['bash', '-e', '-c', $gate['run']],
+                    env: ['GITHUB_EVENT_NAME' => $event, 'NATIVE_RESULT' => $native, 'TEST_RESULT' => $tests],
+                );
+                $process->run();
+                expect($process->isSuccessful())->toBe($tests === 'success' && ($event === 'push' || $native === 'success'));
+            }
+        }
     }
 });
 
