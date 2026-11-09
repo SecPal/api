@@ -14,6 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Consume the canonical v5 repository scan schema from the accepted shared
+  publisher SDK, retaining exact source, freshness and CLEAN admission checks.
+
 - Restore exact released-artifact monitoring through the central supported
   Python runtime fix, preserving scanner and vulnerability-policy contracts.
 

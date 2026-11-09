@@ -23,7 +23,7 @@ spec=importlib.util.spec_from_file_location('publisher',Path(__file__).resolve()
 publisher=importlib.util.module_from_spec(spec);spec.loader.exec_module(publisher)
 ROOT = Path(__file__).resolve().parents[1]
 GOVERNANCE = ROOT / '.context/publisher-governance'
-SOURCE_SCHEMA = json.loads((GOVERNANCE / 'docs/schemas/secpal-trivy-repository-scan-v4.schema.json').read_bytes())
+SOURCE_SCHEMA = json.loads((GOVERNANCE / 'docs/schemas/secpal-trivy-repository-scan-v5.schema.json').read_bytes())
 scan_spec = importlib.util.spec_from_file_location('trusted_source_scanner', GOVERNANCE / 'scripts/secpal-trivy-repository-scan.py')
 source_scanner = importlib.util.module_from_spec(scan_spec); scan_spec.loader.exec_module(source_scanner)
 SOURCE_POLICY = json.loads((GOVERNANCE / 'policies/trivy-repository-scan-v1.json').read_bytes())
@@ -234,16 +234,16 @@ class Publisher(unittest.TestCase):
         with self.assertRaises(ValueError):
             publisher.build_evidence(*args,expected_source=dict(SOURCE,commit='0'*40),source_security_schema=SOURCE_SCHEMA)
 
-    def test_v4_reader_preserves_the_complete_producer_identity(self):
+    def test_v5_reader_preserves_the_complete_producer_identity(self):
         value=source_security()
         admitted=publisher.admit_source_security(value,SHA,NOW,schema=SOURCE_SCHEMA)
         self.assertIs(admitted,value)
         self.assertEqual(admitted['scanner'],value['scanner'])
         self.assertEqual(admitted['policy'],value['policy'])
 
-    def test_v4_reader_rejects_malformed_wrong_schema_and_non_clean_records(self):
+    def test_v5_reader_rejects_malformed_wrong_schema_and_non_clean_records(self):
         mutations=[
-            lambda v:v.update(schema_version='secpal-trivy-repository-scan-v2'),
+            lambda v:v.update(schema_version='secpal-trivy-repository-scan-v4'),
             lambda v:v.update(schema_version='unknown'),
             lambda v:v.pop('scanner'),
             lambda v:v['scanner'].update(immutable_id='not-a-digest'),
@@ -262,7 +262,7 @@ class Publisher(unittest.TestCase):
             with self.assertRaises(ValueError):
                 publisher.admit_source_security(value,SHA,NOW,schema=SOURCE_SCHEMA)
 
-    def test_v4_source_database_deadline_retains_its_exclusive_upper_bound(self):
+    def test_v5_source_database_deadline_retains_its_exclusive_upper_bound(self):
         value=source_security()
         publisher.admit_source_security(value,SHA,value['database']['updated_at'],schema=SOURCE_SCHEMA)
         with self.assertRaises(ValueError):
