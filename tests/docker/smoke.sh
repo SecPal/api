@@ -9,7 +9,7 @@ case "$runtime_set" in
   pair) image=${PHP_FPM_IMAGE:?}; http_image=${NGINX_IMAGE:?} ;;
   *) echo 'Unknown runtime set' >&2; exit 1 ;;
 esac
-postgres_image=${POSTGRES_IMAGE:-postgres:18-bookworm@sha256:1c59e2c3c818eaa0f0628f695b36e7c9e362d6b219b36a54a32df645cbd7e1af}
+postgres_image=${POSTGRES_IMAGE:-docker.io/library/postgres:18-bookworm@sha256:1c59e2c3c818eaa0f0628f695b36e7c9e362d6b219b36a54a32df645cbd7e1af}
 tmp_dir=$(mktemp -d)
 suffix=$(basename "$tmp_dir")
 suffix=${suffix#tmp.}
@@ -81,7 +81,7 @@ assert_http() {
     diagnose=${4:-1}
     if podman exec "$client" php -r '
     $context = stream_context_create(["http" => ["ignore_errors" => true, "timeout" => 3, "follow_location" => 0]]);
-    $body = @file_get_contents($argv[1], false, $context);
+    $body = file_get_contents($argv[1], false, $context);
     $statusLine = $http_response_header[0] ?? "";
     preg_match("/\s(\d{3})\s/", $statusLine, $matches);
     $status = isset($matches[1]) ? (int) $matches[1] : 0;
@@ -100,7 +100,7 @@ assert_http() {
         "SELECT state, wait_event_type, wait_event, count(*) FROM pg_stat_activity WHERE datname='secpal' GROUP BY 1,2,3" >&2 || true
     podman exec "$client" php -r '
         $started = microtime(true);
-        $stream = @fopen($argv[1], "r", false, stream_context_create(["http" => [
+        $stream = fopen($argv[1], "r", false, stream_context_create(["http" => [
             "ignore_errors" => true, "timeout" => 15, "follow_location" => 0,
             "header" => "Connection: close\r\n",
         ]]));
@@ -336,7 +336,7 @@ openssl x509 -req -days 1 -sha256 \
 chmod 0755 "$cert_dir"
 chmod 0644 "${cert_dir}/ca.crt" "${cert_dir}/server.crt"
 chmod 0600 "${cert_dir}/server.key"
-podman run --rm --user 0 -v "${cert_dir}:/certs" "$postgres_image" \
+podman run --rm --user 0 -v "${cert_dir}:/certs:z" "$postgres_image" \
     chown postgres:postgres /certs/server.key /certs/server.crt /certs/ca.crt
 dd if=/dev/urandom of="$kek_file" bs=32 count=1 status=none
 chmod 0600 "$kek_file"
@@ -373,7 +373,7 @@ podman run -d --label "$owner_label" --name "$postgres" --network "$network" --n
     -e POSTGRES_DB=secpal -e POSTGRES_USER=secpal -e POSTGRES_PASSWORD="$db_password" \
     -e POSTGRES_INITDB_ARGS='--auth-host=scram-sha-256' \
     -v "$volume:/var/lib/postgresql" \
-    -v "${cert_dir}:/var/lib/postgresql/certs:ro" \
+    -v "${cert_dir}:/var/lib/postgresql/certs:ro,z" \
     "$postgres_image" \
     -c ssl=on \
     -c ssl_cert_file=/var/lib/postgresql/certs/server.crt \
@@ -466,7 +466,7 @@ fi
 # Keep one independent client on the isolated network. Repeated rootless network
 # attach/detach is helper churn, rather than an application assertion.
 podman run -d --label "$owner_label" --name "$client" --network "$network" \
-    -v "${port_probe}:/tmp/assert-port-closed.php:ro" "$image" sleep 300 >/dev/null
+    -v "${port_probe}:/tmp/assert-port-closed.php:ro,z" "$image" sleep 300 >/dev/null
 wait_for_http
 podman exec "$api" secpal-http-live
 assert_http /health/live 200 '"status":"alive"'

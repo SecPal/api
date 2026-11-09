@@ -21,6 +21,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Keep native runtime smoke fixtures usable under enforcing SELinux with shared
+  bind labels and a canonical PostgreSQL reference; retain native HTTP failure
+  diagnostics without suppressing the original transport error.
+
 - Install the stable Alpine zlib 1.4-r0 security update in the Nginx runtime
   to resolve CVE-2026-4738 found by native dual-scanner qualification.
 

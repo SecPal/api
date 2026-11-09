@@ -105,7 +105,7 @@ it('defines the production API image contract', function (): void {
         ->toContain('test "$(stat -c "%U:%G %a" "$healthcheck")" = "root:root 755"')
         ->toContain('if test -e "$sqlite_probe"; then')
         ->toContain('chmod 0444 "$port_probe"')
-        ->toContain('-v "${port_probe}:/tmp/assert-port-closed.php:ro"');
+        ->toContain('-v "${port_probe}:/tmp/assert-port-closed.php:ro,z"');
     expect($proxyConfig)->toContain('TRUSTED_PROXIES');
 });
 
