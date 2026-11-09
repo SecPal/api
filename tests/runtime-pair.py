@@ -216,7 +216,7 @@ class RuntimePairTests(unittest.TestCase):
                                 and 'chown=true' in v for v in args), directory)
 
     def test_unpublished_pair_observes_four_images_and_rejects_incomplete_or_nonclean_inputs(self):
-        for change in (None, 'missing', 'companion', 'source', 'policy', 'raw', 'sbom', 'run'):
+        for change in (None, 'retry', 'missing', 'companion', 'source', 'policy', 'raw', 'sbom', 'run', 'attempt'):
             with self.subTest(change=change), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory); native = root/'native'; scans = root/'scan'
                 output = root/'pair.json'; output.write_text('stale')
@@ -254,12 +254,14 @@ class RuntimePairTests(unittest.TestCase):
                 folder = scans/'nginx/amd64'
                 if change == 'missing':
                     selected.unlink()
-                elif change in ('companion', 'run'):
+                elif change in ('companion', 'run', 'attempt'):
                     value = publisher.read(selected)
                     if change == 'companion':
                         value['runtime_pair']['php-fpm'] = 'sha256:'+'f'*64
-                    else:
+                    elif change == 'run':
                         value['workflow_run_id'] = '999'
+                    else:
+                        value['workflow_run_attempt'] = '2'
                     publisher.write(selected, value)
                 elif change == 'source':
                     records[('amd64', 'nginx')]['source']['commit'] = 'f'*40
@@ -268,16 +270,18 @@ class RuntimePairTests(unittest.TestCase):
                 elif change == 'sbom':
                     (folder/'sbom/syft.spdx.json').write_bytes(b'substituted')
                 policy = dict(evidence_health=dict(state='HEALTHY'), gate_state='ACTIONABLE' if change == 'policy' else 'CLEAN')
-                def observe(_root, own, arch, expected):
+                def observe(_root, own, arch, expected, *, attempt=None):
+                    self.assertEqual(attempt, '1')
                     self.assertEqual(own, native/f'api-native-{arch}-123-1'/expected['runtime'])
                     return records[(arch, expected['runtime'])], b'manifest', b'config'
-                with unittest.mock.patch.dict(os.environ, GITHUB_SHA=SHA, GITHUB_RUN_ID='123', GITHUB_RUN_ATTEMPT='1'), \
+                with unittest.mock.patch.dict(os.environ, GITHUB_SHA=SHA, GITHUB_RUN_ID='123', GITHUB_RUN_ATTEMPT='2' if change == 'retry' else '1',
+                     GITHUB_EVENT_NAME='pull_request', API_NATIVE_AMD64_ATTEMPT='1', API_NATIVE_ARM64_ATTEMPT='1'), \
                      unittest.mock.patch.object(publisher, 'source', side_effect=lambda _r, sha, role: dict(repository=publisher.SOURCE, commit=sha, runtime=role)), \
                      unittest.mock.patch.object(publisher, 'observe_native', side_effect=observe) as observation, \
                      unittest.mock.patch.object(publisher, 'observe_policy', return_value=policy), \
                      unittest.mock.patch.object(publisher, 'evidence_now', return_value=NOW), \
                      unittest.mock.patch.object(publisher, 'run', return_value=b'fixture-tree'):
-                    if change is None:
+                    if change in (None, 'retry'):
                         publisher.qualify_unpublished_pair(root, native, scans, output)
                         value = publisher.read(output)
                         self.assertFalse(value['published'])
@@ -289,6 +293,34 @@ class RuntimePairTests(unittest.TestCase):
                         with self.assertRaises((ValueError, OSError)):
                             publisher.qualify_unpublished_pair(root, native, scans, output)
                         self.assertFalse(output.exists())
+
+    def test_qualification_reads_reviewed_data_without_changing_pinned_policy_or_builds(self):
+        root = Path(__file__).resolve().parents[1]
+        workflow = (root/'.github/workflows/container-image.yml').read_text()
+        scan = (root/'scripts/scan-container-artifact.sh').read_text()
+        self.assertIn('ref: 4892b3248faac245047fdb1dc93fc77fc3d08e02', workflow)
+        self.assertIn('path: .context/reviewed-vex', workflow)
+        self.assertIn('API_NATIVE_AMD64_ATTEMPT: ${{ needs.build-and-test.outputs.amd64-attempt }}', workflow)
+        self.assertIn('API_NATIVE_ARM64_ATTEMPT: ${{ needs.build-and-test.outputs.arm64-attempt }}', workflow)
+        self.assertIn('pattern: api-native-*-${{ github.run_id }}-*', workflow)
+        self.assertIn('"$governance/scripts/secpal-vulnerability-reevaluation.py" verify-vex', scan)
+        self.assertIn('--checkout "$vex_checkout"', scan)
+        self.assertIn('--trusted-commit "$vex_commit"', scan)
+        self.assertIn('reviewed-vex-checkout.json', scan)
+        self.assertNotIn('"$vex_checkout/scripts/', scan)
+
+    def test_retained_native_attempt_is_bounded_and_only_available_to_pr_qualification(self):
+        for event, attempt in (('pull_request', '1'), ('pull_request', '2'),
+                               ('pull_request', '3'), ('pull_request', '../1'),
+                               ('pull_request', '0'), ('workflow_dispatch', '1')):
+            with self.subTest(event=event, attempt=attempt), unittest.mock.patch.dict(
+                    os.environ, GITHUB_EVENT_NAME=event, GITHUB_RUN_ATTEMPT='2',
+                    API_NATIVE_AMD64_ATTEMPT=attempt):
+                if event == 'pull_request' and attempt in ('1', '2'):
+                    self.assertEqual(publisher.native_attempt('amd64'), attempt)
+                else:
+                    with self.assertRaises(ValueError):
+                        publisher.native_attempt('amd64')
 
     def test_second_component_failure_removes_stale_pair(self):
         with tempfile.TemporaryDirectory() as folder:

@@ -383,6 +383,16 @@ The existing native observer verifies the manifest, configuration and every
 layer before scanning; `local-input.json` records that distinction. Raw Trivy
 results and the central scanner adapters/policy are unchanged.
 
+For PR qualification, the policy engine stays at its accepted immutable pin.
+Reviewed VEX data is read separately from protected `SecPal/.github` main;
+the resolved checkout commit is retained as `reviewed-vex-checkout.json`.
+The existing trusted adapter verifies each committed manifest and its ancestor
+document before the unchanged policy uses it. Successful native matrix jobs
+retain their producing attempts, so retrying only security qualification uses
+the same source-bound images rather than rebuilding different digests. Each
+native record and smoke must still match that exact producing attempt, platform,
+source and runtime pair; a future attempt or changed subject cannot inherit VEX.
+
 After scanning, the same publisher's `qualify-unpublished-pair` command
 re-observes all four native layouts, SBOM and raw scanner bindings, fresh CLEAN
 policy decisions and successful smoke records naming both exact companions.

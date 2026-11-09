@@ -92,6 +92,9 @@ jobs:
     needs: validate
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
+    outputs:
+      amd64-attempt: ${{ steps.native-attempt.outputs.amd64 }}
+      arm64-attempt: ${{ steps.native-attempt.outputs.arm64 }}
     strategy:
       fail-fast: false
       matrix:
@@ -157,6 +160,11 @@ jobs:
           if-no-files-found: error
           retention-days: 14
           compression-level: 0
+      - name: Retain producing attempt for qualification retries
+        id: native-attempt
+        env:
+          NATIVE_ARCH: ${{ matrix.arch }}
+        run: echo "$NATIVE_ARCH=$GITHUB_RUN_ATTEMPT" >> "$GITHUB_OUTPUT"
     defaults:
       run:
         working-directory: source
@@ -165,6 +173,9 @@ jobs:
     name: Qualify unpublished PHP-FPM and Nginx OCI artifacts
     if: github.event_name == 'pull_request'
     needs: build-and-test
+    env:
+      API_NATIVE_AMD64_ATTEMPT: ${{ needs.build-and-test.outputs.amd64-attempt }}
+      API_NATIVE_ARM64_ATTEMPT: ${{ needs.build-and-test.outputs.arm64-attempt }}
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     permissions:
@@ -185,11 +196,20 @@ jobs:
           path: .context/publisher-governance
           persist-credentials: false
           fetch-depth: 0
+      - name: Read accepted protected-main VEX data independently of build inputs
+        # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: SecPal/.github
+          ref: main
+          path: .context/reviewed-vex
+          persist-credentials: false
+          fetch-depth: 0
       - name: Read both native platform artifacts
         # v8.0.2
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
         with:
-          pattern: api-native-*-${{ github.run_id }}-${{ github.run_attempt }}
+          pattern: api-native-*-${{ github.run_id }}-*
           path: .context/native
       - name: Install native immutable-input observer
         run: |

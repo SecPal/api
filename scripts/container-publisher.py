@@ -339,7 +339,20 @@ def build_evidence(records, index_digest, sboms, scans, smokes, source_security,
 
 
 
-def observe_native(root, directory, arch, expected, *, layout=None):
+def native_attempt(arch):
+    """Retain successful PR builds when only their security job is retried."""
+    current = os.environ['GITHUB_RUN_ATTEMPT']
+    retained = os.environ.get('API_NATIVE_'+arch.upper()+'_ATTEMPT')
+    if retained is None:
+        return current
+    if (os.environ.get('GITHUB_EVENT_NAME') != 'pull_request'
+            or not re.fullmatch(r'[1-9][0-9]*', retained)
+            or int(retained) > int(current)):
+        raise ValueError('publisher-native-attempt')
+    return retained
+
+
+def observe_native(root, directory, arch, expected, *, layout=None, attempt=None):
     directory = Path(directory)
     record = read(directory/'record.json')
     resolved = bases(root,arch,expected.get('runtime','legacy'))
@@ -347,7 +360,7 @@ def observe_native(root, directory, arch, expected, *, layout=None):
     if (record['source']!=expected or record['subject']!=observed or record['bases']!=resolved
             or record['runner_architecture']!=arch
             or record['workflow_run_id']!=os.environ['GITHUB_RUN_ID']
-            or record['workflow_run_attempt']!=os.environ['GITHUB_RUN_ATTEMPT']):
+            or record['workflow_run_attempt']!=(attempt or os.environ['GITHUB_RUN_ATTEMPT'])):
         raise ValueError('publisher-native-output-binding')
     return record,manifest,config
 
@@ -486,9 +499,11 @@ def observe_policy(root, folder, observed_at):
     if dict(evaluation,evaluated_at=recorded['evaluated_at'])!=recorded:
         raise ValueError('publisher-normalized-evidence-mismatch')
     vex=[]
-    for path in adapter.discover_reviewed_vex_manifests(governance/'reviewed-vex'):
-        commit=run(['git','rev-parse','HEAD'],cwd=governance).decode().strip()
-        adapter.verify_reviewed_vex_checkout(governance,path,'SecPal/.github',commit)
+    vex_checkout = (Path(root)/'.context/reviewed-vex'
+                    if os.environ.get('GITHUB_EVENT_NAME') == 'pull_request' else governance)
+    for path in adapter.discover_reviewed_vex_manifests(vex_checkout/'reviewed-vex'):
+        commit=run(['git','rev-parse','HEAD'],cwd=vex_checkout).decode().strip()
+        adapter.verify_reviewed_vex_checkout(vex_checkout,path,'SecPal/.github',commit)
         vex.append(policy.load_reviewed_vex(path))
     result=policy.evaluate(evaluation,policy.load_policy(governance/'policies/vulnerability-triage-v1.json'),reviewed_vex=vex)
     original=read(folder/'policy-result.json')
@@ -654,9 +669,10 @@ def qualify_unpublished_pair(root, native, scan_root, output):
         expected = source(root, commit, role)
         platforms, sizes = [], []
         for arch in ('amd64', 'arm64'):
-            own = native/f'api-native-{arch}-{run_id}-{attempt}'/role
+            build_attempt = native_attempt(arch)
+            own = native/f'api-native-{arch}-{run_id}-{build_attempt}'/role
             folder = scan_root/role/arch
-            record, manifest, _ = observe_native(root, own, arch, expected)
+            record, manifest, _ = observe_native(root, own, arch, expected, attempt=build_attempt)
             subject = record['subject']
             target = dict(platform='linux/'+arch, oci_digest=subject['manifest_digest'])
             policy = observe_policy(root, folder, observed_at)
@@ -672,7 +688,7 @@ def qualify_unpublished_pair(root, native, scan_root, output):
                     or policy['evidence_health']['state'] != 'HEALTHY' or policy['gate_state'] != 'CLEAN'
                     or smoke['platform'] != target['platform'] or smoke['digest'] != target['oci_digest']
                     or smoke['runner_architecture'] != arch or smoke['test'] != 'tests/docker/smoke.sh'
-                    or smoke['workflow_run_id'] != run_id or smoke['workflow_run_attempt'] != attempt
+                    or smoke['workflow_run_id'] != run_id or smoke['workflow_run_attempt'] != build_attempt
                     or smoke['result'] != 'SUCCEEDED'
                     or evidence_time(smoke['completed_at']) > evidence_time(observed_at)
                     or len(scans) != 2 or sorted(v['scanner'] for v in scans) != ['grype', 'trivy']):
@@ -856,7 +872,7 @@ def main():
     args=parser.parse_args()
     if args.command=='verify-native':
         expected=source(args.root,os.environ['GITHUB_SHA'],args.runtime)
-        record,_,_=observe_native(args.root,args.directory,args.arch,expected,layout=args.layout)
+        record,_,_=observe_native(args.root,args.directory,args.arch,expected,layout=args.layout,attempt=native_attempt(args.arch))
         write(args.output,dict(oci_digest=record['subject']['manifest_digest'],platform=record['subject']['platform']))
     elif args.command=='component-subjects':
         print(canonical(component_subjects(args.prepared)).decode())

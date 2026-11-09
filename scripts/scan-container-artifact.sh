@@ -40,17 +40,24 @@ env -i HOME="$cache" "$tools/trivy" --config "$cache/config.yaml" image \
   --download-db-only --cache-dir "$cache/trivy"
 env -i HOME="$cache" "$tools/trivy" --config "$cache/config.yaml" image \
   --download-java-db-only --cache-dir "$cache/trivy"
+vex_checkout="$governance"
+if [ "$mode" = local ]; then vex_checkout="$repo_root/.context/reviewed-vex"; fi
+# Policy code remains immutable; only accepted protected-main VEX data is newer.
+test -d "$vex_checkout/reviewed-vex"
+vex_commit=$(git -C "$vex_checkout" rev-parse HEAD)
+printf 'Reviewed VEX checkout: SecPal/.github@%s\n' "$vex_commit"
+mkdir -p "$repo_root/.context/scan"
+jq -n --arg commit "$vex_commit" '{repository:"SecPal/.github",commit:$commit}' \
+  > "$repo_root/.context/scan/reviewed-vex-checkout.json"
 vex_arguments=()
-if [ -d "$governance/reviewed-vex" ]; then
   python3 "$governance/scripts/secpal-vulnerability-reevaluation.py" list-vex \
-    --directory "$governance/reviewed-vex" > "$cache/vex-list"
+    --directory "$vex_checkout/reviewed-vex" > "$cache/vex-list"
   while IFS= read -r -d '' manifest; do
     python3 "$governance/scripts/secpal-vulnerability-reevaluation.py" verify-vex \
-      --checkout "$governance" --manifest "$manifest" --trusted-repository SecPal/.github \
-      --trusted-commit "$(git -C "$governance" rev-parse HEAD)"
+      --checkout "$vex_checkout" --manifest "$manifest" --trusted-repository SecPal/.github \
+      --trusted-commit "$vex_commit"
     vex_arguments+=(--reviewed-vex-manifest "$manifest")
   done < "$cache/vex-list"
-fi
 policy_failure=0
 components=(legacy)
 if [ "$runtime_set" = pair ]; then components=(php-fpm nginx); fi
@@ -65,7 +72,11 @@ for arch in amd64 arm64; do
   output="$scan_root/$arch"
   mkdir -p "$output/raw" "$output/sbom"
   if [ "$mode" = local ]; then
-    native="$repo_root/.context/native/api-native-$arch-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT/$component"
+    case "$arch" in
+      amd64) build_attempt=${API_NATIVE_AMD64_ATTEMPT:?} ;;
+      arm64) build_attempt=${API_NATIVE_ARM64_ATTEMPT:?} ;;
+    esac
+    native="$repo_root/.context/native/api-native-$arch-$GITHUB_RUN_ID-$build_attempt/$component"
     python3 scripts/container-publisher.py verify-native --root "$repo_root" --directory "$native" \
       --arch "$arch" --runtime "$component" --output "$output/subject.json"
     manifest=$(jq -er .oci_digest "$output/subject.json")
