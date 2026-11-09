@@ -255,7 +255,7 @@ publishes, extends risk acceptance or deploys an image.
 
 ## Source evidence and artifact risk acceptance
 
-The publisher consumes the accepted v4 source-security evidence and schema from
+The publisher consumes the accepted v5 source-security evidence and schema from
 one immutable shared revision. Source security must be SUCCEEDED, CLEAN and
 FRESH for the exact accepted commit. Its database deadline remains strict;
 expiry is never extended by an artifact decision.
