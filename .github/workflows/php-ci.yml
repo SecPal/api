@@ -15,8 +15,15 @@ permissions:
   pull-requests: read
 
 jobs:
+  native:
+    name: Native OCI qualification
+    if: github.event_name == 'pull_request'
+    uses: ./.github/workflows/container-image.yml
+
   test:
     name: PEST Tests
+    needs: native
+    if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -36,6 +43,12 @@ jobs:
           - 5432:5432
 
     steps:
+      - name: Require successful native OCI qualification
+        if: github.event_name == 'pull_request'
+        env:
+          NATIVE_RESULT: ${{ needs.native.result }}
+        run: test "$NATIVE_RESULT" = success
+
       - name: Checkout repository
         # v7.0.1
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1

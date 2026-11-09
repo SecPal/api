@@ -146,7 +146,7 @@ class OrganizationalUnitSeeder extends Seeder
         $this->ensureSelfReference($viennaBranch);
         $this->attachParent($viennaBranch, $austria);
 
-        $this->command->info('OrganizationalUnit hierarchy seeded successfully.');
+        $this->command?->info('OrganizationalUnit hierarchy seeded successfully.');
     }
 
     /**

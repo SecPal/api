@@ -316,13 +316,37 @@ it('uses immutable v4 code and separately authenticated decision data', function
         ->and((string) file_get_contents($root.'/scripts/container-publisher.py'))->toContain('secpal-trivy-repository-scan-v4.schema.json');
 });
 
+it('keeps the required Pest context blocking for every unsuccessful native result', function (): void {
+    $root = dirname(__DIR__, 2);
+    $ci = Yaml::parseFile($root.'/.github/workflows/php-ci.yml');
+    expect($ci['jobs']['native']['uses'] ?? null)->toBe('./.github/workflows/container-image.yml')
+        ->and($ci['jobs']['native']['if'] ?? null)->toBe("github.event_name == 'pull_request'")
+        ->and($ci['on']['pull_request'])->toBe(['branches' => ['main']])
+        ->and($ci['jobs']['test']['name'])->toBe('PEST Tests')
+        ->and($ci['jobs']['test']['needs'] ?? null)->toBe('native')
+        ->and($ci['jobs']['test']['if'] ?? null)->toBe('${{ always() }}');
+
+    $gate = $ci['jobs']['test']['steps'][0];
+    expect($gate['if'] ?? null)->toBe("github.event_name == 'pull_request'")
+        ->and($gate['env']['NATIVE_RESULT'] ?? null)->toBe('${{ needs.native.result }}');
+
+    foreach (['success', 'failure', 'cancelled', 'skipped', 'neutral', 'timed_out', ''] as $result) {
+        $process = new Symfony\Component\Process\Process(
+            ['bash', '-e', '-c', $gate['run']],
+            env: ['NATIVE_RESULT' => $result],
+        );
+        $process->run();
+        expect($process->isSuccessful())->toBe($result === 'success');
+    }
+});
+
 it('shares database-free native Buildah builds without PR publication or emulation', function (): void {
     $root = dirname(__DIR__, 2);
     $ci = Yaml::parseFile($root.'/.github/workflows/container-image.yml');
     $build = (string) file_get_contents($root.'/scripts/build-container.sh');
     expect($ci['permissions'])->toBe(['contents' => 'read'])
         ->and($ci['on'])->toHaveKey('workflow_call')
-        ->and($ci['on']['pull_request']['paths'])->toContain('Containerfile', '.containerignore', 'tests/Policy/**', 'composer.lock')
+        ->and(array_keys($ci['on']))->toBe(['workflow_call'])
         ->and($ci['jobs']['build-and-test']['needs'])->toBe('validate')
         ->and($ci['jobs']['build-and-test']['steps'][0]['with']['path'])->toBe('source')
         ->and($ci['jobs']['build-and-test']['defaults']['run']['working-directory'])->toBe('source')

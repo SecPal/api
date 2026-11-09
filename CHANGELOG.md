@@ -14,9 +14,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Require fail-closed native OCI runtime admission for applicable PR changes,
-  including both architectures and the complete digest-bound PHP-FPM/Nginx pair.
-  Documentation-only changes use a complete authenticated GitHub diff.
+- Make the existing required Pest check depend on complete native OCI
+  qualification for every PR. Use GitHub job dependencies instead of a separate
+  admission workflow, change classifier and API readback validator.
+- Preserve console command input contracts with Symfony Console 8: reject non-scalar tenant/source inputs before work, validate dry-run booleans, and keep optional seeder progress output safe without an attached console.
+
+- Refresh the eight already-qualified Symfony lock entries, including HTTP Foundation, Routing and Serializer 8.1.11, to remove the vulnerable repository-scan baseline without changing Composer constraints or runtime definitions.
 
 - Update Symfony MIME from 8.0.15 to 8.1.10 to fix CVE-2026-45070 header
   injection through parameter names, retaining Laravel and all other locked
