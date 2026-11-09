@@ -21,6 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Require the existing manual release entry point for API registry publication;
+  merging source into main cannot automatically publish the retained runtime.
 - Repair the retained FrankenPHP runtime's SQLite library with the same genuine
   3.54.0 APK used by FPM; remove runtime pip and the unused curl command while
   preserving PHP/libcurl and OpenTimestamps. Validate both native architectures.

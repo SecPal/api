@@ -251,8 +251,7 @@ function secPalApiImageReferenceIsCanonical(string $reference): bool
 
 it('gates official publication on source security and native validation', function (): void {
     $w = containerPublishingWorkflow();
-    expect($w['on']['push'])->toBe(['branches' => ['main']])
-        ->and(array_keys($w['on']))->toBe(['push', 'workflow_dispatch'])
+    expect(array_keys($w['on']))->toBe(['workflow_dispatch'])
         ->and($w['on']['workflow_dispatch']['inputs']['runtime-set'])->toBe([
             'description' => 'Explicitly publish the qualified replacement runtime pair',
             'type' => 'choice', 'options' => ['pair'], 'default' => 'pair', 'required' => true,

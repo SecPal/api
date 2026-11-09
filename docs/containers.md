@@ -39,9 +39,8 @@ There are no registry fallbacks, and official pull or inspect commands must not
 use shortened image names. Local test tags use the non-namespace name
 `secpal-api`, such as `secpal-api:test`.
 
-After this publishing workflow reaches `main`, every run builds and publishes
-`ghcr.io/secpal/api` as an OCI image index for `linux/amd64` and `linux/arm64`.
-Each run writes exactly one run-scoped discovery tag:
+Existing legacy publications use an OCI image index for `linux/amd64` and
+`linux/arm64`, with one run-scoped discovery tag:
 
 ```text
 ghcr.io/secpal/api:build-<full-SHA>-<run-ID>-<run-attempt>
@@ -54,7 +53,7 @@ full-commit-SHA tag.
 
 The publisher's static container policy suite is isolated from the Laravel
 database test case and runs without PostgreSQL. Pull-request validation runs
-the same database-free policy command used by the post-merge publisher before
+the same database-free policy command used by the manually invoked publisher before
 any registry write is permitted.
 
 ### Pre-build repository security
@@ -393,10 +392,12 @@ non-CLEAN or mismatched-run evidence removes any stale result and fails closed.
 This explicitly unpublished qualification grants no registry admission or
 attestation; those remain in the protected publication workflow.
 
-Normal main pushes retain legacy publication and its existing digest output.
-An explicit `workflow_dispatch` selecting `pair` is the separate replacement
-publication entry point; running it requires release authorization. This issue
-does not authorize invoking it or publishing to GHCR.
+Publication requires the existing explicit `workflow_dispatch` selecting
+`pair`; merging source into main does not trigger registry writes. Running
+that release entry point requires separate authorization. Existing legacy
+artifacts and their verification contract remain available for recovery until
+the replacement is accepted. This issue does not authorize invoking the
+publisher or publishing to GHCR.
 
 The single publisher model in `scripts/container-publisher.py` selects the two
 reviewed Containerfiles. Both component admissions must bind the same exact
