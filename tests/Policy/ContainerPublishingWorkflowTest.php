@@ -318,7 +318,7 @@ it('uses immutable v4 code and separately authenticated decision data', function
         }
     }
     expect((string) file_get_contents($root.'/scripts/publish-container.sh'))->not->toContain('scan-v2.schema.json')
-        ->and((string) file_get_contents($root.'/scripts/container-publisher.py'))->toContain('secpal-trivy-repository-scan-v4.schema.json');
+        ->and((string) file_get_contents($root.'/scripts/container-publisher.py'))->toContain('secpal-trivy-repository-scan-v5.schema.json');
 });
 
 it('keeps the required Pest context blocking for every unsuccessful native result', function (): void {

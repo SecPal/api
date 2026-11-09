@@ -46,6 +46,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   during runtime qualification, including CVE-2026-118514, CVE-2026-118515 and
   CVE-2026-118516. Update only the eight-package required Composer closure;
   retain Laravel and Symfony MIME unchanged (refs #2639).
+- Consume the canonical v5 repository scan schema from the accepted shared
+  publisher SDK, retaining exact source, freshness and CLEAN admission checks.
+
+- Restore exact released-artifact monitoring through the central supported
+  Python runtime fix, preserving scanner and vulnerability-policy contracts.
 
 - Make the existing required Pest check depend on complete native OCI
   qualification for every PR. Use GitHub job dependencies instead of a separate
