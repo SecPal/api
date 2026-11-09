@@ -432,6 +432,8 @@ it('attests index platforms SBOMs and build evidence through exact GitHub identi
                 ->and($step['with']['create-storage-record'])->toBeFalse();
         }
     }
+    // The accepted continuation contract requires the unsuffixed legacy name.
+    expect($w['jobs']['attest']['name'])->toContain("matrix.component == 'legacy' && 'Attest candidate index platforms and Syft artifacts'");
     expect($subjects)->toHaveCount(5);
     foreach (['index_digest', 'amd64_digest', 'arm64_digest', 'amd64_sbom_digest', 'arm64_sbom_digest'] as $key) {
         expect(implode("\n", $subjects))->toContain('fromJSON(needs.prepare.outputs.candidates)[matrix.component].'.$key);

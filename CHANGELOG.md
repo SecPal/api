@@ -21,6 +21,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Preserve the exact legacy attestation job identity when extending publication
+  to paired runtimes, so the existing execution verifier can still accept the
+  legacy publisher without relaxing name or provenance checks.
+
 - Keep pip and its APK dependency closure in the PHP-FPM build only, validate
   Python dependencies before removal, and remove the unused curl command from
   that final runtime. Preserve PHP/libcurl, OpenTimestamps and native checks.

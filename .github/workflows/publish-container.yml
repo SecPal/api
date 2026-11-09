@@ -120,7 +120,7 @@ jobs:
           if-no-files-found: error
           retention-days: 14
   attest:
-    name: Attest candidate index platforms and Syft artifacts${{ matrix.component == 'legacy' && '' || format(' ({0})', matrix.component) }}
+    name: ${{ matrix.component == 'legacy' && 'Attest candidate index platforms and Syft artifacts' || format('Attest candidate index platforms and Syft artifacts ({0})', matrix.component) }}
     strategy:
       fail-fast: false
       matrix:
