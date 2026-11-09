@@ -14,6 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Restore exact released-artifact monitoring through the central supported
+  Python runtime fix, preserving scanner and vulnerability-policy contracts.
+
 - Make the existing required Pest check depend on complete native OCI
   qualification for every PR. Use GitHub job dependencies instead of a separate
   admission workflow, change classifier and API readback validator.
