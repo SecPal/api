@@ -477,7 +477,11 @@ else
 fi
 # Keep one independent client on the isolated network. Repeated rootless network
 # attach/detach is helper churn, rather than an application assertion.
+http_address=$(podman inspect --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$api")
+test -n "$http_address"
+# Stopping FPM must not make the HTTP assertion depend on container DNS churn.
 podman run -d --label "$owner_label" --name "$client" --network "$network" \
+    --add-host "$api:$http_address" \
     -v "${port_probe}:/tmp/assert-port-closed.php:ro,z" "$image" sleep 300 >/dev/null
 wait_for_http
 podman exec "$api" secpal-http-live
