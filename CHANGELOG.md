@@ -21,6 +21,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Install the stable Alpine zlib 1.4-r0 security update in the Nginx runtime
+  to resolve CVE-2026-4738 found by native dual-scanner qualification.
+
 - Preserve the exact legacy attestation job identity when extending publication
   to paired runtimes, so the existing execution verifier can still accept the
   legacy publisher without relaxing name or provenance checks.
