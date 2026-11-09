@@ -27,15 +27,13 @@ class DeleteExpiredEmployees extends Command
         $tenantId = null;
 
         if (($tenantOption !== null) && ($tenantOption !== '')) {
-            $tenantValue = (string) $tenantOption;
-
-            if (! ctype_digit($tenantValue)) {
+            if (! is_scalar($tenantOption) || ! ctype_digit((string) $tenantOption)) {
                 $this->error('The --tenant option must be a numeric tenant ID.');
 
                 return self::FAILURE;
             }
 
-            $tenantId = (int) $tenantValue;
+            $tenantId = (int) $tenantOption;
         }
 
         $dryRun = (bool) $this->option('dry-run');

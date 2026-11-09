@@ -1,7 +1,7 @@
 <?php
 
 /*
- * SPDX-FileCopyrightText: 2025 SecPal Contributors
+ * SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
  *
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
@@ -46,6 +46,12 @@ class RotateDekCommand extends Command
     public function handle(): int
     {
         $tenantId = $this->argument('tenant');
+
+        if (! is_int($tenantId) && ! is_string($tenantId)) {
+            $this->error('The tenant argument must be a single tenant ID.');
+
+            return Command::FAILURE;
+        }
 
         $this->info("Starting DEK rotation for tenant {$tenantId}...");
 

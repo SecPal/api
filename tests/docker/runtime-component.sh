@@ -16,10 +16,10 @@ podman run "${args[@]}" --entrypoint sh "$image" -eu -c '
     test ! -e /app/.env
     test ! -e /app/.git
     test -z "$(find /app -xdev -perm -0002 -print -quit)"
-    for tool in git bash composer gcc make node; do
+    for tool in git bash composer gcc make node pip pip3; do
         if command -v "$tool" >/dev/null; then exit 1; fi
     done
-    for package in linux-headers musl-dev libc-dev; do
+    for package in linux-headers musl-dev libc-dev py3-pip; do
         if apk info -e "$package" >/dev/null 2>&1; then exit 1; fi
     done
 '
@@ -43,7 +43,6 @@ case "$component" in
     '
     podman run -i "${args[@]}" "$image" python3 - < tests/docker/sqlite-runtime.py
     podman run "${args[@]}" "$image" python3 -c 'import opentimestamps'
-    podman run "${args[@]}" "$image" python3 -m pip check
     podman run "${args[@]}" "$image" php-fpm --test
     test "$(podman image inspect --format '{{.Config.StopSignal}}' "$image")" = SIGQUIT
     podman run "${args[@]}" "$image" sh -eu -c '
@@ -53,6 +52,7 @@ case "$component" in
         test ! -d /app/vendor/phpunit
         test ! -e /usr/local/bin/frankenphp
         test ! -e /usr/local/bin/composer
+        ! command -v curl
         test ! -e /usr/local/include/php
         test "$(stat -c "%U:%G %a" /usr/local/etc/php-fpm.d/api.conf)" = "root:root 644"
     '

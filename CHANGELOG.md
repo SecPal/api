@@ -21,6 +21,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Keep pip and its APK dependency closure in the PHP-FPM build only, validate
+  Python dependencies before removal, and remove the unused curl command from
+  that final runtime. Preserve PHP/libcurl, OpenTimestamps and native checks.
+
 - Build SQLite 3.54.0 as a source-verified Alpine 3.24 APK for the PHP-FPM
   runtime, fixing CVE-2026-119373, CVE-2026-119374 and CVE-2026-119379.
   Verify repeat-build equality, the existing SONAME/exported ABI and PHP/Python
@@ -31,6 +35,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   during runtime qualification, including CVE-2026-118514, CVE-2026-118515 and
   CVE-2026-118516. Update only the eight-package required Composer closure;
   retain Laravel and Symfony MIME unchanged (refs #2639).
+- Preserve console command input contracts with Symfony Console 8: reject non-scalar tenant/source inputs before work, validate dry-run booleans, and keep optional seeder progress output safe without an attached console.
+
+- Refresh the eight already-qualified Symfony lock entries, including HTTP Foundation, Routing and Serializer 8.1.11, to remove the vulnerable repository-scan baseline without changing Composer constraints or runtime definitions.
 
 - Update Symfony MIME from 8.0.15 to 8.1.10 to fix CVE-2026-45070 header
   injection through parameter names, retaining Laravel and all other locked
