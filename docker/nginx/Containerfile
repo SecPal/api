@@ -2,10 +2,12 @@
 # SPDX-License-Identifier: CC0-1.0
 ARG NGINX_IMAGE=docker.io/library/nginx:1.30.6-alpine3.24-slim@sha256:dede8895648b461178c3bc604f7eed4423efe5220b2c4d839f5eb3d34ac3f8f7
 FROM ${NGINX_IMAGE} AS runtime
-RUN apk add --no-cache zlib=1.4-r0 curl=8.23.0-r0 \
+RUN apk add --no-cache zlib=1.4-r0 \
+    && apk del --no-network gettext-envsubst \
     && addgroup -g 10001 secpal \
     && adduser -D -u 10001 -G secpal -h /nonexistent -s /sbin/nologin secpal \
-    && rm -rf /usr/share/nginx/html /etc/nginx/conf.d
+    && rm -rf /usr/share/nginx/html /etc/nginx/conf.d \
+        /docker-entrypoint.sh /docker-entrypoint.d /etc/nginx/templates
 COPY LICENSE /usr/share/licenses/secpal-api/LICENSE
 COPY public /app/public
 COPY --chown=root:root --chmod=0444 docker/nginx/nginx.conf /etc/nginx/nginx.conf

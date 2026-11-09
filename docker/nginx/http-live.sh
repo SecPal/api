@@ -5,11 +5,12 @@ set -eu
 
 port=${SECPAL_HTTP_PORT:-8080}
 timeout=${SECPAL_HEALTH_TIMEOUT:-3}
-response=$(curl --fail --silent --show-error --max-time "$timeout" \
-    --noproxy '*' --proto '=http' --write-out '\n%{http_code}' \
-    "http://127.0.0.1:${port}/health/live")
+response=$(timeout "$timeout" wget -q -S -T "$timeout" -Y off -O - \
+    "http://127.0.0.1:${port}/health/live" 2>&1) || {
+    printf '%s\n' "$response" >&2
+    exit 1
+}
 case "$response" in
-    *'"status":"alive"'*"
-200") exit 0 ;;
+    "  HTTP/1.0 200 "*'"status":"alive"'*|"  HTTP/1.1 200 "*'"status":"alive"'*) exit 0 ;;
     *) exit 1 ;;
 esac

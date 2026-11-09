@@ -33,7 +33,8 @@ it('defines the production API image contract', function (): void {
         ->toMatch('/^ARG COMPOSER_IMAGE=docker\\.io\\/library\\/composer:[0-9]+\\.[0-9]+\\.[0-9]+@sha256:[a-f0-9]{64}$/m')
         ->toContain('FROM ${COMPOSER_IMAGE} AS composer', 'FROM ${FRANKENPHP_IMAGE} AS extensions')
         ->toContain('composer install')
-        ->toContain('curl=8.23.0-r0', 'libcurl=8.23.0-r0', 'brotli-libs=1.2.1-r0')
+        ->toContain('libcurl=8.23.0-r0', 'brotli-libs=1.2.1-r0')
+        ->toContain('python3 -m pip check', 'apk del --no-network .python-build-deps curl')
         ->toContain('--no-dev')
         ->toContain('--no-scripts')
         ->toContain('--require-hashes', '--only-binary=:all:', 'opentimestamps-requirements.txt')
@@ -53,7 +54,7 @@ it('defines the production API image contract', function (): void {
         ->not->toContain('artisan migrate')
         ->not->toContain('octane');
 
-    expect(preg_match('/^[ \t]*&& apk add --no-cache python3=(3\.14\.\d+)-r\d+ py3-pip=\d+\.\d+\.\d+-r\d+\b/m', $extensionsStage, $pythonInput))->toBe(1);
+    expect(preg_match('/^[ \t]*&& apk add --no-cache python3=(3\.14\.\d+)-r\d+\b/m', $extensionsStage, $pythonInput))->toBe(1);
     expect(version_compare($pythonInput[1] ?? '0', '3.14.8', '>='))->toBeTrue();
 
     expect($pythonRequirements)
@@ -61,7 +62,7 @@ it('defines the production API image contract', function (): void {
         ->not->toContain('opentimestamps-client', 'gitpython', 'gitdb', 'smmap', 'appdirs', 'pysocks');
 
     expect($smokeScript)
-        ->toContain('DB_SSLMODE=verify-full', 'apk info --installed curl=8.23.0-r0', '--read-only', '--cap-drop=all', '--security-opt=no-new-privileges')
+        ->toContain('DB_SSLMODE=verify-full', 'apk info --installed libcurl=8.23.0-r0', '--read-only', '--cap-drop=all', '--security-opt=no-new-privileges')
         ->toContain('DB_SSLROOTCERT=/run/secrets/postgresql-ca.crt')
         ->toContain("POSTGRES_INITDB_ARGS='--auth-host=scram-sha-256'")
         ->toContain('-c password_encryption=scram-sha-256')
@@ -123,8 +124,8 @@ it('checks container command output without early-terminating pipelines', functi
         ->not->toContain('php --ri redis')
         ->toContain('php_ini_output=$(podman run --rm "$image" php --ini)')
         ->toContain('podman run --rm "$image" python3 -c \'import opentimestamps\'')
-        ->toContain('git_import=$(podman run --rm "$image" python3 -c \'import git\' 2>&1)')
-        ->toContain('assert_output_contains "$git_import" \'ModuleNotFoundError\'')
+        ->toContain('from importlib.metadata import PackageNotFoundError, version')
+        ->toContain('raise SystemExit("Unneeded runtime distribution: " + name)')
         ->not->toMatch('/podman run[^\n]*\\|[ \t]*grep\\b/');
 });
 

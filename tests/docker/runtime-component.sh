@@ -60,6 +60,10 @@ case "$component" in
   nginx)
     podman run "${args[@]}" --mount type=tmpfs,destination=/tmp,tmpfs-mode=0700,chown=true "$image" -t
     podman run "${args[@]}" --entrypoint sh "$image" -eu -c '
+        ! command -v curl
+        ! command -v envsubst
+        test ! -e /docker-entrypoint.sh
+        test ! -d /docker-entrypoint.d
         test ! -e /app/vendor
         test ! -e /app/config
         test ! -e /app/storage

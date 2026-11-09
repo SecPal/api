@@ -69,7 +69,7 @@ if [ "$(jq -er .composer <<< "$definition")" = true ]; then
 fi
 buildah pull --arch "$arch" "$runtime_base"
 epoch=$(jq -er .epoch "$output/source.json")
-if [ "$runtime" = php-fpm ]; then
+if [ "$runtime" != nginx ]; then
   build_arguments+=(--build-arg "SOURCE_DATE_EPOCH=$epoch")
 fi
 created=$(date -u -d "@$epoch" +%Y-%m-%dT%H:%M:%SZ)

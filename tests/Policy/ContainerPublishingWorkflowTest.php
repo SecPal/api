@@ -417,7 +417,7 @@ it('keeps Syft authoritative and scans immutable artifacts independently', funct
         'policies/vulnerability-triage-v1.json', "policy['evidence_health']['state']!='HEALTHY'",
     )->not->toContain('--ignore-unfixed', '--severity ', '--exit-code 0');
     expect((string) file_get_contents($root.'/scripts/container-tools.sh'))->toContain(
-        'sha256sum --check --strict', 'syft_1.54.1_linux_', 'grype_0.118.0_linux_',
+        'sha256sum --check --strict', 'syft_1.54.1_linux_', 'grype_0.121.3_linux_',
         'trivy_0.74.0_Linux-64bit', 'oras_1.3.4_linux_amd64');
 });
 

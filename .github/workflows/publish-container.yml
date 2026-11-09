@@ -72,7 +72,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: SecPal/.github
-          ref: 1bb0253cbc7bb57dccae9382c1234d3ffde08edf
+          ref: 4892b3248faac245047fdb1dc93fc77fc3d08e02
           path: .context/publisher-governance
           persist-credentials: false
           fetch-depth: 0
@@ -234,7 +234,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: SecPal/.github
-          ref: 1bb0253cbc7bb57dccae9382c1234d3ffde08edf
+          ref: 4892b3248faac245047fdb1dc93fc77fc3d08e02
           path: .context/publisher-governance
           persist-credentials: false
           fetch-depth: 0
@@ -311,7 +311,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: SecPal/.github
-          ref: 1bb0253cbc7bb57dccae9382c1234d3ffde08edf
+          ref: 4892b3248faac245047fdb1dc93fc77fc3d08e02
           path: .context/publisher-governance
           persist-credentials: false
           fetch-depth: 0
@@ -378,7 +378,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: SecPal/.github
-          ref: 1bb0253cbc7bb57dccae9382c1234d3ffde08edf
+          ref: 4892b3248faac245047fdb1dc93fc77fc3d08e02
           path: .context/publisher-governance
           persist-credentials: false
           fetch-depth: 0

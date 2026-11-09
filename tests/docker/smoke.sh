@@ -191,7 +191,9 @@ frankenphp_version=$(podman run --rm "$image" frankenphp version)
 assert_output_starts_with "$frankenphp_version" "FrankenPHP v${expected_frankenphp} "
 # Check the actual stable-Alpine fixes independently of the Containerfile recipe.
 podman run --rm "$image" sh -eu -c '
-    apk info --installed curl=8.23.0-r0
+    ! command -v curl
+    ! command -v pip3
+    ! apk --no-network info -e py3-pip
     apk info --installed libcurl=8.23.0-r0
     apk info --installed brotli-libs=1.2.1-r0
 '
@@ -265,13 +267,22 @@ run_runtime_cli php artisan schedule:list
 run_runtime_cli php artisan queue:work --help >/dev/null
 run_runtime_cli php artisan schedule:work --help >/dev/null
 podman run --rm "$image" python3 -c 'import opentimestamps'
-if git_import=$(podman run --rm "$image" python3 -c 'import git' 2>&1); then exit 1; fi
-assert_output_contains "$git_import" 'ModuleNotFoundError'
-if podman run --rm "$image" python3 -m pip show GitPython >/dev/null 2>&1; then exit 1; fi
-if podman run --rm "$image" python3 -m pip show gitdb >/dev/null 2>&1; then exit 1; fi
-if podman run --rm "$image" python3 -m pip show smmap >/dev/null 2>&1; then exit 1; fi
-if podman run --rm "$image" python3 -m pip show opentimestamps-client >/dev/null 2>&1; then exit 1; fi
-podman run --rm "$image" python3 -m pip check
+podman run --rm "$image" python3 -c '
+from importlib.metadata import PackageNotFoundError, version
+for name in ("GitPython", "gitdb", "smmap", "opentimestamps-client", "pip"):
+    try:
+        version(name)
+    except PackageNotFoundError:
+        continue
+    raise SystemExit("Unneeded runtime distribution: " + name)
+'
+podman run --rm -i --read-only --network=none --cap-drop=all --security-opt=no-new-privileges \
+    "$image" python3 - < tests/docker/sqlite-runtime.py
+podman run --rm "$image" php -r '
+    $db = new PDO("sqlite::memory:");
+    exit(SQLite3::version()["versionString"] === "3.54.0"
+        && $db->query("SELECT sqlite_version()")->fetchColumn() === "3.54.0" ? 0 : 1);
+'
 stamp_usage=$(podman run --rm "$image" python3 /app/scripts/ots-stamp-hash.py 2>&1 || true)
 assert_output_contains "$stamp_usage" 'Usage:'
 upgrade_usage=$(podman run --rm "$image" python3 /app/scripts/ots-upgrade.py 2>&1 || true)

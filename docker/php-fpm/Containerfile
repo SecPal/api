@@ -6,9 +6,6 @@ ARG PHP_IMAGE=docker.io/library/php:8.4.27-fpm-alpine3.24@sha256:93aa3f61216b73c
 FROM ${COMPOSER_IMAGE} AS composer
 FROM ${PHP_IMAGE} AS sqlite-build
 ARG SOURCE_DATE_EPOCH=0
-RUN apk add --no-cache alpine-sdk=1.1-r1 abuild=3.17.0-r0 binutils=2.45.1-r1 \
-        gcc=15.2.0-r5 musl-dev=1.2.6-r3 make=4.4.1-r4 readline-dev=8.3.3-r1 \
-        tcl=8.6.17-r1 unzip=6.0-r16 openssl=3.5.9-r0
 COPY docker/sqlite /build/sqlite
 WORKDIR /build/sqlite
 RUN ./build.sh

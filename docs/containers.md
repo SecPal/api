@@ -365,7 +365,7 @@ verify-full TLS/SCRAM. No startup command generates secrets or migrates data.
 FPM and Nginx drain HTTP requests with SIGQUIT. CLI consumers of the same PHP
 image must select their existing SIGTERM lifecycle and role-specific health
 probe. The FPM image probe speaks FastCGI to its private ping path; the HTTP
-probe checks Laravel liveness; Nginx uses curl without a PHP dependency. OCI-format builds do not retain Docker
+probe checks Laravel liveness; Nginx uses the existing BusyBox wget/timeout tools without adding curl or PHP. OCI-format builds do not retain Docker
 HEALTHCHECK metadata: deployment consumers must explicitly supply these
 Podman/Quadlet health commands. Consumers must preserve private storage,
 bootstrap-cache and temporary-directory ownership and their existing worker
@@ -425,7 +425,9 @@ does not change those repositories or any running service.
 Until Alpine 3.24 ships the upstream repair, the PHP-FPM build uses the
 versioned `docker/sqlite/APKBUILD` to package unmodified SQLite 3.54.0.
 Both source archives are SHA-512 pinned; the amalgamation additionally matches
-SQLite.org's published SHA3-256. Only Alpine 3.24 SDK packages are used.
+SQLite.org's published SHA3-256. The retained FrankenPHP runtime uses this same library repair until replacement
+acceptance. The SDK dependency pins have one owner in `docker/sqlite/build.sh`;
+only Alpine 3.24 SDK packages are used.
 No edge repository is added. The package remains `sqlite-libs`, with origin
 `sqlite`, the genuine upstream version and its regular APK file ownership.
 
