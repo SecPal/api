@@ -19,7 +19,7 @@ podman run "${args[@]}" --entrypoint sh "$image" -eu -c '
     for tool in git bash composer gcc make node pip pip3; do
         if command -v "$tool" >/dev/null; then exit 1; fi
     done
-    for package in linux-headers musl-dev libc-dev py3-pip; do
+    for package in linux-headers musl-dev libc-dev py3-pip tar; do
         if apk info -e "$package" >/dev/null 2>&1; then exit 1; fi
     done
 '

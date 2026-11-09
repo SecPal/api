@@ -24,6 +24,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Repair the retained FrankenPHP runtime's SQLite library with the same genuine
   3.54.0 APK used by FPM; remove runtime pip and the unused curl command while
   preserving PHP/libcurl and OpenTimestamps. Validate both native architectures.
+- Remove unused GNU tar from both final PHP runtime images, eliminating its
+  CVE-2026-5704, CVE-2026-18508 and CVE-2026-18477 code paths while retaining
+  archive tools in build stages.
 - Remove Nginx's health-only curl dependency and unused upstream template tools;
   preserve exact HTTP liveness and time bounds using the existing BusyBox tools.
 - Qualify the runtimes with the accepted Grype 0.121.3 executable and central

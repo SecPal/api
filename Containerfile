@@ -81,7 +81,8 @@ ENV APP_ENV=production \
 WORKDIR /app
 
 # The extension installer removes build dependencies; native smoke rejects retained headers.
-RUN addgroup -g "${APP_GID}" secpal \
+RUN apk del --no-network tar \
+    && addgroup -g "${APP_GID}" secpal \
     && adduser -D -u "${APP_UID}" -G secpal -h /home/secpal -s /sbin/nologin secpal \
     && if [ -n "$(getcap /usr/local/bin/frankenphp)" ]; then setcap -r /usr/local/bin/frankenphp; fi \
     && install -d -m 0750 -o secpal -g secpal /config/caddy /config/psysh /data/caddy

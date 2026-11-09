@@ -194,6 +194,7 @@ podman run --rm "$image" sh -eu -c '
     ! command -v curl
     ! command -v pip3
     ! apk --no-network info -e py3-pip
+    ! apk --no-network info -e tar
     apk info --installed libcurl=8.23.0-r0
     apk info --installed brotli-libs=1.2.1-r0
 '
@@ -483,6 +484,7 @@ podman exec "$api" secpal-http-live
 assert_http /health/live 200 '"status":"alive"'
 assert_http /health/ready 200 '"status":"ready"'
 if [ "$runtime_set" = pair ]; then
+    assert_http / 404
     assert_http /index.php/.env 404
     assert_http /arbitrary.php 404
     assert_http /__secpal_fpm_ping 404
