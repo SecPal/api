@@ -108,7 +108,7 @@ python3 "$governance/scripts/secpal-vulnerability-reevaluation.py" verify-syft \
   --platform-digest "$manifest" --platform "linux/$arch" --spdx "$output/syft.spdx.json" \
   --association "$output/association.json" --output "$output/syft-association.json"
 if [ "$runtime" = legacy ]; then
-  SKIP_BUILD=1 IMAGE_TAG="$image" EXPECTED_ARCH="$arch" tests/docker/smoke.sh
+  SKIP_BUILD=1 RUNTIME_SET=legacy IMAGE_TAG="$image" EXPECTED_ARCH="$arch" tests/docker/smoke.sh
 else
   tests/docker/runtime-component.sh "$runtime" "$image" "$arch"
 fi
