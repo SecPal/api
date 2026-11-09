@@ -198,7 +198,7 @@ def assemble_index(records, sizes):
 
 
 def source_security_schema(root):
-    return read(Path(root)/'.context/publisher-governance/docs/schemas/secpal-trivy-repository-scan-v4.schema.json')
+    return read(Path(root)/'.context/publisher-governance/docs/schemas/secpal-trivy-repository-scan-v5.schema.json')
 
 
 def admit_source_security(value, commit, observed_at, *, schema):

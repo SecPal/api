@@ -14,6 +14,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Consume the canonical v5 repository scan schema from the accepted shared
+  publisher SDK, retaining exact source, freshness and CLEAN admission checks.
+
+- Restore exact released-artifact monitoring through the central supported
+  Python runtime fix, preserving scanner and vulnerability-policy contracts.
+
+- Make the existing required Pest check depend on complete native OCI
+  qualification for every PR. Use GitHub job dependencies instead of a separate
+  admission workflow, change classifier and API readback validator.
+
 - Update the current FrankenPHP runtime to the official 1.13.5 security release
   on PHP 8.4.27 and Alpine, fixing the non-PHP-file execution advisory and the
   embedded x/net CVE-2026-78661. Keep independent SQLite and go-jose findings

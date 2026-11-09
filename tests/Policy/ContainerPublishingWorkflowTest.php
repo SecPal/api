@@ -313,7 +313,37 @@ it('uses immutable v4 code and separately authenticated decision data', function
         }
     }
     expect((string) file_get_contents($root.'/scripts/publish-container.sh'))->not->toContain('scan-v2.schema.json')
-        ->and((string) file_get_contents($root.'/scripts/container-publisher.py'))->toContain('secpal-trivy-repository-scan-v4.schema.json');
+        ->and((string) file_get_contents($root.'/scripts/container-publisher.py'))->toContain('secpal-trivy-repository-scan-v5.schema.json');
+});
+
+it('keeps the required Pest context blocking for every unsuccessful native result', function (): void {
+    $root = dirname(__DIR__, 2);
+    $ci = Yaml::parseFile($root.'/.github/workflows/php-ci.yml');
+    expect($ci['jobs']['native']['uses'] ?? null)->toBe('./.github/workflows/container-image.yml')
+        ->and($ci['jobs']['native']['if'] ?? null)->toBe("github.event_name == 'pull_request'")
+        ->and($ci['on']['pull_request'])->toBe(['branches' => ['main']])
+        ->and($ci['jobs']['test'])->not->toHaveKeys(['needs', 'if'])
+        ->and($ci['jobs']['acceptance']['name'] ?? null)->toBe('PEST Tests')
+        ->and($ci['jobs']['acceptance']['needs'] ?? null)->toBe(['native', 'test'])
+        ->and($ci['jobs']['acceptance']['if'] ?? null)->toBe('${{ always() }}');
+
+    $gate = $ci['jobs']['acceptance']['steps'][0];
+    expect($gate['env']['NATIVE_RESULT'] ?? null)->toBe('${{ needs.native.result }}')
+        ->and($gate['env']['TEST_RESULT'] ?? null)->toBe('${{ needs.test.result }}');
+
+    $results = ['success', 'failure', 'cancelled', 'skipped', 'neutral', 'timed_out', ''];
+    foreach (['pull_request', 'push'] as $event) {
+        foreach ($results as $native) {
+            foreach ($results as $tests) {
+                $process = new Symfony\Component\Process\Process(
+                    ['bash', '-e', '-c', $gate['run']],
+                    env: ['GITHUB_EVENT_NAME' => $event, 'NATIVE_RESULT' => $native, 'TEST_RESULT' => $tests],
+                );
+                $process->run();
+                expect($process->isSuccessful())->toBe($tests === 'success' && ($event === 'push' || $native === 'success'));
+            }
+        }
+    }
 });
 
 it('shares database-free native Buildah builds without PR publication or emulation', function (): void {
@@ -322,7 +352,7 @@ it('shares database-free native Buildah builds without PR publication or emulati
     $build = (string) file_get_contents($root.'/scripts/build-container.sh');
     expect($ci['permissions'])->toBe(['contents' => 'read'])
         ->and($ci['on'])->toHaveKey('workflow_call')
-        ->and($ci['on']['pull_request']['paths'])->toContain('Containerfile', '.containerignore', 'tests/Policy/**', 'composer.lock')
+        ->and(array_keys($ci['on']))->toBe(['workflow_call'])
         ->and($ci['jobs']['build-and-test']['needs'])->toBe('validate')
         ->and($ci['jobs']['build-and-test']['steps'][0]['with']['path'])->toBe('source')
         ->and($ci['jobs']['build-and-test']['defaults']['run']['working-directory'])->toBe('source')

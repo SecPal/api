@@ -4,40 +4,6 @@
 ---
 name: Container Image
 "on":
-  pull_request:
-    branches:
-      - main
-    paths:
-      - Containerfile
-      - .containerignore
-      - docker/**
-      - docs/ADDRESS_DATA.md
-      - tests/docker/**
-      - tests/Policy/**
-      - tests/container-publisher.py
-      - tests/container-attestation-auth.py
-      - scripts/*container*
-      - scripts/container-*
-      - composer.json
-      - composer.lock
-      - phpunit.xml
-      - tests/Pest.php
-      - app/**
-      - bootstrap/**
-      - config/**
-      - database/**
-      - lang/**
-      - public/**
-      - resources/**
-      - routes/**
-      - storage/**
-      - scripts/ots-*.py
-      - artisan
-      - LICENSE
-      - THIRD-PARTY-NOTICES.md
-      - LICENSES/**
-      - .github/workflows/container-image.yml
-      - .github/workflows/publish-container.yml
   workflow_call: {}
 permissions:
   contents: read
@@ -58,7 +24,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: SecPal/.github
-          ref: 57a1b7ce698a2ef7e253a05e6cf008b9fdab646c
+          ref: 1bb0253cbc7bb57dccae9382c1234d3ffde08edf
           path: .context/publisher-governance
           persist-credentials: false
           fetch-depth: 0
@@ -130,7 +96,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: SecPal/.github
-          ref: 57a1b7ce698a2ef7e253a05e6cf008b9fdab646c
+          ref: 1bb0253cbc7bb57dccae9382c1234d3ffde08edf
           path: .context/publisher-governance
           persist-credentials: false
           fetch-depth: 0
