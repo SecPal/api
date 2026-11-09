@@ -21,6 +21,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Upgrade the released-artifact monitor to the accepted Grype 0.121.3 scanner
+  security fix while preserving exact released subjects and unresolved findings.
+
+- Preserve unresolved released-image CVE issues when scanner findings disappear;
+  adopt the reviewed central triage fix without changing release security policy.
+
 - Keep native runtime smoke fixtures usable under enforcing SELinux with shared
   bind labels and a canonical PostgreSQL reference; retain native HTTP failure
   diagnostics without suppressing the original transport error.
