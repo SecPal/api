@@ -44,6 +44,7 @@ class NginxHealthTests(unittest.TestCase):
                             else:
                                 self.wfile.write(body)
                         except BrokenPipeError:
+                            # The timeout probe deliberately closes before the body finishes.
                             pass
                     def log_message(self, *args):
                         pass
