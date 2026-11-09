@@ -446,3 +446,23 @@ This is a SecPal-built package, not an Alpine vendor security package.
 It fixes the three library CVEs without filtering scanner output.
 The separate SQLite CLI `.recover` CPE finding remains visible until its
 component scope is correctly classified by the trusted scanner implementation.
+
+## Required OCI PR admission
+
+The existing `PEST Tests` required check depends on the complete Container Image
+reusable workflow for every PR to main, including documentation and workflow
+changes. The native workflow is called once through PHP CI; it has no separate
+PR trigger or path classifier. GitHub owns matrix and job dependency evaluation.
+
+The PHP suite and native qualification run independently. The terminal
+`PEST Tests` job always reports their results and requires both to be `success`
+on PRs. A failed, missing, skipped or cancelled result cannot become a successful
+skipped required check. On main pushes, the PHP suite still runs normally while
+the existing publisher owns native release qualification.
+
+The called workflow owns validation, both native architectures and, for the
+paired runtime introduced by #2643, the unpublished digest-bound PHP-FPM/Nginx
+security qualifier. Its scanner freshness and artifact checks remain unchanged.
+This dependency graph does not add an admission authority, GitHub API reader,
+security exception or branch-protection setting. Publication and deployment
+retain their existing separate acceptance.

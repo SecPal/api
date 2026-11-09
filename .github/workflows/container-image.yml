@@ -4,43 +4,6 @@
 ---
 name: Container Image
 "on":
-  pull_request:
-    branches:
-      - main
-    paths:
-      - Containerfile
-      - .containerignore
-      - docker/**
-      - docs/ADDRESS_DATA.md
-      - tests/docker/**
-      - tests/Policy/**
-      - tests/container-publisher.py
-      - tests/runtime-pair.py
-      - tests/fpm-health.py
-      - tests/nginx-health.py
-      - tests/container-attestation-auth.py
-      - scripts/*container*
-      - scripts/container-*
-      - composer.json
-      - composer.lock
-      - phpunit.xml
-      - tests/Pest.php
-      - app/**
-      - bootstrap/**
-      - config/**
-      - database/**
-      - lang/**
-      - public/**
-      - resources/**
-      - routes/**
-      - storage/**
-      - scripts/ots-*.py
-      - artisan
-      - LICENSE
-      - THIRD-PARTY-NOTICES.md
-      - LICENSES/**
-      - .github/workflows/container-image.yml
-      - .github/workflows/publish-container.yml
   workflow_call:
     inputs:
       runtime-set:

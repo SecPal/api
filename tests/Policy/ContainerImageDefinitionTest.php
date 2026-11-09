@@ -84,12 +84,11 @@ it('defines the production API image contract', function (): void {
         ->not->toContain('worker');
 
     expect($productionIni)->toContain('upload_max_filesize=10M', 'post_max_size=12M');
-    expect(Symfony\Component\Yaml\Yaml::parse($workflow)['on']['pull_request']['paths'])->toContain('storage/**', 'artisan', 'LICENSE', 'THIRD-PARTY-NOTICES.md', 'LICENSES/**');
+    expect(Symfony\Component\Yaml\Yaml::parse($workflow)['on'])->toHaveKey('workflow_call');
     expect($documentation)->toContain('/app/storage/app/private')->toContain('persistent')->and($dockerignore)->toMatch('/^storage\/app$/m');
     expect($dockerignore)->toMatch('/^\*\*\/\*\.sqlite\*$/m');
     expect($dockerignore)->toContain("docs/*\n!docs/ADDRESS_DATA.md")
         ->and($dockerfile)->toContain('COPY docs/ADDRESS_DATA.md ./docs/ADDRESS_DATA.md');
-    expect(Symfony\Component\Yaml\Yaml::parse($workflow)['on']['pull_request']['paths'])->toContain('docs/ADDRESS_DATA.md');
 
     expect($smokeScript)
         ->toContain('notice=/app/docs/ADDRESS_DATA.md', 'test -r /app/LICENSES/ODbL-1.0.txt')

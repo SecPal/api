@@ -35,6 +35,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   during runtime qualification, including CVE-2026-118514, CVE-2026-118515 and
   CVE-2026-118516. Update only the eight-package required Composer closure;
   retain Laravel and Symfony MIME unchanged (refs #2639).
+
+- Make the existing required Pest check depend on complete native OCI
+  qualification for every PR. Use GitHub job dependencies instead of a separate
+  admission workflow, change classifier and API readback validator.
 - Preserve console command input contracts with Symfony Console 8: reject non-scalar tenant/source inputs before work, validate dry-run booleans, and keep optional seeder progress output safe without an attached console.
 
 - Refresh the eight already-qualified Symfony lock entries, including HTTP Foundation, Routing and Serializer 8.1.11, to remove the vulnerable repository-scan baseline without changing Composer constraints or runtime definitions.
