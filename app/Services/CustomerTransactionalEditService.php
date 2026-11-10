@@ -56,6 +56,15 @@ final class CustomerTransactionalEditService
         array $normalizedInput,
     ): Customer {
         $this->ensureOperationAuthorized($user, $tenantId);
+        $validationFailure = null;
+        try {
+            $payload = $this->requestContract->validate($requestContent, $customerId, $normalizedInput);
+        } catch (CustomerTransactionalEditException|ValidationException $exception) {
+            // Preserve lookup/If-Match precedence without locking other tenants
+            // for an edit that cannot mutate. The customer row remains scoped.
+            $validationFailure = $exception;
+            $payload = ['customer' => [], 'customer_establishments' => []];
+        }
 
         try {
             return DB::transaction(function () use (
@@ -63,23 +72,24 @@ final class CustomerTransactionalEditService
                 $tenantId,
                 $customerId,
                 $ifMatch,
-                $requestContent,
-                $normalizedInput,
+                $payload,
+                $validationFailure,
             ): Customer {
                 $customer = $this->customers->findLockedForTenant($tenantId, $customerId)
                     ?? throw CustomerTransactionalEditException::notFound();
 
-                $this->customers->lockRepresentationWriters();
-                $this->customers->lockRepresentationAuthorizationWriters();
+                if ($validationFailure === null) {
+                    $this->customers->lockRepresentationWriters();
+                    $this->customers->lockRepresentationAuthorizationWriters();
+                }
                 $this->revalidateOperationAuthorization($user, $tenantId);
 
                 $this->assertCurrentIfMatch($ifMatch, $this->currentRepresentationETag($customer));
 
-                $payload = $this->requestContract->validate(
-                    $requestContent,
-                    $customerId,
-                    $normalizedInput,
-                );
+                if ($validationFailure !== null) {
+                    throw $validationFailure;
+                }
+
                 $resultingLegalEntityId = $this->resultingLegalEntityId($customer, $payload['customer']);
                 $this->validateCustomerDomain(
                     $user,

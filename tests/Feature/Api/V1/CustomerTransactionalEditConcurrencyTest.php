@@ -16,6 +16,7 @@ use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Foundation\Testing\RefreshDatabaseState;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Validator;
 use Spatie\Permission\PermissionRegistrar;
 
 uses()->group('serial');
@@ -56,6 +57,49 @@ afterEach(function (): void {
     RefreshDatabaseState::$migrated = false;
     cleanupTestKekFile();
     TenantKey::setKekPath(null);
+});
+
+test('invalid edit validation does not block another tenants database writer', function (): void {
+    $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+    $otherCustomer = Customer::factory()->create(['tenant_id' => $otherTenant->id, 'is_active' => true]);
+    config(['database.connections.customer_edit_writer' => DB::connection()->getConfig()]);
+    $writer = DB::connection('customer_edit_writer');
+    $writer->statement("SET lock_timeout = '250ms'");
+    $etag = $this->withToken($this->token)->getJson("/v1/customers/{$this->customer->id}")
+        ->assertOk()->headers->get('ETag');
+    $originalFactory = Validator::getFacadeRoot();
+    $factory = clone $originalFactory;
+    $attempted = false;
+    $factory->resolver(function ($translator, $data, $rules, $messages, $attributes) use ($writer, $otherCustomer, &$attempted): Illuminate\Validation\Validator {
+        if (array_key_exists('customer_establishments', $data)) {
+            $attempted = true;
+            expect($writer->table('customers')
+                ->where('tenant_id', $otherCustomer->tenant_id)
+                ->where('id', $otherCustomer->id)
+                ->update(['is_active' => false]))->toBe(1);
+        }
+
+        return new Illuminate\Validation\Validator($translator, $data, $rules, $messages, $attributes);
+    });
+    Validator::swap($factory);
+
+    try {
+        $this->withToken($this->token)->withHeader('If-Match', $etag)
+            ->putJson("/v1/customers/{$this->customer->id}/transactional-edit", [
+                'customer' => ['name' => 'Must not persist'],
+                'customer_establishments' => [[
+                    'customer_id' => $this->customer->id,
+                    'establishment_id' => 'invalid',
+                ]],
+            ])->assertUnprocessable();
+
+        expect($attempted)->toBeTrue()
+            ->and($this->customer->refresh()->name)->toBe('Race Baseline')
+            ->and($otherCustomer->refresh()->is_active)->toBeFalse();
+    } finally {
+        Validator::swap($originalFactory);
+        DB::purge('customer_edit_writer');
+    }
 });
 
 test('two HTTP edits from one validator cannot both commit', function (): void {

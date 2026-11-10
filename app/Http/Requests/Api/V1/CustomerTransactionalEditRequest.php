@@ -17,6 +17,9 @@ final class CustomerTransactionalEditRequest
 {
     public const AUTHORITATIVE_CONTRACTS_SHA = 'f8771b74d887b84b84dcc94e2405df7b47222466';
 
+    // Match the existing Nginx/PHP request envelope without capping membership.
+    private const MAX_CONTENT_BYTES = 12 * 1024 * 1024;
+
     /** @var list<string> */
     public const CUSTOMER_FIELDS = [
         'legal_entity_id',
@@ -47,7 +50,7 @@ final class CustomerTransactionalEditRequest
     ];
 
     /**
-     * Parse and validate the syntactic request contract after If-Match succeeds.
+     * Parse and validate the syntactic request contract before database locks are acquired.
      *
      * @param  array<string, mixed>  $normalizedInput
      * @return array{
@@ -57,6 +60,10 @@ final class CustomerTransactionalEditRequest
      */
     public function validate(string $content, string $pathCustomerId, array $normalizedInput): array
     {
+        if (strlen($content) > self::MAX_CONTENT_BYTES) {
+            $this->fail(['request' => ['The request body is invalid.']]);
+        }
+
         try {
             $document = json_decode($content, false, 512, JSON_THROW_ON_ERROR);
         } catch (JsonException) {
