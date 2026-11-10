@@ -9,10 +9,13 @@ import os
 from pathlib import Path
 import stat
 import subprocess
+import sys
 import tempfile
 import unittest
 from unittest.mock import patch
 import zipfile
+
+sys.dont_write_bytecode = True
 
 POLICY = Path(__file__).resolve().parents[1]/'.github/scripts/native-ci.py'
 spec = importlib.util.spec_from_file_location('native_ci', POLICY)
@@ -112,6 +115,16 @@ class ScopeTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.scope()
 
+    def test_normalized_reinclusions_fail_closed(self):
+        for rule in ['!./tests/Unit/a.php', '!foo/../tests/Unit/a.php', '!foo/../.github/ci.py', '!foo/../CHANGELOG.md']:
+            with self.subTest(rule=rule):
+                self.write('.containerignore', '.git\n.github\ntests\nCHANGELOG.md\n'+rule+'\n')
+                self.git('add', '.')
+                self.git('commit', '-qm', 'independent reinclusion fixture')
+                with self.assertRaises(ValueError):
+                    ci.excluded_context(self.root, self.git('rev-parse', 'HEAD'),
+                                        [dict(path=p) for p in ('tests/Unit/a.php', '.github/ci.py', 'CHANGELOG.md')])
+
     def test_mismatched_parents_and_dirty_or_shallow_sources_fail_closed(self):
         self.write('tests/Unit/a.php', 'changed\n')
         head, merge = self.merge()
@@ -146,6 +159,27 @@ class ScopeTests(unittest.TestCase):
                 counterfeit.write_text('forged\n')
                 with patch.object(ci, '__file__', str(counterfeit)), self.assertRaises(ValueError):
                     ci.current_scope(self.root, False)
+
+    def test_missing_protected_blob_is_not_initial_adoption(self):
+        self.write(ci.POLICY, POLICY.read_text())
+        self.git('add', '.')
+        self.git('commit', '-qm', 'protected CI policy')
+        self.git('branch', '-f', 'main')
+        self.base = self.git('rev-parse', 'HEAD')
+        self.write('tests/Unit/a.php', 'changed\n')
+        head, merge = self.merge()
+        blob = self.git('rev-parse', self.base+':'+ci.POLICY)
+        (self.root/'.git/objects'/blob[:2]/blob[2:]).unlink()
+        with tempfile.TemporaryDirectory() as temp:
+            event = Path(temp)/'event.json'
+            event.write_text(json.dumps(dict(pull_request=dict(
+                base=dict(repo=dict(full_name='SecPal/api'), ref='main', sha=self.base),
+                head=dict(sha=head)))))
+            environment = dict(GITHUB_REPOSITORY='SecPal/api', GITHUB_EVENT_NAME='pull_request',
+                               GITHUB_SHA=merge, GITHUB_EVENT_PATH=str(event))
+            with patch.dict(os.environ, environment), patch.object(ci, 'api', return_value=dict(object=dict(sha=self.base))):
+                with self.assertRaises((ValueError, subprocess.CalledProcessError)):
+                    ci.current_scope(self.root, True)
 
 
 class ArchiveTests(unittest.TestCase):

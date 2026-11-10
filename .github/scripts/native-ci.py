@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path, PurePosixPath
 import platform
+import posixpath
 import re
 import runpy
 import shutil
@@ -81,12 +82,14 @@ def excluded_context(root, commit, entries):
         return False
     patterns = git(root, 'show', commit+':.containerignore').decode().splitlines()
     patterns = [p.strip() for p in patterns if p.strip() and not p.lstrip().startswith('#')]
-    require({'tests', '.github', 'CHANGELOG.md'} <= set(patterns))
+    omitted = {c['path'].split('/')[0] for c in entries}
+    require(omitted <= set(patterns))
     for pattern in patterns:
         if pattern.startswith('!'):
-            included = pattern[1:].lstrip('/')
+            included = posixpath.normpath(pattern[1:].strip().lstrip('/'))
             require(not any(c in included for c in '*?[\\')
-                    and included.split('/')[0] not in ('tests', '.github', 'CHANGELOG.md'))
+                    and included not in ('.', '..') and not included.startswith('../')
+                    and included.split('/')[0] not in omitted)
     return True
 
 
@@ -122,11 +125,10 @@ def current_scope(root, bootstrap):
     require(event['base']['repo']['full_name'] == 'SecPal/api' and event['base']['ref'] == 'main')
     base = event['base']['sha']
     require(api('git/ref/heads/main')['object']['sha'] == base)
-    protected = subprocess.run(['git', '--no-replace-objects', 'show', base+':'+POLICY],
-                               cwd=root, capture_output=True)
-    require(bootstrap == (protected.returncode != 0))
+    entry = git(root, 'ls-tree', '-z', base, '--', POLICY)
+    require(bootstrap == (not entry))
     if not bootstrap:
-        require(Path(__file__).read_bytes() == protected.stdout)
+        require(Path(__file__).read_bytes() == git(root, 'show', base+':'+POLICY))
     return scope(root, base, event['head']['sha'], os.environ['GITHUB_SHA'], bootstrap=bootstrap)
 
 

@@ -40,17 +40,18 @@ jobs:
             base=$(jq -er .pull_request.base.sha "$GITHUB_EVENT_PATH")
           fi
           [[ "$base" =~ ^[0-9a-f]{40}$ ]]
-          git cat-file -e "$base^{commit}"
+          git --no-replace-objects cat-file -e "$base^{commit}"
           mkdir -p .context/ci-scope
           arguments=()
-          if git cat-file -e "$base:.github/scripts/native-ci.py"; then
-            git show "$base:.github/scripts/native-ci.py" > .context/ci-scope/native-ci.py
+          policy_entry=$(git --no-replace-objects ls-tree "$base" -- .github/scripts/native-ci.py)
+          if [ -n "$policy_entry" ]; then
+            git --no-replace-objects show "$base:.github/scripts/native-ci.py" > .context/ci-scope/native-ci.py
           else
             # Initial adoption must fully requalify; it cannot issue N/A.
-            git show "$GITHUB_SHA:.github/scripts/native-ci.py" > .context/ci-scope/native-ci.py
+            git --no-replace-objects show "$GITHUB_SHA:.github/scripts/native-ci.py" > .context/ci-scope/native-ci.py
             arguments+=(--bootstrap)
           fi
-          git show "$base:scripts/container-publisher.py" > .context/ci-scope/publisher.py
+          git --no-replace-objects show "$base:scripts/container-publisher.py" > .context/ci-scope/publisher.py
           python3 -I .context/ci-scope/native-ci.py plan \
             --proof .context/ci-scope/scope.json "${arguments[@]}"
       - name: Retain exact applicability and origin observations
