@@ -1,7 +1,7 @@
 <?php
 
 /**
- * SPDX-FileCopyrightText: 2025 SecPal Contributors
+ * SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
@@ -13,6 +13,7 @@ use App\Models\TenantKey;
 use App\Models\User;
 use App\Services\OpenTimestampService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Test UpgradeOpenTimestampProofs job.
@@ -187,6 +188,8 @@ test('job processes multiple tenants', function () {
 });
 
 test('job handles upgrade errors gracefully', function () {
+    Log::spy();
+
     // Arrange: Create pending proof
     Activity::create([
         'tenant_id' => $this->tenant->id,
@@ -212,6 +215,13 @@ test('job handles upgrade errors gracefully', function () {
     assert($log instanceof Activity);
     expect($log->ots_confirmed_at)->toBeNull();
     expect($log->ots_proof)->toBe('proof');
+    Log::shouldHaveReceived('info')
+        ->with('UpgradeOpenTimestampProofs: Completed', Mockery::on(
+            fn (array $context): bool => $context['upgraded'] === 0
+                && $context['still_pending'] === 0
+                && $context['failed'] === 1
+        ))
+        ->once();
 });
 
 test('job batch processes logs efficiently', function () {

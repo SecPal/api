@@ -12,11 +12,198 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Add the qualified Alpine PHP-FPM/CLI and separate Nginx runtime pair with a
+  private Unix socket, non-root execution and digest-bound dual-artifact
+  Buildah evidence. Preserve the accepted FrankenPHP publication and consumer
+  contract until the replacement is independently accepted (refs #2639).
+
+### Fixed
+
+- Keep test-only pull requests from rebuilding unchanged native OCI images.
+  Verify complete Git scope with the protected base policy, retain explicit
+  nonapplicability evidence, and fully requalify existing images for CI changes.
+  Runtime, dependency and publisher implementation changes still require builds.
+- Require the existing manual release entry point for API registry publication;
+  merging source into main cannot automatically publish the retained runtime.
+- Repair the retained FrankenPHP runtime's SQLite library with the same genuine
+  3.54.0 APK used by FPM; remove runtime pip and the unused curl command while
+  preserving PHP/libcurl and OpenTimestamps. Validate both native architectures.
+- Remove unused GNU tar from both final PHP runtime images, eliminating its
+  CVE-2026-5704, CVE-2026-18508 and CVE-2026-18477 code paths while retaining
+  archive tools in build stages.
+- Remove Nginx's health-only curl dependency and unused upstream template tools;
+  preserve exact HTTP liveness and time bounds using the existing BusyBox tools.
+- Qualify the runtimes with the accepted Grype 0.121.3 executable and central
+  implementation, retaining the unresolved CLI advisory and security policy.
+
+- Upgrade the released-artifact monitor to the accepted Grype 0.121.3 scanner
+  security fix while preserving exact released subjects and unresolved findings.
+
+- Preserve unresolved released-image CVE issues when scanner findings disappear;
+  adopt the reviewed central triage fix without changing release security policy.
+
+- Keep native runtime smoke fixtures usable under enforcing SELinux with shared
+  bind labels and a canonical PostgreSQL reference; retain native HTTP failure
+  diagnostics without suppressing the original transport error.
+
+- Install the stable Alpine zlib 1.4-r0 security update in the Nginx runtime
+  to resolve CVE-2026-4738 found by native dual-scanner qualification.
+
+- Preserve the exact legacy attestation job identity when extending publication
+  to paired runtimes, so the existing execution verifier can still accept the
+  legacy publisher without relaxing name or provenance checks.
+
+- Keep pip and its APK dependency closure in the PHP-FPM build only, validate
+  Python dependencies before removal, and remove the unused curl command from
+  that final runtime. Preserve PHP/libcurl, OpenTimestamps and native checks.
+
+- Build SQLite 3.54.0 as a source-verified Alpine 3.24 APK for the PHP-FPM
+  runtime, fixing CVE-2026-119373, CVE-2026-119374 and CVE-2026-119379.
+  Verify repeat-build equality, the existing SONAME/exported ABI and PHP/Python
+  loading; retain all scanner findings and the independent CLI-only
+  classification blocker (refs #2639).
+
+- Patch the Symfony HTTP, routing, serializer and YAML security advisories found
+  during runtime qualification, including CVE-2026-118514, CVE-2026-118515 and
+  CVE-2026-118516. Update only the eight-package required Composer closure;
+  retain Laravel and Symfony MIME unchanged (refs #2639).
+- Consume the canonical v5 repository scan schema from the accepted shared
+  publisher SDK, retaining exact source, freshness and CLEAN admission checks.
+
+- Restore exact released-artifact monitoring through the central supported
+  Python runtime fix, preserving scanner and vulnerability-policy contracts.
+
+- Make the existing required Pest check depend on complete native OCI
+  qualification for every PR. Use GitHub job dependencies instead of a separate
+  admission workflow, change classifier and API readback validator.
+
+- Update the current FrankenPHP runtime to the official 1.13.5 security release
+  on PHP 8.4.27 and Alpine, fixing the non-PHP-file execution advisory and the
+  embedded x/net CVE-2026-78661. Keep independent SQLite and go-jose findings
+  visible under the existing artifact-security policy.
+
+- Preserve console command input contracts with Symfony Console 8: reject non-scalar tenant/source inputs before work, validate dry-run booleans, and keep optional seeder progress output safe without an attached console.
+
+- Refresh the eight already-qualified Symfony lock entries, including HTTP Foundation, Routing and Serializer 8.1.11, to remove the vulnerable repository-scan baseline without changing Composer constraints or runtime definitions.
+
+- Update Symfony MIME from 8.0.15 to 8.1.10 to fix CVE-2026-45070 header
+  injection through parameter names, retaining Laravel and all other locked
+  dependencies unchanged (refs #2635).
+
+- Refresh the exact stable Alpine Python input after its previous revision left
+  the package index; validate the maintained input and security floor without
+  duplicating the current Python/pip revisions in policy tests (refs #2557).
+
+- Use the official FrankenPHP 1.13.3 / PHP 8.4.27 Alpine runtime with stable
+  curl/Brotli security updates and hash-locked musllinux OpenTimestamps wheels.
+  Preserve Classic Mode, non-root source permissions, PostgreSQL/TLS and
+  independent exact-artifact security admission (refs #1609).
+
+- Remove Linux/libc development headers from the final API runtime after builds,
+  and verify package/file absence in native smoke tests. Retain runtime libraries,
+  existing functional tests and unchanged artifact security admission.
+
+- Install the exact Debian Bookworm libbrotli1 security update for
+  CVE-2026-111497 and verify the installed runtime package in native image smoke tests.
+  Existing unrelated artifact findings and release-admission requirements remain unchanged.
+
+- Refresh publisher source security on the pristine checkout before materializing
+  SDK or OCI evidence files, preserving strict source identity verification
+  and fail-closed artifact admission (refs #1445).
+
+- Replace the one-off API security-improvement machinery with a native,
+  exact-artifact administrator risk decision under the shared policy. Preserve
+  all findings and ordinary CLEAN admission; remove the decision checkout,
+  duplicate bundle and bot-assessment requirement. Reuse the existing read-only
+  scan job to refresh the same immutable candidate without rebuilding it
+  (refs #1445 and SecPal/.github#696). Domain validation now checks the Git
+  candidate instead of ignored local qualification evidence; its domain rules
+  remain unchanged.
+
+- Pin the qualified FrankenPHP/PHP Bookworm security update, verify runtime
+  versions against the immutable Containerfile input, and model verified TLS
+  contexts correctly in the OpenTimestamps test double. Artifact admission
+  remains separately required (refs api#1609, api#1623, api#1445).
+
+- Accept explicit UTC source/scanner timestamps, retain both platform artifact
+  evaluations before admission, and support the existing central exact-artifact
+  security-improvement decision in the original publisher acceptance job.
+  Preserve unresolved findings, original candidate subjects and run identity;
+  require live authority again before discovery. No active risk approval or
+  runtime change is included (refs api#1445, api#1609).
+
+- Consume exact-source Trivy v4 evidence through one schema-validating publisher
+  reader, preserving CLEAN-only admission and the producer database deadline.
+  Prepare the separate central API #1609 admission check without activating any
+  exception, changing runtime inputs or authorizing release promotion (refs `api#1445`).
+
+- Consume the accepted shared verified-SPDX Grype execution and provenance
+  contract, retaining authoritative Syft input and independent artifact Trivy
+  policy admission (refs `api#1445`).
+
+- Preserve portable raw OCI attestation evidence filenames without changing
+  security digests, subjects or verification content (refs `api#1445`).
+
+- Classify attestation credential admission failures with bounded non-secret phase
+  and invariant codes. Preserve proven hosted read-only prior state as opaque
+  bytes while keeping all consumed and newly published credentials private
+  (refs `api#1445`).
+
+- temporarily admit only job-scoped GHCR credentials to the pinned OCI
+  attestation reader, preserving prior runner state with checked restoration
+  and always-path cleanup (api#1445)
+
+- use ORAS 1.3.4 destination authentication for OCI uploads and wait for the
+  PostgreSQL integration fixture's TCP server before migrations; exercise the
+  actual pinned registry CLI offline before native publisher builds (api#1445)
+
+### Added
+
+- Re-evaluate reviewed released API platform digests daily and on manual dispatch
+  through the shared Grype/Trivy workflow, preserving raw findings and isolated
+  deterministic triage without rebuilding or changing release admission
+  (refs #1448).
+
+### Removed
+
+- Remove the unused Laravel Sail Docker/Compose development tooling after the
+  native Containerfile/Buildah cutover; keep its absence covered by the existing
+  container policy suite (refs #1446).
+
 ### Changed
 
-- bounded and prevalidated transactional customer-edit assignment collections
-  before acquiring representation locks, preventing expensive invalid requests
-  from blocking writes across tenants
+- Validate transactional customer-edit content within the existing 12 MiB request
+  envelope before acquiring global representation locks. Reject invalid edits
+  without those locks while preserving tenant isolation, If-Match error priority
+  and complete assignment collections, including customers with over 100 links.
+- Bind OpenPLZ address imports to the application release's reviewed commit and
+  SHA-256, remove the weekly updater, upgrade setup datasets by expected hash,
+  and skip remote downloads when the approved dataset is active (refs `api#1602`).
+- Preserve at least one prior address dataset, serialize imports with PostgreSQL
+  session locks, and recover cleanly from activation rollback. Carry OpenPLZ/OSM
+  credit, ODbL links and the alterations-offer contract in API import metadata
+  and image notices; deployment-specific legal approval remains required.
+
+- replace the active Docker/BuildKit publisher with native Buildah AMD64/ARM64
+  builds from a sealed committed Containerfile context; bind Syft SPDX, independent
+  Grype/Trivy artifact checks, native smoke and GitHub attestations to immutable
+  OCI subjects before publishing one run-scoped discovery tag (api#1445)
+
+- require accepted repository security evidence before API container publication
+  and provide pull-request feedback through the shared pinned organization
+  Trivy action; only `CLEAN` passes, while repository/source evidence remains
+  separate from released OCI artifact scanning (fixes `api#1450`)
+- defined fail-closed GHCR run-tag retention: run-scoped tags remain
+  non-authoritative discovery pointers, no workflow receives cleanup authority,
+  and tags are retained unless isolated evidence proves tag-only removal leaves
+  the canonical OCI digest, SBOM, build evidence, and GitHub Artifact
+  Attestations unaffected (fixes `api#1387`)
+- removed the vulnerable GitPython runtime path by replacing the OpenTimestamps
+  client CLI upgrade with a bounded core-library helper that accepts only
+  maintained calendar origins, and removed the client and Git dependency chain
+  from production, CI, and development installation paths (fixes `api#1519`)
 - **Breaking:** removed the unreleased Work Instruction product implementation,
   including its HTTP surface, permissions, runtime layers, persistence, and
   Contracts parity assumptions (fixes `api#1508`)
@@ -30,12 +217,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   relationship fields and `customers.update` for customer-establishment update
   or deletion, while preserving assignment-based ordinary edits and tenant and
   organizational-scope boundaries (fixes `api#1334`)
-- **Breaking:** disabled scheduled and setup address-data imports by default;
-  remote imports now require a reviewed commit-pinned GitHub raw URL and exact
+- **Breaking:** remote address-data imports require a reviewed commit-pinned GitHub raw URL and exact
   expected SHA-256, while local imports require the same digest admission before
   parsing or activation (fixes `api#1411`)
 - removed scheduled OpenTimestamp package-index update discovery; production
-  health monitoring now checks the installed pinned client and configured
+  health monitoring now checks the installed pinned OpenTimestamps package and configured
   calendar/provider operations without treating package-index availability as
   readiness, and immutable production images refuse runtime updates (fixes
   `api#1410`)
@@ -163,6 +349,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Breaking:** Permission definitions are now strictly code-owned and seed-managed. The runtime API no longer exposes a permission-catalog management surface; `/v1/permissions*` has been removed, and the obsolete runtime permissions `permissions.create`, `permissions.update`, and `permissions.delete` are no longer seeded.
 
 ### Security
+
+- upgraded production Symfony HTTP Foundation and development-only Symfony YAML
+  from 8.0.15 to maintained 8.1.9, resolving CVE-2026-108082 and CVE-2026-109413
+  without changing Laravel, unrelated dependencies, or the CLEAN-only repository
+  security gate (fixes `api#1593`)
 
 - kept signed email-verification responses stateless because the signed URL is the complete authorization proof, preventing successful and error responses from creating or refreshing session/CSRF cookies, restoring remembered users, or authenticating and touching bearer tokens while preserving signature validation, throttling, JSON, locale, CORS, and security headers (fixes `api#1364`).
 - kept public onboarding token validation stateless for SPA-origin requests because token and email are its complete authorization context, preventing validation responses from creating or refreshing session/CSRF cookies, restoring remembered users, or authenticating bearer tokens while preserving stateful onboarding completion (fixes `api#1363`).

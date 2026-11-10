@@ -13,9 +13,9 @@ We welcome contributions to SecPal! Please read our [Code of Conduct](CODE_OF_CO
 
 Ensure you have the following tools installed:
 
-- **Git** with cryptographic commit signing configured (SSH or OpenPGP)
-- **Node.js** (v22.x) and npm/pnpm/yarn
-- **PHP** 8.4 and Composer (for backend projects)
+- **Git** with SSH commit signing configured
+- **Node.js** 26.10.0 and npm for repository formatting and hooks
+- **PHP** 8.4 and Composer for the Laravel API runtime
 - **Pre-commit** hooks tool (optional but recommended)
 
 ### Local Setup
@@ -91,7 +91,7 @@ This script runs automatically before every `git push` via the pre-push hook.
 - REUSE compliance
 - PHP linting (Pint, PHPStan) - always runs
 - Tests (Pest/PHPUnit) - **skipped by default for speed** ⚡
-- Node.js linting and tests (if applicable)
+- Node-based formatting hooks
 - OpenAPI validation (if applicable)
 - PR size (< 600 lines recommended, excluding lock files and license files)
 
@@ -129,10 +129,12 @@ These exclusions are configured in `.preflight-exclude` and match the GitHub CI 
 2. **Create a feature branch** using our naming convention (see below).
 3. **Write your code** and add tests where applicable.
 4. **Ensure all tests pass** locally by running `./scripts/preflight.sh`.
-5. **Cryptographically sign your commits** with SSH or OpenPGP (see below).
+5. **Sign your commits** with SSH (see below).
 6. **Push your branch** and open a pull request against `main`.
 
-All pull requests will be reviewed by a maintainer and by GitHub Copilot.
+Request review through GitHub and satisfy required reviews and checks before
+merging. Keep Ready pull requests Ready and request another review directly
+when a revision invalidates an earlier review.
 
 ## Pull Request Rules
 
@@ -347,83 +349,42 @@ Closes #123"
 
 ## Signing Commits
 
-All commits must be cryptographically signed. SSH and OpenPGP are both accepted; unsigned commits are not permitted. Configure one of the following methods, then add its public key to your GitHub account as a signing key.
+SecPal contributor commits use SSH signing. Every pull-request commit must
+have GitHub `verification.verified == true` before merging.
 
-### SSH signing
+Preserve the existing SSH signing identity and configuration. Do not replace
+keys, reuse a transport key as a signing credential, disable signing, or switch
+to another signature format. If the required SSH identity is unavailable, stop
+at that credential boundary rather than provisioning an alternative.
 
-```bash
-# Create the SSH configuration directory with restricted permissions
-mkdir -p ~/.ssh
-chmod 700 ~/.ssh
-
-# Generate a dedicated SSH signing key (if you do not already have one)
-ssh-keygen -t ed25519 -C "you@secpal.dev" -f ~/.ssh/id_ed25519_signing
-
-# Configure Git to sign commits with the dedicated private key
-git config --global gpg.format ssh
-git config --global user.signingkey ~/.ssh/id_ed25519_signing
-git config --global commit.gpgSign true
-
-# Copy the public key and add it in GitHub under Settings → SSH and GPG keys
-# → New SSH key, choosing the Signing Key type.
-cat ~/.ssh/id_ed25519_signing.pub
-```
-
-### OpenPGP signing
+Verify local commits with the maintained SSH trust configuration:
 
 ```bash
-# Generate a GPG key (if you don't have one)
-gpg --gen-key
-
-# List your GPG keys
-gpg --list-secret-keys --keyid-format LONG
-
-# Configure Git to use your key
-git config --global gpg.format openpgp
-git config --global user.signingkey <YOUR_KEY_ID>
-git config --global commit.gpgSign true
-
-# Add your GPG key to GitHub
-gpg --armor --export <YOUR_KEY_ID>
-# Copy the entire output (including the BEGIN and END PGP PUBLIC KEY BLOCK lines)
-# and paste it into GitHub under Settings → SSH and GPG keys → New GPG key.
-```
-
-### Verify a signature
-
-For SSH signatures, configure Git's allowed signers file before inspecting or verifying the commit so Git can identify the signer:
-
-```bash
-printf '%s %s\n' "you@secpal.dev" "$(cat ~/.ssh/id_ed25519_signing.pub)" >> ~/.ssh/allowed_signers
-git config --global gpg.ssh.allowedSignersFile ~/.ssh/allowed_signers
-git log --show-signature -1
+git config --get gpg.format
 git verify-commit HEAD
 ```
 
-For OpenPGP signatures, inspect and verify the commit with:
-
-```bash
-git log --show-signature -1
-git verify-commit HEAD
-```
-
-To verify an OpenPGP signature from another contributor, import that contributor's trusted public key into your keyring first.
-
-GitHub also shows whether a commit is verified after the corresponding SSH or OpenPGP public key is added to your account. The protected `main` branch rejects unsigned commits.
+The configured format must be `ssh`; Git's `gpg.format` option name does not
+mean GPG/OpenPGP is used. Every PR commit must be verified by GitHub.
+GitHub-generated PGP signatures and strictly necessary immutable
+historical verification are provider/history evidence, never new SecPal signing
+authority.
 
 ## Pull Request Guidelines
 
 - **Keep PRs small:** Aim for < 600 lines of changes. Large PRs are harder to review.
 - **Write clear descriptions:** Use the PR template and fill out all relevant sections.
-- **Link related issues:** Reference issues with `Closes #123` or `Fixes #456`.
+- **Link related issues:** Use non-closing references such as `Refs #123` for
+  related work. Reserve `Closes #123` or `Fixes #456` for issues the change completes.
 - **Ensure CI passes:** All checks must pass before merging.
-- **Request reviews:** Tag relevant maintainers or wait for automatic review.
+- **Request reviews:** Request review through GitHub and request another review
+  directly when a revision invalidates an earlier review.
 - **Address feedback:** Respond to review comments promptly.
 
 ## Code Style
 
-- **Formatting:** We use Prettier for all code formatting. Run `npx prettier --write .` before committing.
-- **Linting:** ESLint (JavaScript/TypeScript) and PHPStan (PHP) are enforced.
+- **Formatting:** Run `npx --yes prettier@4.0.0-alpha.8 --check '**/*.{md,yml,yaml,json}'` before committing.
+- **Linting:** Markdownlint and PHPStan are enforced.
 - **Testing:** All new features should include tests.
 
 ## REUSE Compliance

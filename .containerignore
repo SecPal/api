@@ -28,7 +28,8 @@ storage/framework/views
 storage/logs
 storage/testing
 tests
-docs
+docs/*
+!docs/ADDRESS_DATA.md
 README*
 CHANGELOG.md
 CONTRIBUTING.md

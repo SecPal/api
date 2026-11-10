@@ -329,3 +329,20 @@ test('locality search returns 422 and no 500 when postal code param is an array'
     $this->getJson('/v1/addresses/de/localities?postal_code[]=10115&postal_code[]=10117&locality=Berlin')
         ->assertUnprocessable();
 });
+
+test('imported address metadata preserves origin and ODbL links on every lookup surface', function (): void {
+    $fixture = base_path('tests/fixtures/address_data/sample_streets.csv');
+    $this->artisan('addresses:import', [
+        '--source' => $fixture,
+        '--expected-sha256' => hash_file('sha256', $fixture),
+    ])->assertSuccessful();
+    Sanctum::actingAs(User::factory()->create(), [User::API_ACCESS_ABILITY]);
+
+    foreach (['streets?name=gr', 'localities?postal_code=13156', 'status'] as $surface) {
+        $response = $this->getJson('/v1/addresses/de/'.$surface)->assertOk();
+        expect($response->json('meta.attribution'))->toContain(
+            'OpenPLZ API Data', 'OpenPotato', '© OpenStreetMap contributors',
+            'https://www.openstreetmap.org/copyright', 'https://opendatacommons.org/licenses/odbl/1-0/',
+        );
+    }
+});

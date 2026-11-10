@@ -288,7 +288,15 @@ test('rejects structural, unknown-property, duplicate, and path-identity failure
         ->toBe(['The selected customer is invalid.']);
 });
 
-test('rejects oversized establishment collections before acquiring representation locks', function (): void {
+test('rejects invalid assignment collections without global locks or mutation', function (string $invalid): void {
+    $link = CustomerEstablishment::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'legal_entity_id' => $this->legalEntity->id,
+        'customer_id' => $this->customer->id,
+        'establishment_id' => $this->establishments[1]->id,
+    ]);
+    $before = $this->customer->refresh()->getRawOriginal();
+    $linkBefore = $link->refresh()->getRawOriginal();
     $etag = customerEtag($this, $this->customer);
     $queries = [];
 
@@ -301,21 +309,117 @@ test('rejects oversized establishment collections before acquiring representatio
         'establishment_id' => $this->establishments[0]->id,
     ];
 
+    $assignments = match ($invalid) {
+        '101 duplicates' => array_fill(0, 101, $assignment),
+        'invalid UUID' => [array_replace($assignment, ['establishment_id' => 'invalid'])],
+        'non-object item' => [null],
+        'unknown property' => [array_replace($assignment, ['unexpected' => true])],
+        'non-array collection' => null,
+    };
+
     $this->withToken($this->token)
         ->withHeader('If-Match', $etag)
         ->putJson(
             "/v1/customers/{$this->customer->id}/transactional-edit",
-            transactionalCustomerPayload($this->customer, [], array_fill(0, 101, $assignment)),
+            ['customer' => ['name' => 'Must not persist'], 'customer_establishments' => $assignments],
         )
-        ->assertUnprocessable()
-        ->assertJsonPath(
-            'errors.customer_establishments.0',
-            'The assignment collection is invalid.',
-        );
+        ->assertUnprocessable();
 
     expect(collect($queries)->contains(
         fn (string $query): bool => str_contains(strtolower($query), 'lock table'),
-    ))->toBeFalse();
+    ))->toBeFalse()
+        ->and($this->customer->refresh()->getRawOriginal())->toBe($before)
+        ->and($link->refresh()->getRawOriginal())->toBe($linkBefore)
+        ->and(CustomerEstablishment::query()->where('customer_id', $this->customer->id)->count())->toBe(1);
+})->with(['101 duplicates', 'invalid UUID', 'non-object item', 'unknown property', 'non-array collection']);
+
+test('invalid content preserves authentication tenant and precondition priorities without global locks', function (): void {
+    $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+    $otherCustomer = Customer::factory()->create(['tenant_id' => $otherTenant->id]);
+    $unauthorized = User::factory()->create(['tenant_id' => $this->tenant->id]);
+    $unauthorizedToken = $unauthorized->createToken('forbidden-edit')->plainTextToken;
+    $etag = customerEtag($this, $this->customer);
+    $before = $this->customer->refresh()->getRawOriginal();
+    $otherBefore = $otherCustomer->refresh()->getRawOriginal();
+    $queries = [];
+    DB::listen(function (QueryExecuted $query) use (&$queries): void {
+        $queries[] = $query->sql;
+    });
+
+    foreach ([
+        [null, $this->customer->id, $etag, 401],
+        [$unauthorizedToken, $this->customer->id, $etag, 403],
+        [$this->token, $otherCustomer->id, $etag, 404],
+        [$this->token, fake()->uuid(), $etag, 404],
+        [$this->token, $this->customer->id, null, 400],
+        [$this->token, $this->customer->id, 'W/"weak"', 400],
+        [$this->token, $this->customer->id, '"stale"', 412],
+        [$this->token, $this->customer->id, $etag, 422],
+    ] as [$token, $id, $validator, $status]) {
+        $this->app['auth']->forgetGuards();
+        $this->app->forgetInstance('auth.driver');
+        $token === null ? $this->withoutToken() : $this->withToken($token);
+        $validator === null ? $this->withoutHeader('If-Match') : $this->withHeader('If-Match', $validator);
+        $this->putJson("/v1/customers/{$id}/transactional-edit", [
+            'customer' => ['name' => 'Must not persist'],
+            'customer_establishments' => [[
+                'customer_id' => $this->customer->id,
+                'establishment_id' => 'invalid',
+            ]],
+        ])->assertStatus($status);
+    }
+
+    expect(collect($queries)->contains(
+        fn (string $query): bool => str_contains(strtolower($query), 'lock table'),
+    ))->toBeFalse()
+        ->and($this->customer->refresh()->getRawOriginal())->toBe($before)
+        ->and($otherCustomer->refresh()->getRawOriginal())->toBe($otherBefore);
+});
+
+test('accepts complete valid collections without inventing a 100-link product limit', function (int $count): void {
+    $establishments = Establishment::factory()->count($count)->create([
+        'tenant_id' => $this->tenant->id,
+        'legal_entity_id' => $this->legalEntity->id,
+    ]);
+    $assignments = $establishments->map(fn (Establishment $establishment): array => [
+        'customer_id' => $this->customer->id,
+        'establishment_id' => $establishment->id,
+    ])->all();
+
+    $this->withToken($this->token)
+        ->withHeader('If-Match', customerEtag($this, $this->customer))
+        ->putJson("/v1/customers/{$this->customer->id}/transactional-edit", transactionalCustomerPayload(
+            $this->customer,
+            ['name' => 'Complete membership'],
+            $assignments,
+        ))
+        ->assertOk()
+        ->assertJsonCount($count, 'data.customer_establishments');
+
+    expect(CustomerEstablishment::query()->where('customer_id', $this->customer->id)->count())->toBe($count);
+})->with([100, 101]);
+
+test('bounds validation by the published request byte budget before global locks', function (): void {
+    $etag = customerEtag($this, $this->customer);
+    $before = $this->customer->refresh()->getRawOriginal();
+    $queries = [];
+    DB::listen(function (QueryExecuted $query) use (&$queries): void {
+        $queries[] = $query->sql;
+    });
+    $content = json_encode([
+        'customer' => ['name' => str_repeat('x', 12 * 1024 * 1024)],
+        'customer_establishments' => [],
+    ], JSON_THROW_ON_ERROR);
+
+    rawTransactionalPut($this, "/v1/customers/{$this->customer->id}/transactional-edit", $etag, $content)
+        ->assertUnprocessable()
+        ->assertJsonPath('errors.request.0', 'The request body is invalid.');
+
+    expect(collect($queries)->contains(
+        fn (string $query): bool => str_contains(strtolower($query), 'lock table'),
+    ))->toBeFalse()
+        ->and($this->customer->refresh()->getRawOriginal())->toBe($before)
+        ->and(CustomerEstablishment::query()->where('customer_id', $this->customer->id)->exists())->toBeFalse();
 });
 
 test('rejects every ineligible desired establishment without disclosing why', function (): void {

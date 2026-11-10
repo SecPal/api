@@ -5,23 +5,25 @@ SPDX-License-Identifier: CC0-1.0
 
 # API container
 
-SecPal uses one production API image for HTTP, queues, scheduling, and administration. Docker is the reference hosting path, while Laravel remains deployment-neutral and can run outside containers.
+SecPal uses one production API image for HTTP, queues, scheduling, and administration. The reference host uses rootless Podman/Quadlet; Laravel remains deployment-neutral.
 
 ## Architecture
 
-The pinned base is `dunglas/frankenphp:1.12.6-php8.4.23-bookworm` at multi-architecture digest `sha256:79b347211bfec90d6a1373c4956a7d3832c8248a2ff2d76bd0b677f37284d32f`. It provides FrankenPHP 1.12.6, PHP 8.4.23, Debian 12, and verified `amd64`/`arm64` manifests. The Composer 2.10.2 build stage is also pinned to its multi-architecture digest. The Debian variant avoids Alpine/musl compatibility differences.
+The authoritative base references are the exact version tags and multi-architecture SHA-256 digests in `Containerfile`. The runtime uses official FrankenPHP with PHP 8.4 on Alpine 3.24; the smoke test verifies the actual binaries against that input and requires at least PHP 8.4.27 for the PHP2Shell repair. The native build verifies the `amd64`/`arm64` platform identities. Composer is independently pinned for the build stage. The musl variant uses the same native extension installer and Classic Mode. Python/OpenTimestamps uses hash-locked musllinux wheels for both architectures; no glibc compatibility packages or distribution mixing are used. Stable Alpine curl and Brotli security packages are pinned in the same Containerfile, and native smoke verifies their installed versions.
+
+The security patch does not imply artifact-policy CLEAN. Fresh per-platform scans and any separately authorized exact-artifact admission remain required before release acceptance.
 
 FrankenPHP serves only `/app/public` in Classic Mode on HTTP port `8080`. Worker Mode, Octane, automatic HTTPS, ACME, and Caddy's admin API are disabled. The base image's OCI metadata still declares ports 80, 443, and 2019, but no process listens there. The `secpal` user (UID/GID `10001`) runs without extra capabilities; root owns source, while `storage` and `bootstrap/cache` are writable by that UID/GID.
 
-Extensions are `bcmath`, `curl`, `gettext`, `intl`, `mbstring`, `opcache`, `pcntl`, `pdo_pgsql`, `pgsql`, `sodium`, XML, and `zip`. Python 3 and hash-locked `opentimestamps-client` 0.7.2 support the existing queue. Node.js and Redis-compatible clients or servers are absent.
+Extensions are `bcmath`, `curl`, `gettext`, `intl`, `mbstring`, `opcache`, `pcntl`, `pdo_pgsql`, `pgsql`, `sodium`, XML, and `zip`. Python 3 and the hash-locked `opentimestamps` 0.4.5 core library support the existing queue without the OpenTimestamps CLI or GitPython. Node.js and Redis-compatible clients or servers are absent.
 
 ## Build and HTTP
 
 Build without `.env`, `APP_KEY`, KEK, or PostgreSQL:
 
 ```bash
-docker build -t secpal-api:test .
-docker run --rm -p 8080:8080 -v secpal-api-storage:/app/storage/app/private -v /deployment/postgresql-ca.crt:/run/secrets/postgresql-ca.crt:ro -e APP_KEY -e DB_CONNECTION=pgsql -e DB_HOST -e DB_DATABASE -e DB_USERNAME -e DB_PASSWORD -e DB_SSLMODE=verify-full -e DB_SSLROOTCERT=/run/secrets/postgresql-ca.crt secpal-api:test
+buildah build --format oci --file Containerfile --tag secpal-api:test .
+podman run --rm -p 8080:8080 -v secpal-api-storage:/app/storage/app/private -v /deployment/postgresql-ca.crt:/run/secrets/postgresql-ca.crt:ro -e APP_KEY -e DB_CONNECTION=pgsql -e DB_HOST -e DB_DATABASE -e DB_USERNAME -e DB_PASSWORD -e DB_SSLMODE=verify-full -e DB_SSLROOTCERT=/run/secrets/postgresql-ca.crt secpal-api:test
 ```
 
 The default command is `frankenphp run --config /etc/frankenphp/Caddyfile`. No startup step generates secrets or runs migrations. Production must mount persistent storage at `/app/storage/app/private` and share it with roles that access uploads; otherwise database metadata can outlive container-local blobs.
@@ -37,9 +39,8 @@ There are no registry fallbacks, and official pull or inspect commands must not
 use shortened image names. Local test tags use the non-namespace name
 `secpal-api`, such as `secpal-api:test`.
 
-After this publishing workflow reaches `main`, every run builds and publishes
-`ghcr.io/secpal/api` as an OCI image index for `linux/amd64` and `linux/arm64`.
-Each run writes exactly one run-scoped discovery tag:
+Existing legacy publications use an OCI image index for `linux/amd64` and
+`linux/arm64`, with one run-scoped discovery tag:
 
 ```text
 ghcr.io/secpal/api:build-<full-SHA>-<run-ID>-<run-attempt>
@@ -52,8 +53,49 @@ full-commit-SHA tag.
 
 The publisher's static container policy suite is isolated from the Laravel
 database test case and runs without PostgreSQL. Pull-request validation runs
-the same database-free policy command used by the post-merge publisher before
+the same database-free policy command used by the manually invoked publisher before
 any registry write is permitted.
+
+### Pre-build repository security
+
+Quality Checks on pull requests and `main` invoke the same API-local reusable
+workflow as the mandatory `repository-security` publisher predecessor. The
+publisher requires both image validation and repository security acceptance.
+Each invocation checks out `${{ github.sha }}` with credentials disabled and
+calls the input-free organization action at the full commit SHA pinned in
+`.github/workflows/reusable-repository-security.yml` with only `contents: read`.
+
+Only `CLEAN` satisfies API acceptance. `ACTIONABLE`, `REVIEW_REQUIRED`,
+`UNKNOWN_STALE`, missing and unknown states block publication. Failed or skipped
+scans cannot bypass the job dependency. The organization action owns scanner,
+database, exact commit and policy identity, freshness, redaction, and bounded
+evidence; API callers provide no ignores, overrides or exceptions. Scanning has
+no source, dependency-fix, image-publish or deployment authority.
+
+This repository/source evidence is distinct from exact released OCI artifact
+Grype/Trivy evidence owned by `api#1383` and `api#1448`. It does not establish the
+security of the built image or replace any artifact-level acceptance.
+
+The database-free `tests/Policy/RepositorySecurityWorkflowTest.php` proves
+workflow identity, least privilege, publisher dependencies and fail-closed API
+acceptance. On Linux x64, run the real scanner integration with a clean local
+organization checkout at the accepted revision:
+
+```bash
+php tests/repository-security/replay.php /path/to/SecPal/.github
+```
+
+The workflow is the sole source of the scanner revision. The replay reads its
+pin and rejects mutable or unexpected action references and mismatched or dirty
+organization checkouts before scanning, then executes the reviewed action itself
+against one temporary exact Git
+commit containing a vulnerable Composer development dependency, an insecure PHP
+Containerfile and a generated synthetic `.env` secret. It asserts fresh API-bound
+evidence, all three finding classes, redaction across retained action output and
+evidence, and API rejection of `ACTIONABLE`, then deletes the fixtures. It never
+installs fixture dependencies, copies scanner implementation or publishes an
+image. Scanner-health and invalid-checkout failure semantics remain owned and
+tested by the pinned organization action.
 
 The canonical consumption reference is always the returned index digest:
 
@@ -75,114 +117,366 @@ anchor. The run-scoped tag exists only to discover the index produced by that
 workflow run; the logged digest remains canonical even if the tag later moves.
 Publishing does not create a deployment contract or perform a deployment.
 
-Every run builds its own image. A rerun receives a new run or attempt identity,
-publishes a new run-scoped tag, verifies its newly built digest, and creates a
-new GitHub Artifact Attestation. The publisher performs no registry lookup to
-reuse a previous image, never adopts a registry-sourced digest, and never skips
-the build because another tag exists.
+Each new main-push run builds its own image. Candidate subjects are immutable
+and source-bound. An explicitly authorized retry of only the failed acceptance
+job reuses the same run's original complete candidate attempt; it does not build
+again. The original build and smoke identities remain in build evidence, while
+the later acceptance execution is recorded separately below the publisher
+extension. The discovery tag retains the original candidate attempt.
 
-Before attestation, the workflow reads the exact OCI index bytes through the
-run tag and proves that their SHA-256 digest, the registry digest header, the
-run-tag target, and the build action's reported digest all match. It verifies
-the exact runtime platform set, OCI labels, BuildKit SBOM and provenance,
-source material, and both platform-specific runtime manifests by digest. Only
-then does it create and verify the registry-backed GitHub Artifact Attestation.
-The final snapshot repeats the run-tag byte digest, registry header, OCI media
-type, and attestation checks. This snapshot does not claim that the discovery
-tag will remain unchanged.
+Do not re-run all jobs as a continuation. Multiple prepared attempts are
+ambiguous and fail closed; neither a moving tag nor an unverified caller-supplied
+digest selects a candidate.
 
-Each runtime image config records the source repository, full revision,
-deterministic commit timestamp, title, description, and the repository's
-effective SPDX license expression. The source label is
-`https://github.com/SecPal/api`, and the license label is
-`AGPL-3.0-or-later`.
+## Run-tag retention
 
-The published index has four distinct supply-chain concepts:
+GHCR does not provide a proven tag-only deletion operation for this package.
+GitHub's supported deletion API removes a package version, while OCI manifest
+deletion targets registry content; neither operation has been proven to remove
+only a run-scoped pointer while preserving the shared index digest and all
+associated evidence. SecPal therefore retains every run-scoped discovery tag.
 
-- the `linux/amd64` and `linux/arm64` manifests are executable runtime images;
-- the BuildKit SPDX SBOM describes packages in each runtime image;
-- the BuildKit SLSA provenance uses `mode=max`, builds from the exact remote Git
-  commit rather than an untracked runner directory, and records complete
-  materials plus the invocation for each runtime image;
-- the GitHub Artifact Attestation signs the untagged image name plus the
-  published index digest through workload OIDC, tying it to `SecPal/api`, this
-  workflow, and the source commit.
+No publisher job or scheduled workflow has cleanup authority. The publisher
+uses its `packages: write` grants only to publish the newly built image and its
+GitHub Artifact Attestation, and the workflow policy rejects registry deletion
+commands. Cleanup is outside the publication critical path.
 
-BuildKit stores the SBOM and provenance as attestation manifests associated
-with the runtime manifests. Their `unknown/unknown` platform descriptors are
-attachments, not extra runtime platforms. Remote verification excludes those
-attachments when asserting the exact two-platform runtime set, then inspects
-the SBOM and provenance separately. Buildx, its privileged BuildKit daemon, the
-SBOM scanner, and the privileged QEMU `binfmt` helper are independently
-version- or digest-pinned instead of inheriting moving defaults from their
-wrapper actions.
+Distinct main-push runs do not share discovery tags. Failed acceptance can
+retain untagged candidates and partial immutable evidence without accepting a
+release. If interruption occurs after pointer creation, the pointer may exist
+before successful read-back is recorded. A retry verifies an existing pointer
+against the exact original index and never overwrites it. Unknown registry
+errors fail closed rather than being treated as absence. Retention performs no
+registry cleanup.
 
-Before the first successful post-merge publish, no registry availability is
-implied. GHCR packages are private by default. After that publish succeeds, a
-repository administrator must verify the package link and change the package
-visibility to public once. Anonymous pulls are supported only after that
-separate administrative step. No personal access token, long-lived signing
-key, or Cosign key secret is part of this contract. The
-[supply-chain epic](https://github.com/SecPal/api/issues/1383) remains open
-until the digest-only GHCR publish, registry-backed attestation, package
-linkage, visibility change, and anonymous digest pull are verified.
+Tag cleanup remains unsupported unless an isolated disposable package proves
+that a tag-only operation preserves digest pulls, platform manifests, the
+authoritative SBOM, build evidence, and GitHub Artifact Attestations across
+success, interruption, repetition, and concurrent publication. Missing,
+ambiguous, or changed provider semantics fail closed by retaining the tag. This
+policy protects the builder-independent evidence model and its immutable subjects.
 
-While the package is private, authenticate to GHCR before verification. After
-it is public, the image and its BuildKit attestations can be inspected
-anonymously by digest. GitHub Artifact Attestation verification uses the
-registry-backed OCI bundle and may still require GitHub CLI authentication
-while the package is private:
+## Native build and supply-chain acceptance
+
+`Containerfile` and `.containerignore` are the only active build definition.
+The same read-only workflow builds AMD64 on an AMD64 runner and ARM64 on an
+ARM64 runner using rootless Buildah. It rejects enabled foreign-architecture
+emulation. PR code receives neither package-write nor GitHub OIDC authority.
+
+Before building, the publisher verifies the exact clean Git commit and creates
+a sealed snapshot through the accepted organization snapshot helper. No ignored
+or untracked runner files enter the build context. Each pinned multi-platform
+base is resolved and verified to its native platform manifest. Composer cache
+mounts are build caches; they are not additional source materials or runtime
+volumes. Distribution package resolutions are recorded by Syft; normalized
+source timestamps do not imply bit-for-bit reproducibility.
+
+The native jobs export OCI layouts and one pinned Syft SPDX inventory for each
+runtime manifest. The publisher independently hashes the manifests/configs,
+checks the exact two-platform set, non-root user and OCI source/base labels,
+and assembles one OCI index. It uploads candidate subjects by digest into
+`ghcr.io/secpal/api`; no discovery tag exists at this stage.
+
+Each SPDX inventory and its subject association are retained together in an
+immutable OCI artifact in that same package. Grype consumes the verified Syft
+bytes. Trivy independently scans each immutable remote runtime manifest.
+The accepted organization adapters and vulnerability policy own database
+freshness, actionability and reviewed VEX admission. A database failure, stale
+evidence blocks acceptance. Review-required or actionable results remain blocked
+unless an explicit current exact-artifact operator risk decision
+described below is valid.
+
+GitHub OIDC attestations bind the index, both platforms and both SPDX artifacts
+to this repository, workflow and exact source SHA. Both native runners then pull
+their exact platform digest and execute the complete runtime smoke contract,
+including the PHP executable's ELF architecture. A host architecture string or
+manifest label alone is insufficient.
+
+The ADR-021 build-evidence document binds source/context hashes, Buildah/tool
+identity, platform/config/index digests, base manifests, SPDX subjects, scans,
+native smoke and run/attempt identity. It and the exact source-scan result are
+retained with a GitHub file-attestation bundle in an immutable OCI artifact.
+The final job independently verifies the remote artifact, attestations and
+index bytes before creating the sole run-scoped discovery tag. It reads the
+tag back afterward. Failed or interrupted runs may leave untagged candidate
+subjects; they never receive an accepted discovery pointer.
+
+All runtime configs record source, full revision, source-epoch creation time,
+title, description, effective SPDX license, reviewed base name and resolved
+base manifest digest. OCI image configs omit Docker-specific healthcheck
+extensions; deployment assigns role-specific health probes.
+
+Before the first successful Buildah publisher run, operational publisher
+acceptance remains pending. Source acceptance alone does not establish a
+working publisher, public package visibility or anonymous pulls. No personal
+access token, long-lived signing key or registry-deletion authority is added.
+
+Inspect accepted subjects by their independently verified immutable digest:
 
 ```bash
-docker buildx imagetools inspect \
-  ghcr.io/secpal/api@sha256:<manifest-digest>
+skopeo inspect --raw docker://ghcr.io/secpal/api@sha256:<index-digest>
 gh attestation verify \
-  oci://ghcr.io/secpal/api@sha256:<manifest-digest> \
-  --bundle-from-oci \
-  --repo SecPal/api
-docker pull ghcr.io/secpal/api@sha256:<manifest-digest>
+  oci://ghcr.io/secpal/api@sha256:<index-digest> \
+  --bundle-from-oci --repo SecPal/api
+podman pull ghcr.io/secpal/api@sha256:<index-digest>
 ```
 
-The publishing workflow additionally proves that the run-scoped tag resolves
-to the reported digest, the runtime platform set and all OCI labels are exact,
-both BuildKit attestations are readable, provenance materials contain the exact
-source commit, and both runtime manifests pass the complete container smoke
-contract by digest. Only then does it create and verify the GitHub attestation
-for this workflow, commit, `main`, and a GitHub-hosted runner. The `arm64`
-runtime executes through the independently pinned QEMU `binfmt` helper, which
-is registered before each Buildx builder that needs it starts.
+GHCR authentication may be needed while the package is private. Package
+visibility and linkage remain separately administered; publishing deploys no
+application. Broader production-boundary documentation remains owned by #1453.
 
-## Roles
+## Released-artifact re-evaluation
 
-Override the default command for the non-HTTP roles:
+`.github/workflows/released-artifact-security.yml` re-evaluates the reviewed
+released index and both native platform subjects daily at 03:17 UTC (AMD64)
+and 05:17 UTC (ARM64). Manual dispatch selects a platform and optionally the
+same exact index digest. Platform runs are separated to avoid combining large
+finding-triage batches within one GitHub API rate window. Other digests,
+including incomplete publisher
+candidates, are rejected before scanning.
 
-```bash
-# Independently scalable; database queue semantics and business invariants coordinate workers.
-php artisan queue:work --queue=activity-hash-chain --sleep=3 --tries=3
-# Independently scalable where application workload permits.
-php artisan queue:work --queue=merkle,opentimestamp,default --sleep=3 --tries=3
-# One process is sufficient for Single, but PostgreSQL-backed locks permit multiple schedulers.
-php artisan schedule:work
-# Administrative examples.
-php artisan about
-php artisan schedule:list
-php artisan migrate --force
-```
+The workflow's `MONITORED_RELEASE` tuple is derived from accepted, attested
+build evidence. Updating it requires a reviewed released subject; the workflow
+does not automatically enroll newer candidates or discover arbitrary registry
+tags. Publisher repository/workflow identities are fixed in the caller.
 
-Migration is an explicit deployment operation after a backup or restore point, never an entrypoint or healthcheck action.
+The immutable shared workflow owns publisher-attestation and authoritative
+Syft association verification, fresh Grype/Trivy evidence, unchanged policy
+evaluation and deterministic finding-issue triage. Registry access is read-only;
+only its isolated validated triage job has issue-write permission. Raw and
+normalized evidence is retained for 14 days. Failed or stale evidence remains
+fail-closed.
 
-## PostgreSQL and secrets
+A successful monitoring execution can report ACTIONABLE or REVIEW_REQUIRED:
+operational monitoring success is not CLEAN or release permission. Original
+findings and historical acceptance are preserved. Monitoring never rebuilds,
+publishes, extends risk acceptance or deploys an image.
 
-PostgreSQL is the external persistent database and shared authority for sessions, durable queues, cache, and scheduler locks. Production requires `DB_SSLMODE=verify-full` and a deployment-owned trusted CA path in `DB_SSLROOTCERT`; the PostgreSQL service owns SCRAM-SHA-256 authentication policy. The supported Laravel drivers are `SESSION_DRIVER=database`, `QUEUE_CONNECTION=database`, and `CACHE_STORE=database`. Channel binding is not exposed because the currently qualified Laravel PDO connector does not forward that libpq option.
+## Source evidence and artifact risk acceptance
 
-The KEK is an external raw 32-byte secret. Configure `KEK_PATH`, mount the file read-only where practical, make it readable by UID `10001`, and set mode `0600`. The default is `storage/app/keys/kek.key`; `/run/secrets/secpal-kek` is optional. Never place the KEK, `APP_KEY`, `.env`, credentials, tokens, private certificates, or API keys in the image; it creates none of them.
+The publisher consumes the accepted v5 source-security evidence and schema from
+one immutable shared revision. Source security must be SUCCEEDED, CLEAN and
+FRESH for the exact accepted commit. Its database deadline remains strict;
+expiry is never extended by an artifact decision.
 
-## Health and validation
+Artifact scanning retains both architectures' authoritative Syft associations,
+original Grype/Trivy output, metadata, evaluation inputs and unchanged v1 policy
+results. Ordinary acceptance requires current healthy CLEAN results on both
+platforms. Native runtime tests, source binding, OCI byte verification and all
+five candidate attestations remain mandatory for either admission path.
 
-`GET /health/live` does not require PostgreSQL. `GET /health/ready` checks the configured database, tenant key, KEK readability, scheduler heartbeat, and relevant worker heartbeats. `secpal-http-live` is the reusable liveness probe. `HEALTHCHECK NONE` clears the base probe so deployment can assign role-specific checks.
+If findings remain, acceptance retains `artifact-security-evidence.json`
+and fails until an explicit administrator decision exists in issue #1445.
+The file is the publisher's existing verified source/index/platform/config/SPDX,
+raw scanner, policy and runtime evidence identity. Its canonical SHA-256 is the
+decision's `evidence_sha256`. Original findings remain available in the scan
+artifacts; no archive upload to a particular reviewer is required.
 
-Run `tests/docker/smoke.sh` for build, CLI, permissions, verified-TLS PostgreSQL 18 with SCRAM-SHA-256, HTTP isolation, proxy-header, log-redaction, and SIGTERM validation. It uses a digest-pinned PostgreSQL 18 Bookworm container on an isolated network without published service ports or persistent test volumes. This disposable container is integration evidence only; production PostgreSQL remains external. The publishing verifier resolves and pulls each immutable platform-manifest digest from the verified index and sets `SKIP_BUILD=1` so the same checks exercise each remote runtime artifact without rebuilding it.
+Use the centrally maintained native comment format in
+[the artifact policy](https://github.com/SecPal/.github/blob/main/docs/vulnerability-triage-policy.md#explicit-artifact-risk-acceptance).
+The decision explicitly names the source commit, index, both platform digests,
+current evidence digest, residual risks, rationale, mitigations, rollback
+strategy and bounded UTC expiry. Its actual GitHub author must currently
+administer SecPal/api. No bot assessment, second approval or decision PR is
+required. This documentation and implementation authorization are not risk
+acceptance for any artifact.
 
-## Boundaries
+Set the repository variable
+`ARTIFACT_RISK_ACCEPTANCE_COMMENT_ID` to the exact native comment ID after
+the operator publishes the decision. This value is only a locator, not another
+approval. Leave it unset when no decision is active. The publisher fetches only
+that comment, with no inventory search or fallback to earlier approvals.
+Revoke by editing or deleting the referenced acceptance itself, including to
+stop an in-flight acceptance.
 
-This repository supplies and publishes only the API image; it does not define frontend delivery, persistent services, edge proxy and public TLS, deployment, security monitoring, backup and restore, updates, or customer provisioning. Operators must provide and validate the components their deployment requires. Nginx, Apache, PHP-FPM, Kubernetes, and hosting-panel stacks are not reference deployments.
+The referenced decision is read again immediately before discovery. Missing, edited, deleted, revoked, expired, mismatched or non-admin
+decisions deny acceptance. A successful explicit decision produces a separate
+`ADMITTED_WITH_KNOWN_FINDINGS` receipt, never CLEAN. The receipt and complete
+unchanged policy results are retained as `artifact-risk-acceptance.json`
+with the immutable build-evidence artifact.
+
+### Read-only evidence refresh
+
+Do not rebuild an unchanged image solely to refresh security evidence.
+The existing scan job downloads the original prepared OCI identities, verifies
+their attestations and Syft associations, and scans those exact manifests again
+read-only. It also refreshes source security for the same accepted commit.
+Re-running only this job produces a new run-attempt scan artifact, without
+invoking build, preparation, attestation generation or registry publication.
+
+The acceptance job authenticates the original successful native build/runtime
+attempt and the latest successful scan attempt. It rejects absent, expired,
+ambiguous or failed artifacts. Its final build evidence preserves the original
+source, native runner, workflow and OCI identities; current source/scanner
+evidence is separately bound. A new scan changes the evidence identity and
+requires a new explicit operator decision if it remains non-CLEAN.
+
+Once the current evidence and any required decision exist, an independently
+authorized rerun of only the existing acceptance job may finish the same
+candidate. No runtime or risk approval is granted by installing this
+implementation. Do not re-run all jobs, transfer approvals, rewrite scanner
+records or manually create discovery. Production deployments remain separate.
+
+Final build evidence and discovery remain downstream of admission.
+The final stage verifies the document and OCI evidence attestations, rechecks
+the five candidate attestations and current admission, and resolves the unique
+discovery pointer to the exact immutable index. An interrupted or rejected
+acceptance cannot authorize discovery.
+
+## Qualified replacement runtime pair (issue #2639)
+
+The accepted FrankenPHP contract above remains available. The replacement is
+defined separately in `docker/php-fpm/Containerfile` and
+`docker/nginx/Containerfile`; this source does not activate it or change an
+existing deployment reference.
+
+The PHP image uses the official PHP 8.4.27 FPM/CLI Alpine 3.24 base, full ICU
+data, the existing extensions, OPcache configuration and hash-locked
+OpenTimestamps dependencies. It contains the application, private storage and
+the CLI used by queues, the activity hash chain, scheduling and migrations.
+Nginx uses the official 1.30.6 Alpine 3.24 slim base and contains only public
+application files, HTTP configuration and the license. Both bases and Composer
+are pinned to immutable multi-platform digests in their Containerfiles.
+
+Both processes run as UID/GID 10001 with read-only root filesystems, dropped
+capabilities, no-new-privileges and explicit writable paths. Share only a
+dedicated directory at `/run/secpal-fpm`, mode 0700, using the same rootless
+keep-id mapping for both containers. FPM creates `api.sock` with mode 0660;
+Nginx mounts that directory read-only. On SELinux hosts this shared socket
+mount uses the narrow shared `:z` label. Do not disable container labeling.
+There is no published FastCGI TCP listener, host networking or extra daemon.
+
+Nginx listens on 8080, serves only `/app/public` and sends application requests
+to the fixed Laravel front controller. Arbitrary PHP files, dotfiles, license
+sidecars and the private FPM ping endpoint cannot be executed or exposed.
+Application health endpoints run through Laravel: Nginx alone is insufficient
+for liveness. Access logs omit query strings and credentials; request-specific
+Nginx error logs are disabled to prevent raw request lines from leaking tokens.
+Lifecycle errors remain on stderr.
+
+FPM retains `clear_env=yes`. Its allowlist contains only non-secret deployment
+settings. The existing production secret bootstrap is mounted externally using
+`auto_prepend_file`, as qualified at
+`SecPal/deployment@bf2282e3e112ac003360ecb3dff390eafe282dbd`; do not replace it
+with a new loader or pass application secrets to Nginx. PostgreSQL remains
+verify-full TLS/SCRAM. No startup command generates secrets or migrates data.
+
+FPM and Nginx drain HTTP requests with SIGQUIT. CLI consumers of the same PHP
+image must select their existing SIGTERM lifecycle and role-specific health
+probe. The FPM image probe speaks FastCGI to its private ping path; the HTTP
+probe checks Laravel liveness; Nginx uses the existing BusyBox wget/timeout tools without adding curl or PHP. OCI-format builds do not retain Docker
+HEALTHCHECK metadata: deployment consumers must explicitly supply these
+Podman/Quadlet health commands. Consumers must preserve private storage,
+bootstrap-cache and temporary-directory ownership and their existing worker
+stop budgets.
+
+### Build, evidence and atomic pairing
+
+The existing `scripts/build-container.sh ARCH OUTPUT pair` builds both roles
+on one native runner and executes the shared HTTP/PostgreSQL smoke against
+that exact pair. The existing Container Image workflow performs separate
+AMD64/ARM64 builds, Syft inventories and independent Grype/Trivy qualification
+of the unpublished OCI layouts. A local Trivy input uses its supported
+OCI-directory `repository@sha256:manifest` selector. The repository-named
+directory is a local content-addressed transport, not a registry publication.
+The existing native observer verifies the manifest, configuration and every
+layer before scanning; `local-input.json` records that distinction. Raw Trivy
+results and the central scanner adapters/policy are unchanged.
+
+For PR qualification and the manual publisher, the policy engine stays at its
+accepted immutable pin.
+Reviewed VEX data is read separately from protected `SecPal/.github` main;
+the resolved checkout commit is retained as `reviewed-vex-checkout.json`.
+The existing trusted adapter verifies each committed manifest and its ancestor
+document before the unchanged policy uses it. Successful native matrix jobs
+retain their producing attempts, so retrying only security qualification uses
+the same source-bound images rather than rebuilding different digests. Each
+native record and smoke must still match that exact producing attempt, platform,
+source and runtime pair; a future attempt or changed subject cannot inherit VEX.
+
+After scanning, the same publisher's `qualify-unpublished-pair` command
+re-observes all four native layouts, SBOM and raw scanner bindings, fresh CLEAN
+policy decisions and successful smoke records naming both exact companions.
+It retains `unpublished-runtime-pair.json` with source/tree, manifest/config
+digests, candidate index digests and a shared pair identity. Missing, substituted,
+non-CLEAN or mismatched-run evidence removes any stale result and fails closed.
+This explicitly unpublished qualification grants no registry admission or
+attestation; those remain in the protected publication workflow.
+
+Publication requires the existing explicit `workflow_dispatch` selecting
+`pair`; merging source into main does not trigger registry writes. Running
+that release entry point requires separate authorization. Existing legacy
+artifacts and their verification contract remain available for recovery until
+the replacement is accepted. This issue does not authorize invoking the
+publisher or publishing to GHCR.
+
+The single publisher model in `scripts/container-publisher.py` selects the two
+reviewed Containerfiles. Both component admissions must bind the same exact
+accepted source commit, workflow run and attempt, complete native AMD64/ARM64
+evidence, component labels, authoritative SBOMs, independent successful CLEAN
+scanner decisions and smoke tests naming both exact companion manifests.
+Replacement components cannot use the legacy exceptional-admission path.
+Missing, substituted, stale, failed or non-CLEAN evidence prevents a pair.
+
+`runtime-pair.json` binds both multi-platform image digests, all four native
+manifest/configuration identities and the hashes of both complete build-evidence
+documents. The existing attestation/evidence artifact retains and verifies all
+three documents before final revalidation and the separate
+`runtime-pair-COMMIT-RUN-ATTEMPT` discovery pointer. No component alone creates
+an accepted pair. The existing `build-COMMIT-RUN-ATTEMPT` pointer and legacy
+digest consumer are unchanged; discovery tags are never deployment authority.
+
+A future deployment consumer must verify the attested pair artifact and use
+both digest-only references together. Deploying either role with an arbitrary
+companion is unsupported. Deployment/Quadlet and dynamic Polyscope workspace
+routing require separately reviewed consumer changes; this API implementation
+does not change those repositories or any running service.
+
+### SQLite package provenance
+
+Until Alpine 3.24 ships the upstream repair, the PHP-FPM build uses the
+versioned `docker/sqlite/APKBUILD` to package unmodified SQLite 3.54.0.
+Both source archives are SHA-512 pinned; the amalgamation additionally matches
+SQLite.org's published SHA3-256. The retained FrankenPHP runtime uses this same library repair until replacement
+acceptance. The SDK dependency pins have one owner in `docker/sqlite/build.sh`;
+only Alpine 3.24 SDK packages are used.
+No edge repository is added. The package remains `sqlite-libs`, with origin
+`sqlite`, the genuine upstream version and its regular APK file ownership.
+
+Two clean builds in one pinned SDK must produce byte-identical APKs. Standard
+APK signatures are verified with the disposable SDK's public key; only that
+key is supplied to the local install command. No build private key or extra
+system trust key enters the runtime. Independent runs may differ in their
+ephemeral signing envelope; bit-identical OCI images are not claimed.
+
+The builder checks the existing `libsqlite3.so.0` SONAME and preservation of
+all old public SQLite exports. `/usr/share/secpal/sqlite-build.json` records
+source, recipe, package and installed-library hashes, source ID, build-package
+versions, architecture and repeat-build evidence. Native smoke tests check
+APK ownership, actual loaded library/source identity, PHP SQLite3/PDO, Python
+SQLite/FTS5/session support and the existing OpenTimestamps contract.
+
+This is a SecPal-built package, not an Alpine vendor security package.
+It fixes the three library CVEs without filtering scanner output.
+The separate SQLite CLI `.recover` CPE finding remains visible until its
+component scope is correctly classified by the trusted scanner implementation.
+
+## Required OCI PR admission
+
+The existing `PEST Tests` required check depends on the complete Container Image
+reusable workflow for every PR to main, including documentation and workflow
+changes. The native workflow is called once through PHP CI; it has no separate
+PR trigger or path classifier. GitHub owns matrix and job dependency evaluation.
+
+The PHP suite and native qualification run independently. The terminal
+`PEST Tests` job always reports their results and requires both to be `success`
+on PRs. A failed, missing, skipped or cancelled result cannot become a successful
+skipped required check. On main pushes, the PHP suite still runs normally while
+the existing publisher owns native release qualification.
+
+The called workflow owns validation, both native architectures and, for the
+paired runtime introduced by #2643, the unpublished digest-bound PHP-FPM/Nginx
+security qualifier. Its scanner freshness and artifact checks remain unchanged.
+This dependency graph does not add an admission authority, GitHub API reader,
+security exception or branch-protection setting. Publication and deployment
+retain their existing separate acceptance.

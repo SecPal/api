@@ -15,9 +15,15 @@ permissions:
   pull-requests: read
 
 jobs:
+  repository-security:
+    name: Repository Security
+    permissions:
+      contents: read
+    uses: ./.github/workflows/reusable-repository-security.yml
+
   reuse:
     name: Check REUSE Compliance
-    uses: SecPal/.github/.github/workflows/reusable-reuse.yml@da7d5f19a1ff4e65bfdbe7ad0a66e13f6172ada9
+    uses: SecPal/.github/.github/workflows/reusable-reuse.yml@e2fa962f44fbe8310ee591538d2ccd14f2361652
 
   license-compatibility:
     name: Check License Compatibility
@@ -30,7 +36,7 @@ jobs:
 
       - name: Setup Python
         # v7.0.0
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
         with:
           python-version: "3.x"
 
@@ -61,19 +67,23 @@ jobs:
 
       - name: Setup Node.js
         # v7.0.0
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
         with:
-          node-version: "22"
+          node-version: "26.10.0"
 
       - name: Setup Python
         # v7.0.0
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
         with:
           python-version: "3.x"
 
       - name: Install npm 12 and pre-commit
         run: |
           npm install --global npm@12.0.0
+          node --version
+          npm --version
+          test "$(node --version)" = "v26.10.0"
+          test "$(npm --version)" = "12.0.0"
           python -m pip install pre-commit==4.5.1
 
       - name: Install and validate hooks
@@ -92,29 +102,28 @@ jobs:
 
   markdown-lint:
     name: Markdown Lint
-    uses: SecPal/.github/.github/workflows/reusable-markdown-lint.yml@da7d5f19a1ff4e65bfdbe7ad0a66e13f6172ada9
+    uses: SecPal/.github/.github/workflows/reusable-markdown-lint.yml@e2fa962f44fbe8310ee591538d2ccd14f2361652
     with:
       governance-ref: "6f8e13a7a62cee356811a7f58d6b92119941652f"
 
   ai-instructions:
     name: AI Instructions
-    uses: SecPal/.github/.github/workflows/reusable-ai-instructions.yml@da7d5f19a1ff4e65bfdbe7ad0a66e13f6172ada9
-    with:
-      governance-ref: "6f8e13a7a62cee356811a7f58d6b92119941652f"
+    # main
+    uses: SecPal/.github/.github/workflows/reusable-ai-instructions.yml@e2fa962f44fbe8310ee591538d2ccd14f2361652
 
   pint:
     name: Laravel Pint
-    uses: SecPal/.github/.github/workflows/reusable-php-lint.yml@da7d5f19a1ff4e65bfdbe7ad0a66e13f6172ada9
+    uses: SecPal/.github/.github/workflows/reusable-php-lint.yml@e2fa962f44fbe8310ee591538d2ccd14f2361652
     with:
       php-version: "8.4"
 
   phpstan:
     name: PHPStan
-    uses: SecPal/.github/.github/workflows/reusable-php-stan.yml@da7d5f19a1ff4e65bfdbe7ad0a66e13f6172ada9
+    uses: SecPal/.github/.github/workflows/reusable-php-stan.yml@e2fa962f44fbe8310ee591538d2ccd14f2361652
     with:
       php-version: "8.4"
 
-  # NOTE: PEST tests are owned by .github/workflows/php-ci.yml (job: `test`,
-  # context: `PEST Tests`). Do not re-add a PEST job here — duplicate
-  # required-check context names confuse GitHub branch-protection gates.
+  # PHP tests run in php-ci.yml's `test` job; its `acceptance` job owns the
+  # required `PEST Tests` context and aggregates PHP and native results.
+  # Do not duplicate that context here: duplicate names confuse protection gates.
   # See: https://github.com/SecPal/api/issues/1157

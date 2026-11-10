@@ -26,7 +26,7 @@ OpenTimestamps (OTS) creates tamper-proof timestamps by anchoring document diges
 1. **OpenTimestampService** (`app/Services/OpenTimestampService.php`)
 
    - Handles submission, upgrade, and verification of OTS proofs
-   - Uses the OpenTimestamps Python library for submission and bounded verification, plus `ots upgrade` for proof upgrades
+   - Uses focused Python helpers and the OpenTimestamps core library for submission, bounded upgrade, and verification
    - Implements proof- and provider-bound caching for successful verification decisions
    - Merges every successful calendar submission into one pending proof
 
@@ -41,7 +41,8 @@ OpenTimestamps (OTS) creates tamper-proof timestamps by anchoring document diges
    - `UpgradeOpenTimestampProofs`: Polls for Bitcoin-anchored proofs
 
 4. **Runtime installation guidance**
-   - The production image contains the reviewed, hash-pinned `opentimestamps-client` dependency
+   - The production image contains the reviewed, hash-pinned `opentimestamps` core dependency
+   - The image does not contain `opentimestamps-client`, GitPython, gitdb, or smmap
 
 ### Calendar Submission and Proof Merging
 
@@ -50,6 +51,14 @@ OpenTimestamps (OTS) creates tamper-proof timestamps by anchoring document diges
 The intended success threshold is **one successful calendar response**. This keeps submission available when some calendars are unavailable while retaining the redundancy contributed by any additional successful responses. Submission fails only when every calendar request fails.
 
 The library owns both the calendar list and the OTS merge operation; SecPal does not select a first response or expose a PHP `mergeProofs()` method.
+
+`scripts/ots-upgrade.py` follows pending attestations only when their HTTPS URI
+matches the core library's maintained calendar allowlist. It rejects redirects,
+non-public resolved addresses, unexpected request paths, and unapproved origins
+before contacting them. Requests, proof size, and total processing time are
+bounded. The helper replaces the temporary proof only after a genuinely new
+Bitcoin attestation has been merged and the changed proof has serialized
+successfully.
 
 ### Data Flow
 
@@ -119,16 +128,12 @@ The proof bytes are immutable once Bitcoin-anchored, but the active-chain observ
 
 ### Local Development
 
-Install the `opentimestamps-client` CLI in the same shell environment where you run `php artisan`:
+Install the exact dependencies from the maintained lock in the same shell environment where you run `php artisan`:
 
 ```bash
-python3 -m pip install --user opentimestamps-client
-# Note: ~/.local/bin must be on your PATH for the `ots` command to be found.
-# Add to your shell profile if needed: export PATH="$HOME/.local/bin:$PATH"
-
-# Verify installation
-ots --version
-# Expected output: v0.7.2 (or newer)
+python3 -m pip install --only-binary=:all: --require-hashes \
+  -r docker/python/opentimestamps-requirements.txt
+python3 -c 'import opentimestamps; print(opentimestamps.__version__)'
 ```
 
 If you use a containerized local environment, install the package into that container image and rebuild/restart the container using your normal runtime workflow.
@@ -136,7 +141,7 @@ If you use a containerized local environment, install the package into that cont
 ### Production
 
 The immutable production image contains the reviewed, hash-pinned OpenTimestamps
-client. Change its dependency only through a reviewed source/image update and
+core package. Change its dependency only through a reviewed source/image update and
 publish a new immutable image. Do not install, upgrade, or discover replacement
 packages from a running production container.
 
@@ -147,9 +152,10 @@ must not be used as a production deployment mechanism.
 ## Runtime Egress and Health
 
 The normal scheduler runs `ots:monitor` every six hours. It invokes `ots:check`,
-which verifies that the installed Python client is callable and submits a bounded
-test digest through the installed client's configured OpenTimestamp calendar
-providers. Calendar destinations are the installed client's `DEFAULT_AGGREGATORS`.
+which verifies that the installed Python core and all three focused helpers are
+available and submits a bounded test digest through the core library's configured
+OpenTimestamp calendar providers. Calendar destinations are the installed core's
+`DEFAULT_AGGREGATORS`.
 Proof verification may also contact the configured HTTPS Bitcoin-header API bases.
 
 Calendar or provider failure is represented as a failed operational health check
@@ -289,7 +295,8 @@ Cache::flush(); // ⚠️ Clears ALL cache, use with caution
 
 ```bash
 # Local shell / container
-python3 -m pip install --user --upgrade opentimestamps-client
+python3 -m pip install --only-binary=:all: --require-hashes \
+  -r docker/python/opentimestamps-requirements.txt
 # Ensure python3 can import the installed opentimestamps package.
 
 # Production: rebuild and publish the reviewed immutable image after updating
@@ -320,7 +327,7 @@ python3 -c 'import opentimestamps'
 
 4. **Invalid Proof Format**
    - `OpenTimestampService::verify()` expects decoded binary OTS proof bytes
-   - Proof must be from official `ots` CLI or SecPal `submit()`
+   - Proof must be a valid binary OpenTimestamps proof for the exact digest
 
 ### Calendar Submission Fails
 
@@ -382,26 +389,22 @@ php artisan test tests/Feature/OpenTimestampServiceIntegrationTest.php
 ### Integration Tests with the Real Python Runtime
 
 ```bash
-# Requires python3 and opentimestamps-client
+# Requires python3 and the maintained hash-locked core dependencies
 php artisan test tests/Feature/OpenTimestampServiceIntegrationTest.php
 ```
 
 ### Manual Verification
 
 ```bash
-# 1. Create test proof
-echo "test data" | sha256sum | awk '{print $1}' | xxd -r -p | ots stamp - > test.ots
+# Submit an already-computed SHA-256 digest.
+python3 scripts/ots-stamp-hash.py <64-hex-digest> > test.ots
 
-# 2. Verify immediately (should fail - not yet anchored)
-echo "test data" | sha256sum | awk '{print $1}' | xxd -r -p | ots verify test.ots -
-# Expected: Pending attestation
+# Later, upgrade the proof in place through approved calendars.
+python3 scripts/ots-upgrade.py test.ots
 
-# 3. Wait 1 hour, upgrade proof
-ots upgrade test.ots
-
-# 4. Verify again (should succeed)
-echo "test data" | sha256sum | awk '{print $1}' | xxd -r -p | ots verify test.ots -
-# Expected: Success! Bitcoin block 12345 attests...
+# Verify the exact digest using the configured Bitcoin-header-provider quorum.
+OTS_BITCOIN_HEADER_API_BASES=<comma-separated-https-origins> \
+  python3 scripts/ots-verify.py test.ots <64-hex-digest>
 ```
 
 ## Monitoring & Observability
@@ -427,7 +430,7 @@ Search logs for `OpenTimestamp:` prefix.
 ## References
 
 - **OpenTimestamps Website**: <https://opentimestamps.org/>
-- **OpenTimestamps Client**: <https://github.com/opentimestamps/opentimestamps-client>
+- **OpenTimestamps Core**: <https://github.com/opentimestamps/python-opentimestamps>
 - **SecPal Issue #412**: Hybrid verification vulnerabilities (removed)
 - **SecPal Issue #415**: Secure external verification (implemented)
 - **SecPal Issue #385**: Level 3 Audit Trail (parent epic)
@@ -437,6 +440,6 @@ Search logs for `OpenTimestamp:` prefix.
 
 This documentation is licensed under CC0-1.0.
 
-The OpenTimestamp client is licensed under LGPL-3.0.
+The OpenTimestamp core package is licensed under LGPL-3.0.
 
 SecPal integration code is licensed under AGPL-3.0-or-later.

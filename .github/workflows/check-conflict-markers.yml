@@ -15,4 +15,4 @@ permissions:
 
 jobs:
   check-conflicts:
-    uses: SecPal/.github/.github/workflows/reusable-check-conflict-markers.yml@da7d5f19a1ff4e65bfdbe7ad0a66e13f6172ada9
+    uses: SecPal/.github/.github/workflows/reusable-check-conflict-markers.yml@e2fa962f44fbe8310ee591538d2ccd14f2361652

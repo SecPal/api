@@ -11,6 +11,7 @@ use App\Http\Resources\ActivityResource;
 use App\Models\Activity;
 use App\Models\User;
 use App\Support\LikePattern;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -156,9 +157,9 @@ class ActivityLogController extends Controller
      * 2. Users with organizational scopes: see only activities within their scoped organizational units (global activities are excluded).
      * 3. Apply leadership level filtering on the scoped result (only subordinates' activities).
      *
-     * @param  \Illuminate\Database\Eloquent\Builder<Activity>  $query
+     * @param  Builder<Activity>  $query
      * @param  User  $user
-     * @return \Illuminate\Database\Eloquent\Builder<Activity>
+     * @return Builder<Activity>
      */
     protected function applyScopedFiltering($query, $user)
     {
@@ -172,7 +173,7 @@ class ActivityLogController extends Controller
                 })->orWhere(function ($employeeBackedUserQuery) {
                     $employeeBackedUserQuery->where('causer_type', User::class)
                         ->whereNotNull('causer_id')
-                        ->where(function ($employeeContextQuery) {
+                        ->where(function (Builder $employeeContextQuery) {
                             $employeeContextQuery->whereNotNull('causer_employee_id')
                                 ->orWhereExists(function ($employeeCheckQuery): void {
                                     /** @var \Illuminate\Database\Query\Builder $employeeCheckQuery */
@@ -257,7 +258,7 @@ class ActivityLogController extends Controller
                 // For each organizational unit, check if activity is in that unit AND causer matches rank range
                 $userCauserQuery->where(function ($unitsQuery) use ($rankRangesByUnit) {
                     foreach ($rankRangesByUnit as $unitId => $rankRanges) {
-                        $unitsQuery->orWhere(function ($unitQuery) use ($unitId, $rankRanges) {
+                        $unitsQuery->orWhere(function (Builder $unitQuery) use ($unitId, $rankRanges) {
                             // Activity must be in THIS specific organizational unit
                             $unitQuery->where('organizational_unit_id', $unitId);
 
@@ -310,7 +311,7 @@ class ActivityLogController extends Controller
                     })
                     ->where(function ($unitsQuery) use ($rankRangesByUnit) {
                         foreach ($rankRangesByUnit as $unitId => $rankRanges) {
-                            $unitsQuery->orWhere(function ($unitQuery) use ($unitId, $rankRanges) {
+                            $unitsQuery->orWhere(function (Builder $unitQuery) use ($unitId, $rankRanges) {
                                 $unitQuery->where('organizational_unit_id', $unitId)
                                     ->where('causer_employee_organizational_unit_id', $unitId)
                                     ->where(function ($rankQueryBuilder) use ($rankRanges): void {
@@ -346,7 +347,7 @@ class ActivityLogController extends Controller
     /**
      * Apply user-provided filters to the query.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder<Activity>  $query
+     * @param  Builder<Activity>  $query
      */
     protected function applyFilters($query, IndexActivityLogRequest $request): void
     {

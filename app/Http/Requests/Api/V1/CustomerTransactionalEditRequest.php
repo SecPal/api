@@ -17,7 +17,8 @@ final class CustomerTransactionalEditRequest
 {
     public const AUTHORITATIVE_CONTRACTS_SHA = 'f8771b74d887b84b84dcc94e2405df7b47222466';
 
-    private const MAX_ESTABLISHMENTS = 100;
+    // Match the existing Nginx/PHP request envelope without capping membership.
+    private const MAX_CONTENT_BYTES = 12 * 1024 * 1024;
 
     /** @var list<string> */
     public const CUSTOMER_FIELDS = [
@@ -59,6 +60,10 @@ final class CustomerTransactionalEditRequest
      */
     public function validate(string $content, string $pathCustomerId, array $normalizedInput): array
     {
+        if (strlen($content) > self::MAX_CONTENT_BYTES) {
+            $this->fail(['request' => ['The request body is invalid.']]);
+        }
+
         try {
             $document = json_decode($content, false, 512, JSON_THROW_ON_ERROR);
         } catch (JsonException) {
@@ -97,8 +102,6 @@ final class CustomerTransactionalEditRequest
 
         if (! property_exists($document, 'customer_establishments')
             || ! is_array($document->customer_establishments)) {
-            $structuralErrors['customer_establishments'] = ['The assignment collection is invalid.'];
-        } elseif (count($document->customer_establishments) > self::MAX_ESTABLISHMENTS) {
             $structuralErrors['customer_establishments'] = ['The assignment collection is invalid.'];
         } else {
             foreach ($document->customer_establishments as $index => $item) {

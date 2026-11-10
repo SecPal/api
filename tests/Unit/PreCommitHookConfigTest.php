@@ -3,6 +3,8 @@
 // SPDX-FileCopyrightText: 2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use Symfony\Component\Yaml\Yaml;
+
 it('runs markdownlint through npm without pre-commit node environment installation', function (): void {
     $config = file_get_contents(base_path('.pre-commit-config.yaml'));
     $markdownlintHookPattern = '/- id: markdownlint\b(?P<hook>.*?)(?=\n\s*-\s+id:|\n\s*#\s|\n\s*-\s+repo:|\z)/s';
@@ -33,16 +35,34 @@ it('runs prettier through npm without pre-commit node environment installation',
         ->and($hook)->not->toContain('additional_dependencies:');
 });
 
-it('smoke tests the npm-backed hooks with npm 12 on Linux and macOS in CI', function (): void {
+it('smoke tests the npm-backed hooks with Node 26 and npm 12 on Linux and macOS in CI', function (): void {
     $workflow = file_get_contents(base_path('.github/workflows/quality.yml'));
+    $prettierWorkflow = file_get_contents(base_path('.github/workflows/reusable-prettier.yml'));
 
     expect($workflow)->not->toBeFalse()
+        ->and($prettierWorkflow)->not->toBeFalse()
         ->and($workflow)->toContain('pre-commit-hooks:')
         ->and($workflow)->toContain('runs-on: ${{ matrix.os }}')
         ->and($workflow)->toContain('- ubuntu-latest')
         ->and($workflow)->toContain('- macos-latest')
-        ->and($workflow)->toContain('npm install --global npm@12.0.0')
+        ->and($workflow)->toMatch('/npm install --global npm@12\.\d+\.\d+(?:\s|$)/')
         ->and($workflow)->toContain('pre-commit install-hooks')
         ->and($workflow)->toContain('pre-commit run prettier --files')
         ->and($workflow)->toContain('pre-commit run markdownlint --files');
+
+    foreach ([$workflow, $prettierWorkflow] as $source) {
+        $versions = [];
+        foreach (Yaml::parse($source)['jobs'] as $job) {
+            foreach ($job['steps'] ?? [] as $step) {
+                if (str_starts_with($step['uses'] ?? '', 'actions/setup-node@')) {
+                    $versions[] = $step['with']['node-version'] ?? null;
+                }
+            }
+        }
+        expect($versions)->not->toBeEmpty();
+        foreach ($versions as $version) {
+            expect($version)->toBeString()->toMatch('/\A26\.\d+\.\d+\z/');
+            expect(version_compare($version, '26.10.0', '>='))->toBeTrue();
+        }
+    }
 });

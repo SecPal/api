@@ -18,7 +18,7 @@ class AddressDataSeeder extends Seeder
     public function run(): void
     {
         if (! Schema::hasTable('address_data_imports') || ! Schema::hasTable('address_streets')) {
-            $this->command->warn('Skipped: address data tables are missing; run migrations before setup import.');
+            $this->command?->warn('Skipped: address data tables are missing; run migrations before setup import.');
 
             return;
         }
@@ -38,11 +38,11 @@ class AddressDataSeeder extends Seeder
             expectedSha256: is_string(config('address_data.expected_sha256'))
                 ? config('address_data.expected_sha256')
                 : null,
-            ifEmpty: true,
+            ifEmpty: false,
             setupOnly: true,
-            keepImports: 0,
+            keepImports: 1,
             onProgress: function (string $message): void {
-                $this->command->line('  '.$message);
+                $this->command?->line('  '.$message);
             },
         );
 
@@ -51,8 +51,8 @@ class AddressDataSeeder extends Seeder
         }
 
         match ($result['status']) {
-            'skipped' => $this->command->warn($result['message']),
-            default => $this->command->info($result['message']),
+            'skipped' => $this->command?->warn($result['message']),
+            default => $this->command?->info($result['message']),
         };
     }
 }

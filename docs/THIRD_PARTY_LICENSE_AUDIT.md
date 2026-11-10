@@ -67,11 +67,13 @@ distribution obligation.
   required OpenPLZ/OpenStreetMap/OpenPotato attribution context. Runtime
   imports are downloaded data, not repository-owned application code; a
   deployment that publishes derived data must meet ODbL attribution and
-  share-alike obligations.
+  share-alike obligations. The [address-data contract](ADDRESS_DATA.md) records
+  the deployment assessment and external legal gate; SPDX/REUSE checks are not
+  legal clearance. The API image carries this contract and the ODbL license.
 - `CODE_OF_CONDUCT.md` retains its CC-BY-4.0 Contributor Covenant notice.
 - The repository tracks no `vendor/`, `node_modules/`, npm manifest, npm lock
-  file, generated third-party JavaScript, or bundled OpenTimestamps client.
-  The OpenTimestamps client is an operator-installed LGPL-3.0 dependency;
+  file, generated third-party JavaScript, or bundled OpenTimestamps core package.
+  The OpenTimestamps core package is an operator-installed LGPL-3.0 dependency;
   deployments that bundle it must carry its upstream license, notices, and
   corresponding-source obligations separately.
 
@@ -91,6 +93,6 @@ Before distributing a container, release archive, or other artifact:
    `vendor/` tree; do not replace them with SecPal notices.
 3. Include the ODbL attribution and assess ODbL share-alike requirements when
    publishing address-data results or a substantial extract.
-4. If the OpenTimestamps client is bundled, satisfy its LGPL-3.0 notice and
-   corresponding-source obligations for that client.
+4. If the OpenTimestamps core package is bundled, satisfy its LGPL-3.0 notice and
+   corresponding-source obligations for that package.
 5. Run `reuse lint` for repository-tracked material.

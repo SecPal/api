@@ -15,19 +15,18 @@ permissions:
   pull-requests: read
 
 jobs:
-  lint:
-    name: Laravel Pint (PSR-12)
-    uses: SecPal/.github/.github/workflows/reusable-php-lint.yml@da7d5f19a1ff4e65bfdbe7ad0a66e13f6172ada9
-
-  static-analysis:
-    name: PHPStan (Larastan)
-    uses: SecPal/.github/.github/workflows/reusable-php-stan.yml@da7d5f19a1ff4e65bfdbe7ad0a66e13f6172ada9
+  native:
+    name: Native OCI qualification
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+      actions: read
+    uses: ./.github/workflows/container-image.yml
 
   test:
-    name: PEST Tests
+    name: PHP Test Suite
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    if: ${{ !startsWith(github.head_ref, 'spike/') && !startsWith(github.ref, 'refs/heads/spike/') }}
 
     services:
       postgres:
@@ -51,7 +50,7 @@ jobs:
 
       - name: Setup PHP
         # 2.37.2
-        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962
         with:
           php-version: "8.4"
           extensions: mbstring, xml, ctype, iconv, intl, pdo, pdo_pgsql
@@ -80,11 +79,11 @@ jobs:
           sudo update-locale LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8
           locale -a
 
-      - name: Install OpenTimestamps CLI
+      - name: Install hash-locked OpenTimestamps core
         run: |
           sudo apt-get install -y python3-pip
-          pip3 install --break-system-packages opentimestamps-client
-          ots --version
+          pip3 install --break-system-packages --no-cache-dir --only-binary=:all: --require-hashes -r docker/python/opentimestamps-requirements.txt
+          python3 -c 'import opentimestamps; print(opentimestamps.__version__)'
 
       - name: Create parallel test databases
         env:
@@ -148,7 +147,7 @@ jobs:
 
       - name: Upload coverage to Codecov
         # v7.0.0
-        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5
         with:
           # Token is optional for public repos (tokenless uploads supported)
           # Dependabot PRs cannot access secrets, so token may be empty
@@ -160,3 +159,20 @@ jobs:
         # Allow step to succeed even if upload fails for dependabot
         # This prevents blocking the PR when CODECOV_TOKEN is unavailable
         continue-on-error: ${{ contains(fromJSON('["dependabot[bot]", "renovate[bot]"]'), github.actor) }}
+
+  acceptance:
+    name: PEST Tests
+    needs: [native, test]
+    if: ${{ always() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Require the complete PHP and native results
+        env:
+          NATIVE_RESULT: ${{ needs.native.result }}
+          TEST_RESULT: ${{ needs.test.result }}
+        run: |
+          test "$TEST_RESULT" = success
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+            test "$NATIVE_RESULT" = success
+          fi

@@ -18,7 +18,7 @@ beforeEach(function () {
 
     $this->executor->shouldReceive('commandExists')->byDefault()->andReturnUsing(
         static fn (string $command): bool => match ($command) {
-            'python3', 'ots', 'pip' => true,
+            'python3', 'pip' => true,
             'pip3' => false,
             default => false,
         }
@@ -54,7 +54,7 @@ test('command shows available update in dry run', function () {
         ->andReturn([
             'exitCode' => 0,
             'stdout' => json_encode([
-                ['name' => 'opentimestamps-client', 'version' => '0.4.5', 'latest_version' => '0.5.0'],
+                ['name' => 'opentimestamps', 'version' => '0.4.5', 'latest_version' => '0.5.0'],
             ]),
             'stderr' => '',
         ]);
@@ -62,7 +62,7 @@ test('command shows available update in dry run', function () {
     $this->artisan(UpdateOpenTimestamp::class, ['--dry-run' => true])
         ->expectsOutputToContain('Update available: 0.4.5 → 0.5.0')
         ->expectsOutput('Dry run - no changes made')
-        ->expectsOutputToContain('Would run: pip install --upgrade opentimestamps-client')
+        ->expectsOutputToContain('Would run: pip install --upgrade opentimestamps')
         ->assertExitCode(0);
 });
 
@@ -110,7 +110,7 @@ test('command can be cancelled with no confirmation', function () {
         ->andReturn([
             'exitCode' => 0,
             'stdout' => json_encode([
-                ['name' => 'opentimestamps-client', 'version' => '0.4.5', 'latest_version' => '0.5.0'],
+                ['name' => 'opentimestamps', 'version' => '0.4.5', 'latest_version' => '0.5.0'],
             ]),
             'stderr' => '',
         ]);
@@ -149,7 +149,7 @@ test('command performs upgrade with confirmation', function () {
         ->andReturn([
             'exitCode' => 0,
             'stdout' => json_encode([
-                ['name' => 'opentimestamps-client', 'version' => '0.4.5', 'latest_version' => '0.5.0'],
+                ['name' => 'opentimestamps', 'version' => '0.4.5', 'latest_version' => '0.5.0'],
             ]),
             'stderr' => '',
         ]);
@@ -157,10 +157,10 @@ test('command performs upgrade with confirmation', function () {
     // Mock pip upgrade execution
     $this->executor
         ->shouldReceive('execute')
-        ->with(['pip', 'install', '--upgrade', 'opentimestamps-client'], null, 60)
+        ->with(['pip', 'install', '--upgrade', 'opentimestamps'], null, 60)
         ->andReturn([
             'exitCode' => 0,
-            'stdout' => 'Successfully installed opentimestamps-client-0.5.0',
+            'stdout' => 'Successfully installed opentimestamps-0.5.0',
             'stderr' => '',
         ]);
 

@@ -1,13 +1,21 @@
-# syntax=docker/dockerfile:1.7
 # SPDX-FileCopyrightText: 2026 SecPal Contributors
 # SPDX-License-Identifier: CC0-1.0
 
-ARG COMPOSER_IMAGE=composer:2.10.2@sha256:5946476338742b200bb9ff88f8be56275ddae4b3949c72305cb0dbf10cfcb760
-ARG FRANKENPHP_IMAGE=dunglas/frankenphp:1.12.6-php8.4.23-bookworm@sha256:79b347211bfec90d6a1373c4956a7d3832c8248a2ff2d76bd0b677f37284d32f
+ARG COMPOSER_IMAGE=docker.io/library/composer:2.10.2@sha256:5946476338742b200bb9ff88f8be56275ddae4b3949c72305cb0dbf10cfcb760
+ARG FRANKENPHP_IMAGE=docker.io/dunglas/frankenphp:1.13.5-php8.4.27-alpine@sha256:2a0633266ba2c821ad3cabb88caa30792a81e2d6c3c3a0720906114c660ede08
 FROM ${COMPOSER_IMAGE} AS composer
+FROM ${FRANKENPHP_IMAGE} AS sqlite-build
+ARG SOURCE_DATE_EPOCH=0
+COPY docker/sqlite /build/sqlite
+WORKDIR /build/sqlite
+RUN ./build.sh
+
 FROM ${FRANKENPHP_IMAGE} AS extensions
+RUN --mount=type=bind,from=sqlite-build,source=/out,target=/tmp/secpal-sqlite,ro \
+    apk add --no-cache --no-network --keys-dir=/tmp/secpal-sqlite/keys \
+        --repositories-file=/dev/null --repository=/tmp/secpal-sqlite sqlite-libs=3.54.0-r0 \
+    && install -D -m 0644 /tmp/secpal-sqlite/provenance.json /usr/share/secpal/sqlite-build.json
 COPY docker/python/opentimestamps-requirements.txt /tmp/opentimestamps-requirements.txt
-# hadolint ignore=DL3008
 RUN install-php-extensions \
         bcmath \
         curl \
@@ -21,17 +29,15 @@ RUN install-php-extensions \
         sodium \
         xml \
         zip \
-    && apt-get update \
-    && apt-get install -y --no-install-recommends python3 python3-pip \
+    && apk add --no-cache python3=3.14.10-r1 libcurl=8.23.0-r0 brotli-libs=1.2.1-r0 \
+    && apk add --no-cache --virtual .python-build-deps py3-pip=26.1.2-r0 \
     && pip3 install --break-system-packages --no-cache-dir --only-binary=:all: \
         --require-hashes -r /tmp/opentimestamps-requirements.txt \
-    && rm /tmp/opentimestamps-requirements.txt \
-    && rm -rf /var/lib/apt/lists/*
+    && python3 -m pip check \
+    && apk del --no-network .python-build-deps curl \
+    && rm /tmp/opentimestamps-requirements.txt
 FROM extensions AS dependencies
-# hadolint ignore=DL3008
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends unzip \
-    && rm -rf /var/lib/apt/lists/*
+RUN apk add --no-cache unzip=6.0-r16
 COPY --from=composer /usr/bin/composer /usr/local/bin/composer
 WORKDIR /app
 COPY composer.json composer.lock ./
@@ -50,10 +56,11 @@ COPY lang ./lang
 COPY public ./public
 COPY resources ./resources
 COPY routes ./routes
-COPY scripts/ots-stamp-hash.py scripts/ots-verify.py ./scripts/
+COPY scripts/ots-stamp-hash.py scripts/ots-upgrade.py scripts/ots-verify.py ./scripts/
 COPY storage ./storage
 COPY artisan LICENSE THIRD-PARTY-NOTICES.md ./
 COPY LICENSES ./LICENSES
+COPY docs/ADDRESS_DATA.md ./docs/ADDRESS_DATA.md
 RUN rm -f bootstrap/cache/*.php && composer dump-autoload \
         --classmap-authoritative \
         --no-dev \
@@ -73,9 +80,10 @@ ENV APP_ENV=production \
 
 WORKDIR /app
 
-RUN groupadd --gid "${APP_GID}" secpal \
-    && useradd --uid "${APP_UID}" --gid "${APP_GID}" --create-home \
-        --home-dir /home/secpal --shell /usr/sbin/nologin secpal \
+# The extension installer removes build dependencies; native smoke rejects retained headers.
+RUN apk del --no-network tar \
+    && addgroup -g "${APP_GID}" secpal \
+    && adduser -D -u "${APP_UID}" -G secpal -h /home/secpal -s /sbin/nologin secpal \
     && if [ -n "$(getcap /usr/local/bin/frankenphp)" ]; then setcap -r /usr/local/bin/frankenphp; fi \
     && install -d -m 0750 -o secpal -g secpal /config/caddy /config/psysh /data/caddy
 
