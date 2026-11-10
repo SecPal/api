@@ -12,7 +12,59 @@ name: Container Image
         required: false
 permissions:
   contents: read
+  actions: read
 jobs:
+  applicability:
+    name: Observe native CI applicability
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    outputs:
+      mode: ${{ steps.policy.outputs.mode }}
+      artifact-id: ${{ steps.evidence.outputs.artifact-id }}
+    steps:
+      - name: Checkout exact source and complete Git history
+        # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Observe scope with the protected base policy
+        id: policy
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          base="$GITHUB_SHA"
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+            base=$(jq -er .pull_request.base.sha "$GITHUB_EVENT_PATH")
+          fi
+          [[ "$base" =~ ^[0-9a-f]{40}$ ]]
+          git --no-replace-objects cat-file -e "$base^{commit}"
+          mkdir -p .context/ci-scope
+          arguments=()
+          policy_entry=$(git --no-replace-objects ls-tree "$base" -- .github/scripts/native-ci.py)
+          if [ -n "$policy_entry" ]; then
+            git --no-replace-objects show "$base:.github/scripts/native-ci.py" > .context/ci-scope/native-ci.py
+          else
+            # Initial adoption must fully requalify; it cannot issue N/A.
+            git --no-replace-objects show "$GITHUB_SHA:.github/scripts/native-ci.py" > .context/ci-scope/native-ci.py
+            arguments+=(--bootstrap)
+          fi
+          git --no-replace-objects show "$base:scripts/container-publisher.py" > .context/ci-scope/publisher.py
+          python3 -I .context/ci-scope/native-ci.py plan \
+            --proof .context/ci-scope/scope.json "${arguments[@]}"
+      - name: Retain exact applicability and origin observations
+        id: evidence
+        # v7.0.2
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: api-ci-scope-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .context/ci-scope
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 14
+
   validate:
     name: Validate API build contract
     runs-on: ubuntu-24.04
@@ -73,6 +125,8 @@ jobs:
           python3 tests/fpm-health.py
 
           python3 tests/nginx-health.py"
+      - name: Test Git scope and replay boundaries
+        run: python3 tests/native-ci.py
       - name: Lint Containerfile and shell
         run:
           'podman run --rm -i docker.io/hadolint/hadolint:v2.14.0-debian@sha256:158cd0184dcaa18bd8ec20b61f4c1cabdf8b32a592d062f57bdcb8e4c1d312e2
@@ -89,7 +143,7 @@ jobs:
           scripts/publish-container.sh scripts/scan-container-artifact.sh tests/docker/runtime-component.sh'
   build-and-test:
     name: Native API (${{ matrix.arch }})
-    needs: validate
+    needs: [applicability, validate]
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
     outputs:
@@ -110,7 +164,20 @@ jobs:
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
+          fetch-depth: 0
           path: source
+      - name: Read the observed scope by exact artifact identity
+        # v8.0.2
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          artifact-ids: ${{ needs.applicability.outputs.artifact-id }}
+          path: .context/ci-scope
+      - name: Independently verify scope before native execution
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 -I "$GITHUB_WORKSPACE/.context/ci-scope/native-ci.py" verify \
+            --proof "$GITHUB_WORKSPACE/.context/ci-scope/scope.json"
       - name: Checkout accepted supply-chain implementation
         # v7.0.1
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -121,7 +188,7 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
       - name: Read qualified production secret contract
-        if: github.event_name == 'pull_request' || inputs.runtime-set == 'pair'
+        if: needs.applicability.outputs.mode != 'not-applicable' && (github.event_name == 'pull_request' || inputs.runtime-set == 'pair')
         # v7.0.1
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -130,6 +197,7 @@ jobs:
           path: .context/runtime-contracts
           persist-credentials: false
       - name: Install native distribution container tools
+        if: needs.applicability.outputs.mode != 'not-applicable'
         run: "sudo apt-get update
 
           sudo apt-get install --yes --no-install-recommends buildah podman skopeo uidmap slirp4netns crun
@@ -140,8 +208,10 @@ jobs:
 
           dpkg-query -W buildah podman skopeo"
       - name: Install pinned authoritative Syft
+        if: needs.applicability.outputs.mode == 'build'
         run: scripts/container-tools.sh build "$RUNNER_TEMP/secpal-publisher-tools"
       - name: Build exact source and execute native runtime smoke
+        if: needs.applicability.outputs.mode == 'build'
         env:
           NATIVE_ARCH: ${{ matrix.arch }}
           RUNTIME_SET: ${{ github.event_name == 'pull_request' && 'pair' || inputs.runtime-set }}
@@ -150,7 +220,25 @@ jobs:
           if [ "$RUNTIME_SET" = pair ]; then
             scripts/build-container.sh "$NATIVE_ARCH" "$RUNNER_TEMP/secpal-native/$NATIVE_ARCH/legacy" legacy
           fi
+      - name: Exercise the exact existing qualified images natively
+        if: needs.applicability.outputs.mode == 'reuse'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NATIVE_ARCH: ${{ matrix.arch }}
+        run: |
+          python3 -I "$GITHUB_WORKSPACE/.context/ci-scope/native-ci.py" restore \
+            --proof "$GITHUB_WORKSPACE/.context/ci-scope/scope.json" \
+            --arch "$NATIVE_ARCH" --output "$RUNNER_TEMP/secpal-native/$NATIVE_ARCH"
+      - name: Prove native image checks are not applicable to the test-only diff
+        if: needs.applicability.outputs.mode == 'not-applicable'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 -I "$GITHUB_WORKSPACE/.context/ci-scope/native-ci.py" not-applicable \
+            --proof "$GITHUB_WORKSPACE/.context/ci-scope/scope.json" \
+            --output "$RUNNER_TEMP/native-not-applicable"
       - name: Retain exact native OCI and SBOM evidence
+        if: needs.applicability.outputs.mode != 'not-applicable'
         # v7.0.2
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
@@ -172,7 +260,7 @@ jobs:
   qualify-pair:
     name: Qualify unpublished PHP-FPM and Nginx OCI artifacts
     if: github.event_name == 'pull_request'
-    needs: build-and-test
+    needs: [applicability, build-and-test]
     env:
       API_NATIVE_AMD64_ATTEMPT: ${{ needs.build-and-test.outputs.amd64-attempt }}
       API_NATIVE_ARM64_ATTEMPT: ${{ needs.build-and-test.outputs.arm64-attempt }}
@@ -180,6 +268,7 @@ jobs:
     timeout-minutes: 40
     permissions:
       contents: read
+      actions: read
     steps:
       - name: Checkout exact API source
         # v7.0.1
@@ -187,7 +276,19 @@ jobs:
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
+          fetch-depth: 0
+      - name: Read the observed scope by exact artifact identity
+        # v8.0.2
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          artifact-ids: ${{ needs.applicability.outputs.artifact-id }}
+          path: .context/ci-scope
+      - name: Independently verify complete Git scope
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 -I .context/ci-scope/native-ci.py verify --proof .context/ci-scope/scope.json
       - name: Checkout accepted supply-chain implementation
+        if: needs.applicability.outputs.mode != 'not-applicable'
         # v7.0.1
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -197,6 +298,7 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
       - name: Read accepted protected-main VEX data independently of build inputs
+        if: needs.applicability.outputs.mode != 'not-applicable'
         # v7.0.1
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -206,31 +308,51 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
       - name: Read both native platform artifacts
+        if: needs.applicability.outputs.mode != 'not-applicable'
         # v8.0.2
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
         with:
           pattern: api-native-*-${{ github.run_id }}-*
           path: .context/native
       - name: Install native immutable-input observer
+        if: needs.applicability.outputs.mode != 'not-applicable'
         run: |
           sudo apt-get update
           sudo apt-get install --yes --no-install-recommends skopeo
       - name: Install existing pinned artifact scanners
+        if: needs.applicability.outputs.mode != 'not-applicable'
         run: scripts/container-tools.sh publish "$RUNNER_TEMP/secpal-publisher-tools"
       - name: Install locked accepted schema validator
+        if: needs.applicability.outputs.mode != 'not-applicable'
         run: |
           python3 -m venv "$RUNNER_TEMP/secpal-policy"
           "$RUNNER_TEMP/secpal-policy/bin/pip" install --requirement .context/publisher-governance/requirements/vulnerability-policy.txt
           printf '%s\n' "$RUNNER_TEMP/secpal-policy/bin" >> "$GITHUB_PATH"
       - name: Scan exact unpublished artifacts under unchanged policy
+        if: needs.applicability.outputs.mode == 'build'
         env:
           API_RUNTIME_SET: pair
         run: scripts/scan-container-artifact.sh local
       - name: Verify complete same-source digest-bound runtime pair
+        if: needs.applicability.outputs.mode == 'build'
         run: |
           python3 scripts/container-publisher.py qualify-unpublished-pair \
             --root . --native .context/native --scan-root .context/scan \
             --output .context/scan/unpublished-runtime-pair.json
+      - name: Requalify existing images with fresh independent artifact scans
+        if: needs.applicability.outputs.mode == 'reuse'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 -I .context/ci-scope/native-ci.py scan \
+            --proof .context/ci-scope/scope.json --output .context/scan
+      - name: Retain verified nonapplicability without issuing scan evidence
+        if: needs.applicability.outputs.mode == 'not-applicable'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 -I .context/ci-scope/native-ci.py not-applicable \
+            --proof .context/ci-scope/scope.json --output .context/scan
       - name: Retain all image security evidence
         if: always()
         # v7.0.2
