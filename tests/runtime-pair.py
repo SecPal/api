@@ -31,6 +31,37 @@ def digest(value):
 
 class RuntimePairTests(unittest.TestCase):
     """Atomic pairing of outputs already qualified by the existing per-image path."""
+
+    def test_startup_wait_requires_readiness_and_rejects_persistent_503(self):
+        source = (Path(__file__).resolve().parent / 'docker/smoke.sh').read_text()
+        body = source.split('wait_for_http() {\n', 1)[1].split('\n}\n', 1)[0]
+        for ready_after in (3, 99):
+            script = '''set -eu
+ready_calls=0
+assert_http() {
+    if [ "$1" = /health/ready ]; then
+        ready_calls=$((ready_calls + 1))
+        [ "$ready_calls" -ge "$ready_after" ]
+    else
+        return 0
+    fi
+}
+sleep() { :; }
+podman() { :; }
+api=fixture
+wait_for_http() {
+''' + body + '\n}\n'
+            script += 'if wait_for_http; then outcome=0; else outcome=1; fi\n'
+            script += 'printf "%s:%s" "$outcome" "$ready_calls"\n'
+            result = subprocess.run(
+                ['bash', '-c', 'ready_after='+str(ready_after)+'\n'+script],
+                capture_output=True, text=True, timeout=5,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            outcome, calls = result.stdout.split(':')
+            self.assertEqual(outcome, '0' if ready_after == 3 else '1')
+            self.assertGreaterEqual(int(calls), 3 if ready_after == 3 else 30)
+
     def documents(self):
         docs = {}
         for component in ('php-fpm', 'nginx'):

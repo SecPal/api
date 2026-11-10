@@ -174,6 +174,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Validate transactional customer-edit content within the existing 12 MiB request
+  envelope before acquiring global representation locks. Reject invalid edits
+  without those locks while preserving tenant isolation, If-Match error priority
+  and complete assignment collections, including customers with over 100 links.
 - Bind OpenPLZ address imports to the application release's reviewed commit and
   SHA-256, remove the weekly updater, upgrade setup datasets by expected hash,
   and skip remote downloads when the approved dataset is active (refs `api#1602`).
