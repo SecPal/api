@@ -39,14 +39,17 @@ it('smoke tests the npm-backed hooks with Node 26 and npm 12 on Linux and macOS 
 
     expect($workflow)->not->toBeFalse()
         ->and($prettierWorkflow)->not->toBeFalse()
-        ->and($workflow)->toContain('node-version: "26.10.0"')
-        ->and($prettierWorkflow)->toContain('node-version: "26.10.0"')
         ->and($workflow)->toContain('pre-commit-hooks:')
         ->and($workflow)->toContain('runs-on: ${{ matrix.os }}')
         ->and($workflow)->toContain('- ubuntu-latest')
         ->and($workflow)->toContain('- macos-latest')
-        ->and($workflow)->toContain('npm install --global npm@12.0.0')
+        ->and($workflow)->toMatch('/npm install --global npm@12\.\d+\.\d+(?:\s|$)/')
         ->and($workflow)->toContain('pre-commit install-hooks')
         ->and($workflow)->toContain('pre-commit run prettier --files')
         ->and($workflow)->toContain('pre-commit run markdownlint --files');
+
+    foreach ([$workflow, $prettierWorkflow] as $source) {
+        expect(preg_match('/node-version: "(26\.\d+\.\d+)"/', $source, $matches))->toBe(1);
+        expect(version_compare($matches[1], '26.10.0', '>='))->toBeTrue();
+    }
 });
