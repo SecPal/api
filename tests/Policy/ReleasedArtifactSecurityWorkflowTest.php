@@ -27,6 +27,7 @@ function selectReleasedArtifact(array $workflow, array $request): array
         'EVENT' => 'workflow_dispatch',
         'SCHEDULE' => '',
         'PLATFORM' => 'linux/amd64',
+        'COMPONENT' => 'php-fpm',
         'INDEX_DIGEST' => '',
         'GITHUB_OUTPUT' => $output,
     ], $request);
@@ -52,7 +53,7 @@ it('uses only the pinned shared scanners and isolated finding triage', function 
 
     expect($workflow['permissions'])->toBe([])
         ->and(array_keys($workflow['on']))->toBe(['schedule', 'workflow_dispatch'])
-        ->and(array_keys($workflow['on']['workflow_dispatch']['inputs']))->toBe(['platform', 'index-digest'])
+        ->and(array_keys($workflow['on']['workflow_dispatch']['inputs']))->toBe(['component', 'platform', 'index-digest'])
         ->and($subject['permissions'])->toBe([])
         ->and($scan['uses'])->toMatch('/^SecPal\/\.github\/\.github\/workflows\/reusable-vulnerability-reevaluation\.yml@[a-f0-9]{40}$/')
         ->and($scan['needs'])->toBe('subject')
@@ -62,45 +63,56 @@ it('uses only the pinned shared scanners and isolated finding triage', function 
         ->and($scan['with']['publisher-workflow'])->toBe('SecPal/api/.github/workflows/publish-container.yml')
         ->and($scan['with']['triage'])->toBeTrue()
         ->and($scan)->not->toHaveKeys(['steps', 'secrets', 'continue-on-error', 'strategy'])
-        ->and(array_keys($release['platforms']))->toBe(['linux/amd64', 'linux/arm64'])
-        ->and($release['index-digest'])->toMatch('/^sha256:[a-f0-9]{64}$/')
+        ->and(array_keys($release['components']))->toBe(['php-fpm', 'nginx'])
+        ->and($release['pair-artifact'])->toMatch('/^ghcr\.io\/secpal\/api@sha256:[a-f0-9]{64}$/')
         ->and($release['publisher-workflow-sha'])->toMatch('/^[a-f0-9]{40}$/');
 
     foreach (['index-digest', 'platform-digest', 'platform', 'syft-spdx-artifact', 'publisher-workflow-sha'] as $input) {
         expect($scan['with'][$input])->toBe('${{ needs.subject.outputs.'.$input.' }}');
     }
-    foreach ($release['platforms'] as $platform) {
-        expect($platform['platform-digest'])->toMatch('/^sha256:[a-f0-9]{64}$/')
-            ->and($platform['syft-spdx-artifact'])->toMatch('/^ghcr\.io\/secpal\/api@sha256:[a-f0-9]{64}$/');
+    foreach ($release['components'] as $component) {
+        expect(array_keys($component['platforms']))->toBe(['linux/amd64', 'linux/arm64'])
+            ->and($component['index-digest'])->toMatch('/^sha256:[a-f0-9]{64}$/');
+        foreach ($component['platforms'] as $platform) {
+            expect($platform['platform-digest'])->toMatch('/^sha256:[a-f0-9]{64}$/')
+                ->and($platform['syft-spdx-artifact'])->toMatch('/^ghcr\.io\/secpal\/api@sha256:[a-f0-9]{64}$/');
+        }
     }
 });
 
-it('selects both reviewed native subjects daily and by manual exact digest', function (): void {
+it('selects all four reviewed native subjects daily and by manual exact digest', function (): void {
     $workflow = releasedArtifactWorkflow();
     $release = json_decode($workflow['jobs']['subject']['env']['MONITORED_RELEASE'], true, 512, JSON_THROW_ON_ERROR);
     $scheduled = [];
+    $expected = [];
 
     foreach ($workflow['on']['schedule'] as $schedule) {
         expect($schedule['cron'])->toMatch('/^[0-9]+ [0-9]+ \\* \\* \\*$/');
-        [$exit, $selected] = selectReleasedArtifact($workflow, ['EVENT' => 'schedule', 'SCHEDULE' => $schedule['cron'], 'PLATFORM' => '']);
+        [$exit, $selected] = selectReleasedArtifact($workflow, ['EVENT' => 'schedule', 'SCHEDULE' => $schedule['cron'], 'PLATFORM' => '', 'COMPONENT' => '']);
         expect($exit)->toBe(0);
-        $scheduled[] = $selected['platform'];
+        $scheduled[] = $selected['platform-digest'];
     }
-    expect($scheduled)->toBe(array_keys($release['platforms']));
 
-    foreach ($release['platforms'] as $platform => $subject) {
-        foreach (['', $release['index-digest']] as $index) {
-            [$exit, $selected] = selectReleasedArtifact($workflow, ['PLATFORM' => $platform, 'INDEX_DIGEST' => $index]);
-            expect($exit)->toBe(0)
-                ->and($selected)->toBe([
-                    'index-digest' => $release['index-digest'],
-                    'platform' => $platform,
-                    'platform-digest' => $subject['platform-digest'],
-                    'syft-spdx-artifact' => $subject['syft-spdx-artifact'],
-                    'publisher-workflow-sha' => $release['publisher-workflow-sha'],
-                ]);
+    foreach ($release['components'] as $name => $component) {
+        foreach ($component['platforms'] as $platform => $subject) {
+            $expected[] = $subject['platform-digest'];
+            foreach (['', $component['index-digest']] as $index) {
+                [$exit, $selected] = selectReleasedArtifact($workflow, ['COMPONENT' => $name, 'PLATFORM' => $platform, 'INDEX_DIGEST' => $index]);
+                expect($exit)->toBe(0)
+                    ->and($selected)->toBe([
+                        'index-digest' => $component['index-digest'],
+                        'platform' => $platform,
+                        'platform-digest' => $subject['platform-digest'],
+                        'syft-spdx-artifact' => $subject['syft-spdx-artifact'],
+                        'publisher-workflow-sha' => $release['publisher-workflow-sha'],
+                    ]);
+            }
+            $other = $release['components'][$name === 'php-fpm' ? 'nginx' : 'php-fpm'];
+            [$exit, $selected] = selectReleasedArtifact($workflow, ['COMPONENT' => $name, 'PLATFORM' => $platform, 'INDEX_DIGEST' => $other['index-digest']]);
+            expect($exit)->not->toBe(0)->and($selected)->toBe([]);
         }
     }
+    expect($scheduled)->toBe($expected)->toHaveCount(4);
 });
 
 it('rejects candidates and unsupported monitoring contexts before scanning', function (array $request): void {
@@ -109,6 +121,8 @@ it('rejects candidates and unsupported monitoring contexts before scanning', fun
 })->with([
     'unreviewed index' => [['INDEX_DIGEST' => 'sha256:'.str_repeat('a', 64)]],
     'moving tag' => [['INDEX_DIGEST' => 'latest']],
+    'wrong component' => [['COMPONENT' => 'legacy']],
+    'missing component' => [['COMPONENT' => '']],
     'wrong platform' => [['PLATFORM' => 'linux/s390x']],
     'missing platform' => [['PLATFORM' => '']],
     'unknown schedule' => [['EVENT' => 'schedule', 'SCHEDULE' => '* * * * *', 'PLATFORM' => '']],
