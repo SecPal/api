@@ -18,6 +18,9 @@ jobs:
   native:
     name: Native OCI qualification
     if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+      actions: read
     uses: ./.github/workflows/container-image.yml
 
   test:
