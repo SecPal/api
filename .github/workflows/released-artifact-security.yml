@@ -5,13 +5,19 @@ name: Released API Artifact Security
 
 on:
   schedule:
-    # One platform per run; separate the large finding-triage batches.
-    # AMD64 daily, UTC
-    - cron: "17 3 * * *"
-    # ARM64 daily, UTC
-    - cron: "17 5 * * *"
+    # One shared call per run: central evidence names are run-scoped.
+    - cron: "17 3 * * *" # FPM AMD64 daily, UTC
+    - cron: "17 5 * * *" # FPM ARM64 daily, UTC
+    - cron: "37 3 * * *" # Nginx AMD64 daily, UTC
+    - cron: "37 5 * * *" # Nginx ARM64 daily, UTC
   workflow_dispatch:
     inputs:
+      component:
+        description: Exact component of the accepted runtime pair.
+        required: true
+        default: php-fpm
+        type: choice
+        options: [php-fpm, nginx]
       platform:
         description: Exact released platform to re-evaluate.
         required: true
@@ -19,7 +25,7 @@ on:
         type: choice
         options: [linux/amd64, linux/arm64]
       index-digest:
-        description: Optional exact monitored release index; empty uses the reviewed release.
+        description: Optional component index digest; empty uses the reviewed pair.
         required: false
         default: ""
         type: string
@@ -33,22 +39,43 @@ jobs:
     timeout-minutes: 5
     permissions: {}
     env:
-      # Derived from the attested build evidence of the accepted #1445 release.
-      # Updating this tuple requires another reviewed, genuinely released subject.
+      # Authenticated publisher 42757690047: candidate attempt 2, acceptance 3.
+      # One attested pair; each component retains its own index and native SBOMs.
+      # Update this tuple only from another reviewed, accepted publication.
       MONITORED_RELEASE: |
         {
-          "index-digest": "sha256:4fa4d9d961e7599375e9151fbc2b2f60bf3578ba1aa2661afa5c313f678dced7",
-          "publisher-workflow-sha": "c22109585fe5f97d04fd0d6372b6045728f462e4",
-          "platforms": {
-            "linux/amd64": {
-              "platform-digest": "sha256:78bf5ee518677d21a09266fcd116039904a8204488e36c1a0d0e569086a5ef10",
-              "syft-spdx-artifact":
-                "ghcr.io/secpal/api@sha256:58781cb3e839e6c3a0cef0c4a5d57e00790db7683ed044cfd171f05e1dae6d77"
+          "pair-artifact": "ghcr.io/secpal/api@sha256:f2b09c90d60973af84bbcba87e89fa98531cae53a0c6600ff24534688517a911",
+          "publisher-workflow-sha": "da806926a754d7446cdfa9f6f19ed331e5dbee31",
+          "components": {
+            "php-fpm": {
+              "index-digest": "sha256:1a84eb5224750efefbb609a1801acce84c8b5e8b8d6e2ec5514b77a8fe3ccd73",
+              "platforms": {
+                "linux/amd64": {
+                  "platform-digest": "sha256:c175e73eeb9b45af5a5c7aac5ce13d90979d79bf264bffbdf05518679e081f2d",
+                  "syft-spdx-artifact":
+                    "ghcr.io/secpal/api@sha256:bc285df0377a672ad787f478f17d6184885f61366d3feecc77a19972c237523a"
+                },
+                "linux/arm64": {
+                  "platform-digest": "sha256:70790c63d4ff0fe32fd9b617ef20587d26bb2281ab8c5b17cb51151e44a2cf43",
+                  "syft-spdx-artifact":
+                    "ghcr.io/secpal/api@sha256:22165d951b4536fb792d2e0beb67877ccf8ef8a6ece7ac1af6f736efc90434d9"
+                }
+              }
             },
-            "linux/arm64": {
-              "platform-digest": "sha256:453cd0ddd8fc9b22922bf19941281ae9f8d0bd87dd1dae5437ae9f924331f2db",
-              "syft-spdx-artifact":
-                "ghcr.io/secpal/api@sha256:59dcbffc6e603bcabe2976589342332269b92e6427fa7cd30e3729aad79c09f2"
+            "nginx": {
+              "index-digest": "sha256:f912cd93778454b7c3910e559a5773c9c0532347e07d8e99ee7be231b5f9795c",
+              "platforms": {
+                "linux/amd64": {
+                  "platform-digest": "sha256:86ffda2552cbbe51cbc391fba1a44e73b8ad74f08fdced156cd9fc23346c81d1",
+                  "syft-spdx-artifact":
+                    "ghcr.io/secpal/api@sha256:1fb49adf850da09b34abe7cb04477c0efa4425d30dbe541f3a2ee47c6fcc8f86"
+                },
+                "linux/arm64": {
+                  "platform-digest": "sha256:5a3fc7bd00c1bdcda861423a7fd370087c5c3c2e5ab33608f98e64d3e7c59531",
+                  "syft-spdx-artifact":
+                    "ghcr.io/secpal/api@sha256:51a80b8567f83c216a4931dbbb2140c46cb2831683473fe34f3b0589b3bb4653"
+                }
+              }
             }
           }
         }
@@ -66,6 +93,7 @@ jobs:
           EVENT: ${{ github.event_name }}
           SCHEDULE: ${{ github.event.schedule }}
           PLATFORM: ${{ inputs.platform }}
+          COMPONENT: ${{ inputs.component }}
           INDEX_DIGEST: ${{ inputs.index-digest }}
         run: |
           import json
@@ -78,25 +106,42 @@ jobs:
           release = json.loads(os.environ["MONITORED_RELEASE"])
           event, schedule = os.environ["EVENT"], os.environ["SCHEDULE"]
           platform, requested = os.environ["PLATFORM"], os.environ["INDEX_DIGEST"]
-          schedules = {"17 3 * * *": "linux/amd64", "17 5 * * *": "linux/arm64"}
-          if event == "schedule" and schedule in schedules and not platform and not requested:
-              platform = schedules[schedule]
+          component = os.environ["COMPONENT"]
+          schedules = {
+              "17 3 * * *": ("php-fpm", "linux/amd64"),
+              "17 5 * * *": ("php-fpm", "linux/arm64"),
+              "37 3 * * *": ("nginx", "linux/amd64"),
+              "37 5 * * *": ("nginx", "linux/arm64"),
+          }
+          if (event == "schedule" and schedule in schedules
+                  and not component and not platform and not requested):
+              component, platform = schedules[schedule]
           elif event != "workflow_dispatch" or schedule:
               raise SystemExit("Unsupported monitoring event.")
 
-          if (set(release["platforms"]) != {"linux/amd64", "linux/arm64"}
-                  or platform not in release["platforms"]
-                  or requested and requested != release["index-digest"]):
+          components = release["components"]
+          if (set(components) != {"php-fpm", "nginx"}
+                  or component not in components
+                  or any(set(value["platforms"]) != {"linux/amd64", "linux/arm64"}
+                         for value in components.values())):
+              raise SystemExit("Unknown runtime pair or component.")
+          selected = components[component]
+          if (platform not in selected["platforms"]
+                  or requested and requested != selected["index-digest"]):
               raise SystemExit("Unknown released artifact or platform.")
 
-          subject = release["platforms"][platform]
+          subject = selected["platforms"][platform]
           values = {
-              "index-digest": release["index-digest"],
+              "index-digest": selected["index-digest"],
               "platform": platform,
               "platform-digest": subject["platform-digest"],
               "syft-spdx-artifact": subject["syft-spdx-artifact"],
               "publisher-workflow-sha": release["publisher-workflow-sha"],
           }
+          if os.environ.get("GITHUB_STEP_SUMMARY"):
+              with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as summary:
+                  summary.write(f"Accepted runtime pair: `{release['pair-artifact']}`\n\n")
+                  summary.write(f"Component: `{component}`, platform: `{platform}`\n")
           with open(os.environ["GITHUB_OUTPUT"], "a") as output:
               for key, value in values.items():
                   output.write(f"{key}={value}\n")
@@ -111,7 +156,7 @@ jobs:
       issues: write
       packages: read
     uses: >-
-      SecPal/.github/.github/workflows/reusable-vulnerability-reevaluation.yml@4892b3248faac245047fdb1dc93fc77fc3d08e02
+      SecPal/.github/.github/workflows/reusable-vulnerability-reevaluation.yml@4d22fb55fcd2f4c6ae6e473afb1dc2fa1d3a81ef
     with:
       artifact-repository: ghcr.io/secpal/api
       index-digest: ${{ needs.subject.outputs.index-digest }}

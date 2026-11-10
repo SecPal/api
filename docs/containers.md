@@ -228,12 +228,14 @@ application. Broader production-boundary documentation remains owned by #1453.
 ## Released-artifact re-evaluation
 
 `.github/workflows/released-artifact-security.yml` re-evaluates the reviewed
-released index and both native platform subjects daily at 03:17 UTC (AMD64)
-and 05:17 UTC (ARM64). Manual dispatch selects a platform and optionally the
-same exact index digest. Platform runs are separated to avoid combining large
-finding-triage batches within one GitHub API rate window. Other digests,
-including incomplete publisher
-candidates, are rejected before scanning.
+accepted PHP-FPM/Nginx runtime pair daily: FPM at 03:17 UTC (AMD64) and
+05:17 UTC (ARM64), Nginx at 03:37 UTC (AMD64) and 05:37 UTC (ARM64).
+Manual dispatch selects a component and platform, optionally asserting that
+component's exact index digest. The four native subjects retain separate index,
+SBOM and security identities within one attested release pair. Each invocation
+has its own run because shared evidence names are run-scoped. Other digests,
+swapped component indices and incomplete publisher candidates are rejected
+before scanning.
 
 The workflow's `MONITORED_RELEASE` tuple is derived from accepted, attested
 build evidence. Updating it requires a reviewed released subject; the workflow

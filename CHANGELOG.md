@@ -21,6 +21,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Monitor both native architectures of the accepted PHP-FPM/Nginx release pair
+  daily through the shared dual-scanner workflow and its reviewed, expiring VEX.
+
 - Keep test-only pull requests from rebuilding unchanged native OCI images.
   Verify complete Git scope with the protected base policy, retain explicit
   nonapplicability evidence, and fully requalify existing images for CI changes.
