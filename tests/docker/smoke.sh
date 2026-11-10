@@ -113,7 +113,8 @@ assert_http() {
 wait_for_http() {
     attempt=0
     while [ "$attempt" -lt 30 ]; do
-        if assert_http /health/live 200 '"status":"alive"' 0 >/dev/null 2>&1; then
+        if assert_http /health/live 200 '"status":"alive"' 0 >/dev/null 2>&1 &&
+            assert_http /health/ready 200 '"status":"ready"' 0 >/dev/null 2>&1; then
             return 0
         fi
         attempt=$((attempt + 1))

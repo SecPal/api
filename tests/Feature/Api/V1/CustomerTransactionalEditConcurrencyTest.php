@@ -70,7 +70,7 @@ test('invalid edit validation does not block another tenants database writer', f
     $originalFactory = Validator::getFacadeRoot();
     $factory = clone $originalFactory;
     $attempted = false;
-    $factory->resolver(function ($translator, $data, $rules, $messages, $attributes) use ($writer, $otherCustomer, &$attempted) {
+    $factory->resolver(function ($translator, $data, $rules, $messages, $attributes) use ($writer, $otherCustomer, &$attempted): Illuminate\Validation\Validator {
         if (array_key_exists('customer_establishments', $data)) {
             $attempted = true;
             expect($writer->table('customers')
