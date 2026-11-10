@@ -252,9 +252,11 @@ def restore(root, proof_path, output, arch):
             z.extractall(output)
     subjects = observe(root, proof_path, output, arch)
     images = {r: 'localhost/secpal-api:ci-reuse-'+r+'-'+arch for r in subjects}
+    configs = {r: json.loads((output/r/'record.json').read_text())['subject']['config_digest'] for r in subjects}
     for role, image in images.items():
-        subprocess.run(['skopeo', 'copy', '--preserve-digests', 'oci:'+str(output/role/'image')+':api',
-                        'containers-storage:'+image], check=True)
+        image_id = run('podman', 'pull', '--quiet', 'oci:'+str(output/role/'image')+':api').decode().strip()
+        require(image_id.removeprefix('sha256:') == configs[role].removeprefix('sha256:'))
+        subprocess.run(['podman', 'tag', image_id, image], check=True)
     env = {k: v for k, v in os.environ.items() if k not in ('GH_TOKEN', 'GITHUB_TOKEN')}
     env.update(SKIP_BUILD='1', EXPECTED_ARCH=arch)
     for role in ROLES:
@@ -264,7 +266,8 @@ def restore(root, proof_path, output, arch):
     subprocess.run(['tests/docker/smoke.sh'], cwd=root, check=True,
                    env=dict(env, RUNTIME_SET='legacy', IMAGE_TAG=images['legacy']))
     for role, image in images.items():
-        require(digest(run('skopeo', 'inspect', '--raw', 'containers-storage:'+image)) == subjects[role])
+        image_id = run('podman', 'image', 'inspect', '--format', '{{.Id}}', image).decode().strip()
+        require(image_id.removeprefix('sha256:') == configs[role].removeprefix('sha256:'))
     write(output/'ci-smoke.json', dict(subjects=subjects, arch=arch, result='SUCCEEDED',
                                      run_id=os.environ['GITHUB_RUN_ID'], attempt=os.environ['GITHUB_RUN_ATTEMPT'],
                                      scope_sha256=digest(Path(proof_path).read_bytes())))
