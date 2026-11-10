@@ -26,6 +26,23 @@ PLATFORMS = ('linux/amd64', 'linux/arm64')
 IMAGE = 'application/vnd.oci.image.manifest.v1+json'
 INDEX = 'application/vnd.oci.image.index.v1+json'
 
+RUNTIME_COMPONENTS = ('php-fpm', 'nginx')
+RUNTIMES = {
+    'legacy': dict(containerfile='Containerfile', argument='FRANKENPHP_IMAGE',
+                   repository='docker.io/dunglas/frankenphp', composer=True),
+    'php-fpm': dict(containerfile='docker/php-fpm/Containerfile', argument='PHP_IMAGE',
+                    repository='docker.io/library/php', composer=True),
+    'nginx': dict(containerfile='docker/nginx/Containerfile', argument='NGINX_IMAGE',
+                  repository='docker.io/library/nginx', composer=False),
+}
+
+
+def runtime_definition(runtime):
+    if runtime not in RUNTIMES:
+        raise ValueError('publisher-runtime-component')
+    return dict(component=runtime, **RUNTIMES[runtime])
+
+
 
 def digest(raw):
     return 'sha256:' + hashlib.sha256(raw).hexdigest()
@@ -81,32 +98,39 @@ def native_architecture(expected, machine, runner):
     return actual
 
 
-def source(root, commit):
+def source(root, commit, runtime='legacy'):
     root = Path(root).resolve()
     if not re.fullmatch('[0-9a-f]{40}', commit) or run(['git','rev-parse','HEAD'],cwd=root).decode().strip() != commit:
         raise ValueError('publisher-source-commit')
     if run(['git','status','--porcelain','--untracked-files=normal'],cwd=root).strip():
         raise ValueError('publisher-dirty-source')
     epoch = int(run(['git','show','-s','--format=%ct',commit],cwd=root))
+    definition = runtime_definition(runtime)
+    containerfile = definition['containerfile']
     files = {}
-    for name in ('Containerfile','.containerignore'):
+    for name in (containerfile,'.containerignore'):
         raw = run(['git','show',commit+':'+name],cwd=root)
         path = root/name
         if path.is_symlink() or path.read_bytes()!=raw:
             raise ValueError('publisher-source-bytes')
         files[name] = digest(raw)
-    return dict(repository=SOURCE, commit=commit, epoch=epoch, context=dict(path='.'),
-                containerfile=dict(path='Containerfile',sha256=files['Containerfile']),
-                containerignore=dict(path='.containerignore',sha256=files['.containerignore']))
+    result = dict(repository=SOURCE, commit=commit, epoch=epoch, context=dict(path='.'),
+                  containerfile=dict(path=containerfile,sha256=files[containerfile]),
+                  containerignore=dict(path='.containerignore',sha256=files['.containerignore']))
+    if runtime != 'legacy':
+        result['runtime'] = runtime
+    return result
 
 
-def bases(root, arch):
+def bases(root, arch, runtime='legacy'):
     if 'linux/'+arch not in PLATFORMS:
         raise ValueError('publisher-base-platform')
-    text = (Path(root)/'Containerfile').read_text()
+    definition = runtime_definition(runtime)
+    text = (Path(root)/definition['containerfile']).read_text()
     result = []
-    for argument, stage, repository in (('COMPOSER_IMAGE','composer','docker.io/library/composer'),
-                                       ('FRANKENPHP_IMAGE','extensions','docker.io/dunglas/frankenphp')):
+    inputs = [('COMPOSER_IMAGE','composer','docker.io/library/composer')] if definition['composer'] else []
+    inputs.append((definition['argument'],'extensions',definition['repository']))
+    for argument, stage, repository in inputs:
         match = re.search(r'^ARG '+argument+r'=(\S+)$',text,re.M)
         if not match or not re.fullmatch(re.escape(repository)+r':[A-Za-z0-9._-]+@sha256:[0-9a-f]{64}',match[1]):
             raise ValueError('publisher-reviewed-base')
@@ -130,7 +154,7 @@ def bases(root, arch):
 
 
 def expected_labels(source_record, base):
-    return {
+    labels = {
         'org.opencontainers.image.source': SOURCE,
         'org.opencontainers.image.revision':source_record['commit'],
         'org.opencontainers.image.created':timestamp(source_record['epoch']),
@@ -140,6 +164,9 @@ def expected_labels(source_record, base):
         'org.opencontainers.image.title':'SecPal API',
         'org.opencontainers.image.description':'Production API for SecPal operations software',
     }
+    if source_record.get('runtime') in RUNTIME_COMPONENTS:
+        labels['secpal.dev/runtime-component'] = source_record['runtime']
+    return labels
 
 
 def admit_platform(manifest_raw, config_raw, descriptor, arch, source_record, base_records):
@@ -185,6 +212,16 @@ def read_layout(layout, arch, source_record, base_records):
     manifest_raw = blob(descriptor['digest'])
     manifest = json.loads(manifest_raw)
     config_raw = blob(manifest['config']['digest'])
+    for layer in manifest['layers']:
+        value = layer['digest']
+        if not re.fullmatch(r'sha256:[0-9a-f]{64}',value):
+            raise ValueError('publisher-layer-digest')
+        path = layout/'blobs'/'sha256'/value.split(':')[1]
+        if path.is_symlink() or not path.is_file() or path.stat().st_size != layer['size']:
+            raise ValueError('publisher-layer-file')
+        with path.open('rb') as stream:
+            if 'sha256:'+hashlib.file_digest(stream,'sha256').hexdigest() != value:
+                raise ValueError('publisher-layer-bytes')
     return admit_platform(manifest_raw,config_raw,descriptor,arch,source_record,base_records),manifest_raw,config_raw
 
 
@@ -301,25 +338,47 @@ def build_evidence(records, index_digest, sboms, scans, smokes, source_security,
 
 
 
-def prepare(root, native, output, security_path):
+
+def native_attempt(arch):
+    """Retain successful PR builds when only their security job is retried."""
+    current = os.environ['GITHUB_RUN_ATTEMPT']
+    retained = os.environ.get('API_NATIVE_'+arch.upper()+'_ATTEMPT')
+    if retained is None:
+        return current
+    if (os.environ.get('GITHUB_EVENT_NAME') != 'pull_request'
+            or not re.fullmatch(r'[1-9][0-9]*', retained)
+            or int(retained) > int(current)):
+        raise ValueError('publisher-native-attempt')
+    return retained
+
+
+def observe_native(root, directory, arch, expected, *, layout=None, attempt=None):
+    directory = Path(directory)
+    record = read(directory/'record.json')
+    resolved = bases(root,arch,expected.get('runtime','legacy'))
+    observed,manifest,config = read_layout(directory/'image' if layout is None else layout,arch,expected,resolved)
+    if (record['source']!=expected or record['subject']!=observed or record['bases']!=resolved
+            or record['runner_architecture']!=arch
+            or record['workflow_run_id']!=os.environ['GITHUB_RUN_ID']
+            or record['workflow_run_attempt']!=(attempt or os.environ['GITHUB_RUN_ATTEMPT'])):
+        raise ValueError('publisher-native-output-binding')
+    return record,manifest,config
+
+
+def prepare(root, native, output, security_path, runtime='legacy'):
     """Independently re-observe both native outputs before registry authority."""
     root, native, output = Path(root), Path(native), Path(output)
     output.mkdir(parents=True,exist_ok=True)
-    expected = source(root,os.environ['GITHUB_SHA'])
+    expected = source(root,os.environ['GITHUB_SHA'],runtime)
     security = admit_source_security(read(security_path),expected['commit'],evidence_now(),schema=source_security_schema(root))
     (output/'source-security.json').write_bytes(canonical(security))
     write(output/'source.json',expected)
     records=[];sizes=[]
     for arch in ('amd64','arm64'):
         directory = native / ('api-native-'+arch+'-'+os.environ['GITHUB_RUN_ID']+'-'+os.environ['GITHUB_RUN_ATTEMPT'])
-        record = read(directory/'record.json')
-        resolved = bases(root,arch)
-        observed,manifest,config = read_layout(directory/'image',arch,expected,resolved)
-        if (record['source']!=expected or record['subject']!=observed or record['bases']!=resolved
-                or record['runner_architecture']!=arch
-                or record['workflow_run_id']!=os.environ['GITHUB_RUN_ID']
-                or record['workflow_run_attempt']!=os.environ['GITHUB_RUN_ATTEMPT']):
-            raise ValueError('publisher-native-output-binding')
+        if runtime != 'legacy':
+            directory = directory / runtime
+        record,manifest,config = observe_native(root,directory,arch,expected)
         records.append(record);sizes.append(len(manifest))
         write(output/('record-'+arch+'.json'),record)
         (output/('platform-'+arch+'.json')).write_bytes(manifest)
@@ -334,7 +393,7 @@ def github(endpoint):
     return json.loads(run(['gh','api','--hostname','github.com','--method','GET',endpoint]))
 
 
-def candidate_context(commit, run_id, execution_attempt, *, api=github):
+def candidate_context(commit, run_id, execution_attempt, *, api=github, runtime_set='legacy'):
     """Observe the one original candidate; failed-job retries do not select new builds."""
     if (not re.fullmatch(r'[a-f0-9]{40}',commit) or not re.fullmatch(r'[1-9][0-9]*',run_id)
             or not re.fullmatch(r'[1-9][0-9]*',execution_attempt)):
@@ -364,7 +423,8 @@ def candidate_context(commit, run_id, execution_attempt, *, api=github):
         raise ValueError('publisher-incomplete-candidate-artifacts')
     origin=api(f'{prefix}/actions/runs/{run_id}/attempts/{attempt}')
     if (origin['id']!=int(run_id) or origin['run_attempt']!=int(attempt)
-            or origin['head_sha']!=commit or origin['head_branch']!='main' or origin['event']!='push'
+            or origin['head_sha']!=commit or origin['head_branch']!='main'
+            or origin['event']!=('workflow_dispatch' if runtime_set=='pair' else 'push')
             or origin['path'] not in ('.github/workflows/publish-container.yml','.github/workflows/publish-container.yml@main')
             or origin['repository']['full_name']!='SecPal/api'):
         raise ValueError('publisher-original-run-binding')
@@ -375,11 +435,18 @@ def candidate_context(commit, run_id, execution_attempt, *, api=github):
             or accepted['status'] not in ('identical','behind')):
         raise ValueError('publisher-candidate-not-accepted-source')
     jobs=api(f'{prefix}/actions/runs/{run_id}/attempts/{attempt}/jobs?per_page=100')
-    required={'Prepare exact digest subjects','Attest candidate index platforms and Syft artifacts',
+    required={'Prepare exact digest subjects',
               'Repository Security / Accept API Repository Security',
               'Build native API candidates / Native API (amd64)',
               'Build native API candidates / Native API (arm64)',
               'Published native runtime (amd64)','Published native runtime (arm64)'}
+    if runtime_set == 'legacy':
+        required.add('Attest candidate index platforms and Syft artifacts')
+    elif runtime_set == 'pair':
+        required.update('Attest candidate index platforms and Syft artifacts ('+role+')'
+                        for role in RUNTIME_COMPONENTS)
+    else:
+        raise ValueError('publisher-runtime-set')
     selected=[j for j in jobs['jobs'] if j['name'] in required]
     if (jobs['total_count']!=len(jobs['jobs']) or len(selected)!=len(required)
             or {j['name'] for j in selected}!=required
@@ -394,8 +461,9 @@ def candidate_context(commit, run_id, execution_attempt, *, api=github):
                 scan_attempt=scan_attempt,execution_attempt=execution_attempt)
 
 
-def native_smokes(smoke_root, run_id, attempt):
-    return [read(Path(smoke_root)/(f'api-smoke-{arch}-{run_id}-{attempt}')/'smoke.json')
+def native_smokes(smoke_root, run_id, attempt, runtime='legacy'):
+    return [read(Path(smoke_root)/(f'api-smoke-{arch}-{run_id}-{attempt}') /
+                 (Path('smoke.json') if runtime == 'legacy' else Path(runtime)/'smoke.json'))
             for arch in ('amd64','arm64')]
 
 
@@ -431,9 +499,10 @@ def observe_policy(root, folder, observed_at):
     if dict(evaluation,evaluated_at=recorded['evaluated_at'])!=recorded:
         raise ValueError('publisher-normalized-evidence-mismatch')
     vex=[]
-    for path in adapter.discover_reviewed_vex_manifests(governance/'reviewed-vex'):
-        commit=run(['git','rev-parse','HEAD'],cwd=governance).decode().strip()
-        adapter.verify_reviewed_vex_checkout(governance,path,'SecPal/.github',commit)
+    vex_checkout = Path(root)/'.context/reviewed-vex'
+    for path in adapter.discover_reviewed_vex_manifests(vex_checkout/'reviewed-vex'):
+        commit=run(['git','rev-parse','HEAD'],cwd=vex_checkout).decode().strip()
+        adapter.verify_reviewed_vex_checkout(vex_checkout,path,'SecPal/.github',commit)
         vex.append(policy.load_reviewed_vex(path))
     result=policy.evaluate(evaluation,policy.load_policy(governance/'policies/vulnerability-triage-v1.json'),reviewed_vex=vex)
     original=read(folder/'policy-result.json')
@@ -446,7 +515,8 @@ def observe_policy(root, folder, observed_at):
 def observe_candidate(root, prepared, scan_root, smokes):
     """One source/OCI/SBOM/raw observation shared by both admission paths."""
     root,prepared,scan_root=Path(root),Path(prepared),Path(scan_root)
-    expected=source(root,os.environ['GITHUB_SHA'])
+    runtime = read(Path(prepared)/'source.json').get('runtime','legacy')
+    expected=source(root,os.environ['GITHUB_SHA'],runtime)
     security=admit_source_security(read(prepared/'source-security.json'),expected['commit'],
                                   evidence_now(),schema=source_security_schema(root))
     candidate=read(prepared/'prepared.json');records=candidate['records'];sboms=read(prepared/'sboms.json')
@@ -516,6 +586,8 @@ def publication_admission(root, prepared, scan_root, smokes, *, output_path=None
         results.append(policy)
     if all(result['gate_state']=='CLEAN' for result in results):
         return None
+    if read(prepared/'source.json').get('runtime') in RUNTIME_COMPONENTS:
+        raise ValueError('publisher-runtime-security-not-clean')
     # Retain the exact current evidence identity even when no decision exists.
     # It is derived from the ordinary publisher verification, not a second bundle.
     (prepared/'artifact-security-evidence.json').write_bytes(canonical(observed))
@@ -531,15 +603,17 @@ def publication_admission(root, prepared, scan_root, smokes, *, output_path=None
 
 def complete(prepared, scan_root, smoke_root, root, output):
     Path(output).unlink(missing_ok=True)
-    expected=source(root,os.environ['GITHUB_SHA'])
-    context=candidate_context(os.environ['GITHUB_SHA'],os.environ['GITHUB_RUN_ID'],os.environ['GITHUB_RUN_ATTEMPT'])
+    runtime = read(Path(prepared)/'source.json').get('runtime','legacy')
+    expected=source(root,os.environ['GITHUB_SHA'],runtime)
+    context=candidate_context(os.environ['GITHUB_SHA'],os.environ['GITHUB_RUN_ID'],os.environ['GITHUB_RUN_ATTEMPT'],
+                              runtime_set='pair' if runtime in RUNTIME_COMPONENTS else 'legacy')
     value=read(Path(prepared)/'prepared.json')
     sboms=read(Path(prepared)/'sboms.json')
     scans=[]
     for arch in ('amd64','arm64'):
         scans.extend(read(Path(scan_root)/arch/'scan-records.json'))
-    smokes=native_smokes(smoke_root,context['run_id'],context['run_attempt'])
-    fresh_source=Path(scan_root)/'source/result.json'
+    smokes=native_smokes(smoke_root,context['run_id'],context['run_attempt'],runtime)
+    fresh_source=(Path(scan_root) if runtime == 'legacy' else Path(scan_root).parent)/'source/result.json'
     if fresh_source.is_file():
         admit_source_security(read(fresh_source),expected['commit'],evidence_now(),schema=source_security_schema(root))
         (Path(prepared)/'source-security.json').write_bytes(read_bytes(fresh_source))
@@ -557,13 +631,15 @@ def complete(prepared, scan_root, smoke_root, root, output):
 
 
 def recheck_admission(root, prepared, scan_root, smoke_root):
-    expected=source(root,os.environ['GITHUB_SHA'])
-    context=candidate_context(os.environ['GITHUB_SHA'],os.environ['GITHUB_RUN_ID'],os.environ['GITHUB_RUN_ATTEMPT'])
+    runtime = read(Path(prepared)/'source.json').get('runtime','legacy')
+    expected=source(root,os.environ['GITHUB_SHA'],runtime)
+    context=candidate_context(os.environ['GITHUB_SHA'],os.environ['GITHUB_RUN_ID'],os.environ['GITHUB_RUN_ATTEMPT'],
+                              runtime_set='pair' if runtime in RUNTIME_COMPONENTS else 'legacy')
     admit_source_security(read(Path(prepared)/'source-security.json'),expected['commit'],
                           evidence_now(),schema=source_security_schema(root))
     temporary=Path(os.environ['RUNNER_TEMP'])/'current-api-admission.json'
     current=publication_admission(
-        root,prepared,scan_root,native_smokes(smoke_root,context['run_id'],context['run_attempt']),
+        root,prepared,scan_root,native_smokes(smoke_root,context['run_id'],context['run_attempt'],runtime),
         output_path=temporary,
     )
     document=read(Path(prepared)/'build-evidence.json')
@@ -579,11 +655,185 @@ def recheck_admission(root, prepared, scan_root, smoke_root):
             raise ValueError('publisher-admission-decision-changed')
     temporary.unlink(missing_ok=True)
 
+
+def qualify_unpublished_pair(root, native, scan_root, output):
+    """Re-observe PR artifacts; this is never registry/publication admission."""
+    root, native, scan_root, output = map(Path, (root, native, scan_root, output))
+    output.unlink(missing_ok=True)
+    commit = os.environ['GITHUB_SHA']
+    run_id, attempt = os.environ['GITHUB_RUN_ID'], os.environ['GITHUB_RUN_ATTEMPT']
+    observed_at = evidence_now()
+    images, companions, manifest_digests = {}, {}, set()
+    for role in RUNTIME_COMPONENTS:
+        expected = source(root, commit, role)
+        platforms, sizes = [], []
+        for arch in ('amd64', 'arm64'):
+            build_attempt = native_attempt(arch)
+            own = native/f'api-native-{arch}-{run_id}-{build_attempt}'/role
+            folder = scan_root/role/arch
+            record, manifest, _ = observe_native(root, own, arch, expected, attempt=build_attempt)
+            subject = record['subject']
+            target = dict(platform='linux/'+arch, oci_digest=subject['manifest_digest'])
+            policy = observe_policy(root, folder, observed_at)
+            association = read(folder/'sbom/association.json')
+            spdx_digest = digest(read_bytes(folder/'sbom/syft.spdx.json'))
+            smoke = read(own/'smoke.json')
+            scans = read(folder/'scan-records.json')
+            if (record['source'] != expected or subject['platform'] != target['platform']
+                    or subject['labels'].get('secpal.dev/runtime-component') != role
+                    or subject['manifest_digest'] in manifest_digests
+                    or read(folder/'evaluation.json')['subject'] != target
+                    or association['subject'] != target or association['spdx_digest'] != spdx_digest
+                    or policy['evidence_health']['state'] != 'HEALTHY' or policy['gate_state'] != 'CLEAN'
+                    or smoke['platform'] != target['platform'] or smoke['digest'] != target['oci_digest']
+                    or smoke['runner_architecture'] != arch or smoke['test'] != 'tests/docker/smoke.sh'
+                    or smoke['workflow_run_id'] != run_id or smoke['workflow_run_attempt'] != build_attempt
+                    or smoke['result'] != 'SUCCEEDED'
+                    or evidence_time(smoke['completed_at']) > evidence_time(observed_at)
+                    or len(scans) != 2 or sorted(v['scanner'] for v in scans) != ['grype', 'trivy']):
+                raise ValueError('publisher-unpublished-pair-binding')
+            for scan in scans:
+                scanner = scan['scanner']
+                metadata = read(folder/(scanner+'-metadata.json'))
+                expected_input = spdx_digest if scanner == 'grype' else target['oci_digest']
+                if (scan['platform'] != target['platform'] or scan['subject_digest'] != expected_input
+                        or scan['status'] != 'SUCCEEDED' or metadata['status'] != 'SUCCEEDED'
+                        or scan['policy_result'] != 'CLEAN'
+                        or scan['scanner_version'] != metadata['scanner_identity']['version']
+                        or scan['database'] != metadata['database']
+                        or scan['completed_at'] != metadata['completed_at']
+                        or evidence_time(scan['completed_at']) > evidence_time(observed_at)
+                        or scan['evidence_sha256'] != digest(read_bytes(folder/'raw'/(scanner+'.json')))):
+                    raise ValueError('publisher-unpublished-pair-scanner')
+            manifest_digests.add(subject['manifest_digest'])
+            companions[(arch, role)] = smoke['runtime_pair']
+            sizes.append(len(manifest))
+            platforms.append(dict(subject=subject, sbom_sha256=spdx_digest, scans=scans,
+                                  smoke=smoke, policy_sha256=digest(canonical(policy))))
+        subjects = [p['subject'] for p in platforms]
+        images[role] = dict(candidate_index_digest=digest(canonical(assemble_index(subjects, sizes))),
+                            platforms=platforms)
+    for (arch, _), pair in companions.items():
+        expected = {role: next(p['subject']['manifest_digest'] for p in images[role]['platforms']
+                               if p['subject']['platform'] == 'linux/'+arch)
+                    for role in RUNTIME_COMPONENTS}
+        if pair != expected:
+            raise ValueError('publisher-unpublished-pair-companions')
+    source_record = dict(repository=SOURCE, commit=commit,
+                         tree=run(['git', 'rev-parse', 'HEAD^{tree}'], cwd=root).decode().strip())
+    binding = dict(source=source_record, images=images)
+    write(output, dict(schema_version='1.0.0', published=False, qualification='CLEAN',
+                       generated_at=observed_at, pair_sha256=digest(canonical(binding)), **binding,
+                       workflow=dict(repository='SecPal/api', path='.github/workflows/container-image.yml',
+                                     run_id=run_id, run_attempt=attempt)))
+
+
+def assemble_runtime_pair(documents, commit, generated_at):
+    """Bind the two existing complete per-image admissions into one artifact."""
+    if (set(documents) != set(RUNTIME_COMPONENTS)
+            or not re.fullmatch(r'[a-f0-9]{40}', commit)):
+        raise ValueError('publisher-runtime-pair-components')
+    if any([p['platform'] for p in documents[role]['subject']['platforms']] != list(PLATFORMS)
+           for role in RUNTIME_COMPONENTS):
+        raise ValueError('publisher-runtime-pair-platforms')
+    workflow = None
+    images = {}
+    indexes = set()
+    for component in RUNTIME_COMPONENTS:
+        document = documents[component]
+        source_record = document['source']
+        current_workflow = document['workflow']
+        subjects = document['subject']['platforms']
+        if (source_record.get('runtime') != component or source_record['repository'] != SOURCE
+                or source_record['commit'] != commit
+                or document['subject']['repository'] != REPOSITORY
+                or current_workflow.get('repository') != 'SecPal/api'
+                or current_workflow.get('path') != '.github/workflows/publish-container.yml'
+                or current_workflow.get('commit') != commit
+                or (workflow is not None and workflow != current_workflow)
+                or [p['platform'] for p in subjects] != list(PLATFORMS)
+                or any(p['labels'].get('secpal.dev/runtime-component') != component for p in subjects)
+                or evidence_time(document['generated_at']) > evidence_time(generated_at)
+                or document['extensions'][SOURCE].get('artifact_security_admission') is not None):
+            raise ValueError('publisher-runtime-pair-binding')
+        workflow = current_workflow
+        index_digest = document['subject']['index_digest']
+        if not re.fullmatch(r'sha256:[a-f0-9]{64}', index_digest) or index_digest in indexes:
+            raise ValueError('publisher-runtime-pair-index')
+        indexes.add(index_digest)
+        if len(document['scans']) != 4 or len(document['sboms']) != 2 or len(document['smoke_tests']) != 2:
+            raise ValueError('publisher-runtime-pair-incomplete')
+        for subject in subjects:
+            own = [v for v in document['scans'] if v['platform'] == subject['platform']]
+            sboms = [v for v in document['sboms'] if v['platform'] == subject['platform']]
+            smokes = [v for v in document['smoke_tests'] if v['platform'] == subject['platform']]
+            if (sorted(v['scanner'] for v in own) != ['grype','trivy']
+                    or any(v['status'] != 'SUCCEEDED' or v['policy_result'] != 'CLEAN' for v in own)
+                    or len(sboms) != 1 or sboms[0]['subject_digest'] != subject['manifest_digest']
+                    or len(smokes) != 1 or smokes[0]['digest'] != subject['manifest_digest']
+                    or smokes[0]['result'] != 'SUCCEEDED'):
+                raise ValueError('publisher-runtime-pair-qualification')
+        for smoke in document['smoke_tests']:
+            arch = smoke['platform']
+            expected_pair = {
+                role:next(p['manifest_digest'] for p in documents[role]['subject']['platforms']
+                          if p['platform'] == arch)
+                for role in RUNTIME_COMPONENTS
+            }
+            if smoke.get('runtime_pair') != expected_pair:
+                raise ValueError('publisher-runtime-pair-smoke-companions')
+        images[component] = dict(reference=REPOSITORY+'@'+index_digest, platforms=subjects,
+                                 build_evidence_sha256=digest(canonical(document)+b'\n'))
+    return dict(schema_version='1.0.0', generated_at=generated_at,
+                source=dict(repository=SOURCE,commit=commit), workflow=workflow, images=images)
+
+
+def complete_runtime_pair(root, prepared, scan_root, smoke_root, output):
+    """No pair exists until both existing full evidence paths succeed."""
+    Path(output).unlink(missing_ok=True)
+    documents = {}
+    for component in RUNTIME_COMPONENTS:
+        own = Path(prepared)/component
+        complete(own,Path(scan_root)/component,smoke_root,root,own/'build-evidence.json')
+        documents[component] = read(own/'build-evidence.json')
+    write(output,assemble_runtime_pair(documents,os.environ['GITHUB_SHA'],evidence_now()))
+
+
+def recheck_runtime_pair(root, prepared, scan_root, smoke_root):
+    documents = {}
+    for component in RUNTIME_COMPONENTS:
+        own = Path(prepared)/component
+        recheck_admission(root,own,Path(scan_root)/component,smoke_root)
+        documents[component] = read(own/'build-evidence.json')
+    retained = read(Path(prepared)/'runtime-pair.json')
+    expected = assemble_runtime_pair(documents,os.environ['GITHUB_SHA'],retained['generated_at'])
+    if retained != expected:
+        raise ValueError('publisher-runtime-pair-substitution')
+
+
+def component_subjects(prepared):
+    value = read(Path(prepared)/'prepared.json')
+    sboms = read(Path(prepared)/'sboms.json')
+    result = dict(index_digest=value['index_digest'])
+    for arch in ('amd64','arm64'):
+        platform_name = 'linux/'+arch
+        records = [r for r in value['records'] if r['subject']['platform'] == platform_name]
+        own = [r for r in sboms if r['platform'] == platform_name]
+        if len(records) != 1 or len(own) != 1:
+            raise ValueError('publisher-component-subjects')
+        result[arch+'_digest'] = records[0]['subject']['manifest_digest']
+        result[arch+'_sbom_digest'] = own[0]['artifact'].split('@')[1]
+    if any(not re.fullmatch(r'sha256:[a-f0-9]{64}', value) for value in result.values()):
+        raise ValueError('publisher-component-subject-digest')
+    return result
+
+
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     sub=parser.add_subparsers(dest='command',required=True)
     c=sub.add_parser('candidate-context')
     c.add_argument('--output',required=True)
+    c.add_argument('--runtime-set',choices=('legacy','pair'),default='legacy')
     c=sub.add_parser('admission')
     for key in ('root','prepared','scan-root','smoke-root'):
         c.add_argument('--'+key,required=True)
@@ -599,9 +849,42 @@ def main():
     for key in ('root','native','output','security'):p.add_argument('--'+key,required=True)
     e=sub.add_parser('complete')
     for key in ('prepared','scan-root','smoke-root','root','output'):e.add_argument('--'+key,required=True)
+    for name in ('source','bases','prepare'):
+        sub.choices[name].add_argument('--runtime',choices=tuple(RUNTIMES),default='legacy')
+    c=sub.add_parser('verify-native')
+    for key in ('root','directory','arch','runtime','output'):
+        c.add_argument('--'+key,required=True)
+    c.add_argument('--layout')
+    c=sub.add_parser('component-subjects')
+    c.add_argument('--prepared',required=True)
+    c=sub.add_parser('runtime-definition')
+    c.add_argument('--runtime',choices=tuple(RUNTIMES),required=True)
+    c=sub.add_parser('complete-pair')
+    for key in ('root','prepared','scan-root','smoke-root','output'):
+        c.add_argument('--'+key,required=True)
+    c=sub.add_parser('qualify-unpublished-pair')
+    for key in ('root','native','scan-root','output'):
+        c.add_argument('--'+key,required=True)
+    c=sub.add_parser('admission-pair')
+    for key in ('root','prepared','scan-root','smoke-root'):
+        c.add_argument('--'+key,required=True)
     args=parser.parse_args()
-    if args.command=='candidate-context':
-        context=candidate_context(os.environ['GITHUB_SHA'],os.environ['GITHUB_RUN_ID'],os.environ['GITHUB_RUN_ATTEMPT'])
+    if args.command=='verify-native':
+        expected=source(args.root,os.environ['GITHUB_SHA'],args.runtime)
+        record,_,_=observe_native(args.root,args.directory,args.arch,expected,layout=args.layout,attempt=native_attempt(args.arch))
+        write(args.output,dict(oci_digest=record['subject']['manifest_digest'],platform=record['subject']['platform']))
+    elif args.command=='component-subjects':
+        print(canonical(component_subjects(args.prepared)).decode())
+    elif args.command=='runtime-definition':
+        print(canonical(runtime_definition(args.runtime)).decode())
+    elif args.command=='complete-pair':
+        complete_runtime_pair(args.root,args.prepared,args.scan_root,args.smoke_root,args.output)
+    elif args.command=='qualify-unpublished-pair':
+        qualify_unpublished_pair(args.root,args.native,args.scan_root,args.output)
+    elif args.command=='admission-pair':
+        recheck_runtime_pair(args.root,args.prepared,args.scan_root,args.smoke_root)
+    elif args.command=='candidate-context':
+        context=candidate_context(os.environ['GITHUB_SHA'],os.environ['GITHUB_RUN_ID'],os.environ['GITHUB_RUN_ATTEMPT'],runtime_set=args.runtime_set)
         write(args.output,context)
         with open(os.environ['GITHUB_OUTPUT'],'a') as output:
             output.write('candidate_attempt='+context['run_attempt']+'\nscan_attempt='+context['scan_attempt']+'\n')
@@ -609,8 +892,8 @@ def main():
         recheck_admission(args.root,args.prepared,args.scan_root,args.smoke_root)
     elif args.command=='attestation-filename':print(attestation_filename(args.digest))
     elif args.command=='source-security':admit_source_security(read(args.input),args.commit,evidence_now(),schema=source_security_schema(Path(__file__).resolve().parents[1]))
-    elif args.command=='source':write(args.output,source(args.root,args.commit))
-    elif args.command=='bases':write(args.output,bases(args.root,args.arch))
+    elif args.command=='source':write(args.output,source(args.root,args.commit,args.runtime))
+    elif args.command=='bases':write(args.output,bases(args.root,args.arch,args.runtime))
     elif args.command=='record':
         arch=native_architecture(args.arch,platform.machine(),os.environ.get('RUNNER_ARCH'))
         src,base=read(args.source),read(args.bases)
@@ -620,7 +903,7 @@ def main():
                               runner_architecture=arch,workflow_run_id=os.environ['GITHUB_RUN_ID'],
                               workflow_run_attempt=os.environ['GITHUB_RUN_ATTEMPT']))
     elif args.command=='prepare':
-        prepare(args.root,args.native,args.output,args.security)
+        prepare(args.root,args.native,args.output,args.security,args.runtime)
     elif args.command=='complete':
         complete(args.prepared,args.scan_root,args.smoke_root,args.root,args.output)
     else:

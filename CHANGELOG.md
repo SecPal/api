@@ -12,7 +12,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Add the qualified Alpine PHP-FPM/CLI and separate Nginx runtime pair with a
+  private Unix socket, non-root execution and digest-bound dual-artifact
+  Buildah evidence. Preserve the accepted FrankenPHP publication and consumer
+  contract until the replacement is independently accepted (refs #2639).
+
 ### Fixed
+
+- Require the existing manual release entry point for API registry publication;
+  merging source into main cannot automatically publish the retained runtime.
+- Repair the retained FrankenPHP runtime's SQLite library with the same genuine
+  3.54.0 APK used by FPM; remove runtime pip and the unused curl command while
+  preserving PHP/libcurl and OpenTimestamps. Validate both native architectures.
+- Remove unused GNU tar from both final PHP runtime images, eliminating its
+  CVE-2026-5704, CVE-2026-18508 and CVE-2026-18477 code paths while retaining
+  archive tools in build stages.
+- Remove Nginx's health-only curl dependency and unused upstream template tools;
+  preserve exact HTTP liveness and time bounds using the existing BusyBox tools.
+- Qualify the runtimes with the accepted Grype 0.121.3 executable and central
+  implementation, retaining the unresolved CLI advisory and security policy.
 
 - Upgrade the released-artifact monitor to the accepted Grype 0.121.3 scanner
   security fix while preserving exact released subjects and unresolved findings.
@@ -20,6 +40,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Preserve unresolved released-image CVE issues when scanner findings disappear;
   adopt the reviewed central triage fix without changing release security policy.
 
+- Keep native runtime smoke fixtures usable under enforcing SELinux with shared
+  bind labels and a canonical PostgreSQL reference; retain native HTTP failure
+  diagnostics without suppressing the original transport error.
+
+- Install the stable Alpine zlib 1.4-r0 security update in the Nginx runtime
+  to resolve CVE-2026-4738 found by native dual-scanner qualification.
+
+- Preserve the exact legacy attestation job identity when extending publication
+  to paired runtimes, so the existing execution verifier can still accept the
+  legacy publisher without relaxing name or provenance checks.
+
+- Keep pip and its APK dependency closure in the PHP-FPM build only, validate
+  Python dependencies before removal, and remove the unused curl command from
+  that final runtime. Preserve PHP/libcurl, OpenTimestamps and native checks.
+
+- Build SQLite 3.54.0 as a source-verified Alpine 3.24 APK for the PHP-FPM
+  runtime, fixing CVE-2026-119373, CVE-2026-119374 and CVE-2026-119379.
+  Verify repeat-build equality, the existing SONAME/exported ABI and PHP/Python
+  loading; retain all scanner findings and the independent CLI-only
+  classification blocker (refs #2639).
+
+- Patch the Symfony HTTP, routing, serializer and YAML security advisories found
+  during runtime qualification, including CVE-2026-118514, CVE-2026-118515 and
+  CVE-2026-118516. Update only the eight-package required Composer closure;
+  retain Laravel and Symfony MIME unchanged (refs #2639).
 - Consume the canonical v5 repository scan schema from the accepted shared
   publisher SDK, retaining exact source, freshness and CLEAN admission checks.
 

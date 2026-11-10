@@ -4,7 +4,12 @@
 ---
 name: Container Image
 "on":
-  workflow_call: {}
+  workflow_call:
+    inputs:
+      runtime-set:
+        type: string
+        default: legacy
+        required: false
 permissions:
   contents: read
 jobs:
@@ -24,7 +29,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: SecPal/.github
-          ref: 1bb0253cbc7bb57dccae9382c1234d3ffde08edf
+          ref: 4892b3248faac245047fdb1dc93fc77fc3d08e02
           path: .context/publisher-governance
           persist-credentials: false
           fetch-depth: 0
@@ -61,20 +66,35 @@ jobs:
 
           python3 tests/container-publisher.py
 
-          python3 tests/container-attestation-auth.py"
+          python3 tests/container-attestation-auth.py
+
+          python3 tests/runtime-pair.py
+
+          python3 tests/fpm-health.py
+
+          python3 tests/nginx-health.py"
       - name: Lint Containerfile and shell
         run:
           'podman run --rm -i docker.io/hadolint/hadolint:v2.14.0-debian@sha256:158cd0184dcaa18bd8ec20b61f4c1cabdf8b32a592d062f57bdcb8e4c1d312e2
           < Containerfile
 
+          podman run --rm -i docker.io/hadolint/hadolint:v2.14.0-debian@sha256:158cd0184dcaa18bd8ec20b61f4c1cabdf8b32a592d062f57bdcb8e4c1d312e2
+          < docker/php-fpm/Containerfile
+
+          podman run --rm -i docker.io/hadolint/hadolint:v2.14.0-debian@sha256:158cd0184dcaa18bd8ec20b61f4c1cabdf8b32a592d062f57bdcb8e4c1d312e2
+          < docker/nginx/Containerfile
+
           podman run --rm -v "$PWD:/mnt:ro" -w /mnt docker.io/koalaman/shellcheck:v0.10.0@sha256:2097951f02e735b613f4a34de20c40f937a6c8f18ecb170612c88c34517221fb
           docker/healthchecks/http-live.sh tests/docker/smoke.sh scripts/build-container.sh scripts/container-tools.sh
-          scripts/publish-container.sh scripts/scan-container-artifact.sh'
+          scripts/publish-container.sh scripts/scan-container-artifact.sh tests/docker/runtime-component.sh'
   build-and-test:
     name: Native API (${{ matrix.arch }})
     needs: validate
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
+    outputs:
+      amd64-attempt: ${{ steps.native-attempt.outputs.amd64 }}
+      arm64-attempt: ${{ steps.native-attempt.outputs.arm64 }}
     strategy:
       fail-fast: false
       matrix:
@@ -96,10 +116,19 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: SecPal/.github
-          ref: 1bb0253cbc7bb57dccae9382c1234d3ffde08edf
+          ref: 4892b3248faac245047fdb1dc93fc77fc3d08e02
           path: .context/publisher-governance
           persist-credentials: false
           fetch-depth: 0
+      - name: Read qualified production secret contract
+        if: github.event_name == 'pull_request' || inputs.runtime-set == 'pair'
+        # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: SecPal/deployment
+          ref: bf2282e3e112ac003360ecb3dff390eafe282dbd
+          path: .context/runtime-contracts
+          persist-credentials: false
       - name: Install native distribution container tools
         run: "sudo apt-get update
 
@@ -115,7 +144,12 @@ jobs:
       - name: Build exact source and execute native runtime smoke
         env:
           NATIVE_ARCH: ${{ matrix.arch }}
-        run: scripts/build-container.sh "$NATIVE_ARCH" "$RUNNER_TEMP/secpal-native/$NATIVE_ARCH"
+          RUNTIME_SET: ${{ github.event_name == 'pull_request' && 'pair' || inputs.runtime-set }}
+        run: |
+          scripts/build-container.sh "$NATIVE_ARCH" "$RUNNER_TEMP/secpal-native/$NATIVE_ARCH" "$RUNTIME_SET"
+          if [ "$RUNTIME_SET" = pair ]; then
+            scripts/build-container.sh "$NATIVE_ARCH" "$RUNNER_TEMP/secpal-native/$NATIVE_ARCH/legacy" legacy
+          fi
       - name: Retain exact native OCI and SBOM evidence
         # v7.0.2
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
@@ -126,6 +160,84 @@ jobs:
           if-no-files-found: error
           retention-days: 14
           compression-level: 0
+      - name: Retain producing attempt for qualification retries
+        id: native-attempt
+        env:
+          NATIVE_ARCH: ${{ matrix.arch }}
+        run: echo "$NATIVE_ARCH=$GITHUB_RUN_ATTEMPT" >> "$GITHUB_OUTPUT"
     defaults:
       run:
         working-directory: source
+
+  qualify-pair:
+    name: Qualify unpublished PHP-FPM and Nginx OCI artifacts
+    if: github.event_name == 'pull_request'
+    needs: build-and-test
+    env:
+      API_NATIVE_AMD64_ATTEMPT: ${{ needs.build-and-test.outputs.amd64-attempt }}
+      API_NATIVE_ARM64_ATTEMPT: ${{ needs.build-and-test.outputs.arm64-attempt }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout exact API source
+        # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Checkout accepted supply-chain implementation
+        # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: SecPal/.github
+          ref: 4892b3248faac245047fdb1dc93fc77fc3d08e02
+          path: .context/publisher-governance
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Read accepted protected-main VEX data independently of build inputs
+        # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: SecPal/.github
+          ref: main
+          path: .context/reviewed-vex
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Read both native platform artifacts
+        # v8.0.2
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          pattern: api-native-*-${{ github.run_id }}-*
+          path: .context/native
+      - name: Install native immutable-input observer
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends skopeo
+      - name: Install existing pinned artifact scanners
+        run: scripts/container-tools.sh publish "$RUNNER_TEMP/secpal-publisher-tools"
+      - name: Install locked accepted schema validator
+        run: |
+          python3 -m venv "$RUNNER_TEMP/secpal-policy"
+          "$RUNNER_TEMP/secpal-policy/bin/pip" install --requirement .context/publisher-governance/requirements/vulnerability-policy.txt
+          printf '%s\n' "$RUNNER_TEMP/secpal-policy/bin" >> "$GITHUB_PATH"
+      - name: Scan exact unpublished artifacts under unchanged policy
+        env:
+          API_RUNTIME_SET: pair
+        run: scripts/scan-container-artifact.sh local
+      - name: Verify complete same-source digest-bound runtime pair
+        run: |
+          python3 scripts/container-publisher.py qualify-unpublished-pair \
+            --root . --native .context/native --scan-root .context/scan \
+            --output .context/scan/unpublished-runtime-pair.json
+      - name: Retain all image security evidence
+        if: always()
+        # v7.0.2
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: api-runtime-pair-security-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .context/scan
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 14

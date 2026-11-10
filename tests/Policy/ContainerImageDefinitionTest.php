@@ -33,7 +33,8 @@ it('defines the production API image contract', function (): void {
         ->toMatch('/^ARG COMPOSER_IMAGE=docker\\.io\\/library\\/composer:[0-9]+\\.[0-9]+\\.[0-9]+@sha256:[a-f0-9]{64}$/m')
         ->toContain('FROM ${COMPOSER_IMAGE} AS composer', 'FROM ${FRANKENPHP_IMAGE} AS extensions')
         ->toContain('composer install')
-        ->toContain('curl=8.23.0-r0', 'libcurl=8.23.0-r0', 'brotli-libs=1.2.1-r0')
+        ->toContain('libcurl=8.23.0-r0', 'brotli-libs=1.2.1-r0')
+        ->toContain('python3 -m pip check', 'apk del --no-network .python-build-deps curl')
         ->toContain('--no-dev')
         ->toContain('--no-scripts')
         ->toContain('--require-hashes', '--only-binary=:all:', 'opentimestamps-requirements.txt')
@@ -53,7 +54,7 @@ it('defines the production API image contract', function (): void {
         ->not->toContain('artisan migrate')
         ->not->toContain('octane');
 
-    expect(preg_match('/^[ \t]*&& apk add --no-cache python3=(3\.14\.\d+)-r\d+ py3-pip=\d+\.\d+\.\d+-r\d+\b/m', $extensionsStage, $pythonInput))->toBe(1);
+    expect(preg_match('/^[ \t]*&& apk add --no-cache python3=(3\.14\.\d+)-r\d+\b/m', $extensionsStage, $pythonInput))->toBe(1);
     expect(version_compare($pythonInput[1] ?? '0', '3.14.8', '>='))->toBeTrue();
 
     expect($pythonRequirements)
@@ -61,7 +62,7 @@ it('defines the production API image contract', function (): void {
         ->not->toContain('opentimestamps-client', 'gitpython', 'gitdb', 'smmap', 'appdirs', 'pysocks');
 
     expect($smokeScript)
-        ->toContain('DB_SSLMODE=verify-full', 'apk info --installed curl=8.23.0-r0', '--read-only', '--cap-drop=all', '--security-opt=no-new-privileges')
+        ->toContain('DB_SSLMODE=verify-full', 'apk info --installed libcurl=8.23.0-r0', '--read-only', '--cap-drop=all', '--security-opt=no-new-privileges')
         ->toContain('DB_SSLROOTCERT=/run/secrets/postgresql-ca.crt')
         ->toContain("POSTGRES_INITDB_ARGS='--auth-host=scram-sha-256'")
         ->toContain('-c password_encryption=scram-sha-256')
@@ -108,7 +109,7 @@ it('defines the production API image contract', function (): void {
         ->toContain('test "$(stat -c "%U:%G %a" "$healthcheck")" = "root:root 755"')
         ->toContain('if test -e "$sqlite_probe"; then')
         ->toContain('chmod 0444 "$port_probe"')
-        ->toContain('-v "${port_probe}:/tmp/assert-port-closed.php:ro"');
+        ->toContain('-v "${port_probe}:/tmp/assert-port-closed.php:ro,z"');
     expect($proxyConfig)->toContain('TRUSTED_PROXIES');
 });
 
@@ -123,8 +124,8 @@ it('checks container command output without early-terminating pipelines', functi
         ->not->toContain('php --ri redis')
         ->toContain('php_ini_output=$(podman run --rm "$image" php --ini)')
         ->toContain('podman run --rm "$image" python3 -c \'import opentimestamps\'')
-        ->toContain('git_import=$(podman run --rm "$image" python3 -c \'import git\' 2>&1)')
-        ->toContain('assert_output_contains "$git_import" \'ModuleNotFoundError\'')
+        ->toContain('from importlib.metadata import PackageNotFoundError, version')
+        ->toContain('raise SystemExit("Unneeded runtime distribution: " + name)')
         ->not->toMatch('/podman run[^\n]*\\|[ \t]*grep\\b/');
 });
 
@@ -166,4 +167,43 @@ it('excludes obsolete Laravel Sail from the dependency graph', function (): void
 
     expect($composer['require'] + $composer['require-dev'])->not->toHaveKey('laravel/sail')
         ->and(array_column(array_merge($lock['packages'], $lock['packages-dev']), 'name'))->not->toContain('laravel/sail');
+});
+
+it('keeps the qualified FPM and public HTTP runtimes separate from the accepted legacy image', function (): void {
+    $root = dirname(__DIR__, 2);
+    foreach (['docker/php-fpm/Containerfile', 'docker/php-fpm/pool.conf', 'docker/nginx/Containerfile', 'docker/nginx/nginx.conf', 'docker/nginx/fastcgi.conf'] as $path) {
+        expect(is_file($root.'/'.$path))->toBeTrue("Missing paired runtime artifact: {$path}");
+    }
+
+    $php = (string) file_get_contents($root.'/docker/php-fpm/Containerfile');
+    $pool = (string) file_get_contents($root.'/docker/php-fpm/pool.conf');
+    $http = (string) file_get_contents($root.'/docker/nginx/Containerfile');
+    $nginx = (string) file_get_contents($root.'/docker/nginx/nginx.conf');
+    $fastcgi = (string) file_get_contents($root.'/docker/nginx/fastcgi.conf');
+
+    expect($php)->toContain('php:8.4.', '-fpm-alpine3.24@sha256:', 'icu-data-full=', '--require-hashes', 'USER secpal', 'STOPSIGNAL SIGQUIT')
+        ->not->toContain('frankenphp', 'caddy', 'artisan migrate');
+    expect($pool)->toContain('listen=/run/secpal-fpm/api.sock', 'listen.mode=0660', 'clear_env=yes', 'security.limit_extensions=.php', 'pm.max_children=4');
+    expect($http)->toContain('nginx:', '-alpine3.24-slim@sha256:', 'COPY public /app/public', 'USER secpal', 'EXPOSE 8080')
+        ->not->toContain('COPY app ', 'COPY vendor ', 'COPY config ', 'COPY storage ', 'APP_KEY', 'DB_PASSWORD');
+    expect($nginx)->toContain('listen 8080;', 'root /app/public;', 'disable_symlinks on from=/app/public;', 'error_log /dev/null;', '"path":"$uri"')
+        ->not->toContain('$request_uri', '$http_authorization', '$args');
+    expect($fastcgi)->toContain('fastcgi_pass unix:/run/secpal-fpm/api.sock;', 'SCRIPT_FILENAME /app/public/index.php;', 'PATH_INFO "";', 'HTTP_PROXY "";', 'fastcgi_buffering off;');
+    expect((string) file_get_contents($root.'/Containerfile'))->toContain('FRANKENPHP_IMAGE=', 'CMD ["frankenphp"');
+});
+
+it('keeps secrets out of the FPM environment allowlist and reuses the qualified secret bootstrap', function (): void {
+    $root = dirname(__DIR__, 2);
+    $pool = (string) file_get_contents($root.'/docker/php-fpm/pool.conf');
+    $smoke = (string) file_get_contents($root.'/tests/docker/smoke.sh');
+    expect($pool)->toContain('clear_env=yes')->not->toContain('env[APP_KEY]', 'env[DB_PASSWORD]');
+    expect($smoke)->toContain('production-secret-bootstrap.php', 'bf2282e3e112ac003360ecb3dff390eafe282dbd', 'NOCREATEDB', 'NOSUPERUSER');
+});
+
+it('cleans only smoke resources carrying its unique ownership label including PostgreSQL data', function (): void {
+    $script = (string) file_get_contents(dirname(__DIR__, 2).'/tests/docker/smoke.sh');
+    expect($script)->toContain('secpal.dev/smoke', 'podman volume create --label',
+        'podman volume inspect', 'podman volume rm', 'podman network inspect',
+        'podman inspect --format');
+    expect($script)->not->toContain('podman rm -f "$client" "$api" "$fpm" "$postgres"');
 });

@@ -34,7 +34,7 @@ case "$mode" in
     github_cli
     download oras https://github.com/oras-project/oras/releases/download/v1.3.4/oras_1.3.4_linux_amd64.tar.gz f27adb935022d94df8dc77719c322dda592c78a0d57a6f7dcdd8d900b248c454
     if [ "$mode" = publish ]; then
-      download grype https://github.com/anchore/grype/releases/download/v0.118.0/grype_0.118.0_linux_amd64.tar.gz 1d444c5e7360471815f7158f71935fcecc68a3c417d85c7344f770854300bba2
+      download grype https://github.com/anchore/grype/releases/download/v0.121.3/grype_0.121.3_linux_amd64.tar.gz e9da18cc1429e786722e32161288103600efffd8e483c90761f90485bd1bec85
       download trivy https://github.com/aquasecurity/trivy/releases/download/v0.74.0/trivy_0.74.0_Linux-64bit.tar.gz 2ae6fe3ee734b7fdf11335663e18c75ea12dccc76062f09f164a3b0f8be4371a
     fi
     ;;

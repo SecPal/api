@@ -334,6 +334,41 @@ class Handoff(unittest.TestCase):
         handoff.cleanup(self.home, self.private, IDENTITY)
         self.assertFalse(self.private.exists())
 
+    def test_cli_admits_only_manual_main_pair_jobs(self):
+        cases = [({}, True), ({"GITHUB_JOB": "accept"}, True),
+                 ({"GITHUB_EVENT_NAME": "push"}, False),
+                 ({"API_RUNTIME_SET": "legacy"}, False),
+                 ({"GITHUB_REF": "refs/heads/topic"}, False),
+                 ({"RUNNER_ENVIRONMENT": "self-hosted"}, False),
+                 ({"GITHUB_REPOSITORY": "other/api"}, False),
+                 ({"GITHUB_WORKFLOW_REF": "SecPal/api/.github/workflows/other.yml@refs/heads/main"}, False),
+                 ({"GITHUB_JOB": "scan"}, False)]
+        for number, (change, accepted) in enumerate(cases):
+            context_root = self.root / str(number)
+            context_root.mkdir(mode=0o700)
+            env = dict(GITHUB_REPOSITORY="SecPal/api", GITHUB_EVENT_NAME="workflow_dispatch",
+                       API_RUNTIME_SET="pair", GITHUB_REF="refs/heads/main",
+                       RUNNER_ENVIRONMENT="github-hosted",
+                       GITHUB_WORKFLOW_REF="SecPal/api/.github/workflows/publish-container.yml@refs/heads/main",
+                       GITHUB_JOB="attest", GITHUB_RUN_ID="123", GITHUB_RUN_ATTEMPT="1",
+                       RUNNER_TEMP=str(context_root), GITHUB_ACTOR=ACTOR)
+            env.update(change)
+            private = context_root / ("secpal-final-attest-auth" if env["GITHUB_JOB"] == "accept" else "secpal-attest-auth")
+            env["DOCKER_CONFIG"] = str(private)
+            with self.subTest(change=change), unittest.mock.patch.dict(os.environ, env), \
+                    unittest.mock.patch.object(sys, "argv", ["handoff", "prepare"]), \
+                    unittest.mock.patch.object(Path, "home", return_value=self.home), \
+                    redirect_stdout(io.StringIO()):
+                if accepted:
+                    handoff.main()
+                    self.assertTrue((private / handoff.MARKER).is_file())
+                    with unittest.mock.patch.object(sys, "argv", ["handoff", "cleanup"]):
+                        handoff.main()
+                else:
+                    with self.assertRaises(handoff.Rejected):
+                        handoff.main()
+                self.assertFalse(private.exists())
+
     def test_cli_rejects_pr_context_without_accessing_default_home(self):
         env = dict(os.environ, GITHUB_REPOSITORY="SecPal/api", GITHUB_EVENT_NAME="pull_request",
                    GITHUB_REF="refs/pull/1/merge", RUNNER_ENVIRONMENT="github-hosted",
