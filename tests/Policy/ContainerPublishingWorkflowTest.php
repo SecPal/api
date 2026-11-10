@@ -423,9 +423,16 @@ it('keeps Syft authoritative and scans immutable artifacts independently', funct
         'secpal-vulnerability-reevaluation.py', 'secpal-vulnerability-policy.py',
         'policies/vulnerability-triage-v1.json', "policy['evidence_health']['state']!='HEALTHY'",
     )->not->toContain('--ignore-unfixed', '--severity ', '--exit-code 0');
-    expect((string) file_get_contents($root.'/scripts/container-tools.sh'))->toContain(
-        'sha256sum --check --strict', 'syft_1.54.1_linux_', 'grype_0.121.3_linux_',
-        'trivy_0.74.0_Linux-64bit', 'oras_1.3.4_linux_amd64');
+    $tools = (string) file_get_contents($root.'/scripts/container-tools.sh');
+    expect($tools)->toContain('sha256sum --check --strict');
+    foreach (['syft', 'grype', 'trivy', 'oras'] as $tool) {
+        $checksum = '(?:[0-9a-f]{64}|"[0-9a-f]{64}"|"\$(?:[A-Za-z_][A-Za-z0-9_]*|\{[A-Za-z_][A-Za-z0-9_]*\})")';
+        $pattern = '/^\h*download '.preg_quote($tool, '/').' "?https:\/\/[^\s"]+\/'.preg_quote($tool, '/').'_[0-9]+\.[0-9]+\.[0-9]+_[Ll]inux[_-][^\s"]+\.tar\.gz"?\h+'.$checksum.'\h*(?:#[^\r\n]*)?$/m';
+        expect($tools)->toMatch($pattern);
+        $archive = 'download '.$tool.' https://secpal.dev/fixtures/'.$tool.'_9.8.7_linux_amd64.tar.gz';
+        expect($archive)->not->toMatch($pattern);
+        expect($archive.' '.str_repeat('a', 64))->toMatch($pattern);
+    }
 });
 
 it('attests index platforms SBOMs and build evidence through exact GitHub identities', function (): void {
