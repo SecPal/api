@@ -282,7 +282,10 @@ def scan(root, proof_path, native, output):
     base = base_checkout(root, context['source_commit'])
     (base/'.context').mkdir(exist_ok=True)
     for name in ('publisher-governance', 'reviewed-vex'):
-        (base/'.context'/name).symlink_to(root/'.context'/name, target_is_directory=True)
+        accepted = root/'.context'/name
+        commit = git(accepted, 'rev-parse', 'HEAD').decode().strip()
+        subprocess.run(['git', '--no-replace-objects', '-C', str(accepted), 'worktree', 'add',
+                        '--detach', str(base/'.context'/name), commit], check=True)
     current_run, current_attempt = os.environ['GITHUB_RUN_ID'], os.environ['GITHUB_RUN_ATTEMPT']
     subjects = {}
     for arch in ('amd64', 'arm64'):
@@ -299,10 +302,14 @@ def scan(root, proof_path, native, output):
     # The existing scanner observes the ORIGINAL producer context. Its actual
     # scan timestamps/databases are fresh; the new CI receipt below identifies
     # this verification run separately. No producer record is rewritten.
-    subprocess.run(['scripts/scan-container-artifact.sh', 'local'], cwd=base, check=True,
-                   env=dict(os.environ, GITHUB_SHA=context['source_commit'], GITHUB_RUN_ID=context['run_id'],
-                            GITHUB_RUN_ATTEMPT=context['run_attempt'], API_RUNTIME_SET='pair',
-                            API_NATIVE_AMD64_ATTEMPT=context['run_attempt'], API_NATIVE_ARM64_ATTEMPT=context['run_attempt']))
+    try:
+        subprocess.run(['scripts/scan-container-artifact.sh', 'local'], cwd=base, check=True,
+                       env=dict(os.environ, GITHUB_SHA=context['source_commit'], GITHUB_RUN_ID=context['run_id'],
+                                GITHUB_RUN_ATTEMPT=context['run_attempt'], API_RUNTIME_SET='pair',
+                                API_NATIVE_AMD64_ATTEMPT=context['run_attempt'], API_NATIVE_ARM64_ATTEMPT=context['run_attempt']))
+    finally:
+        if (base/'.context/scan').exists():
+            shutil.copytree(base/'.context/scan', output, dirs_exist_ok=True)
     pub = publisher(root, proof_path)
     policies = {}
     for role in ROLES:
@@ -314,7 +321,6 @@ def scan(root, proof_path, native, output):
             require(policy['gate_state'] == 'CLEAN' and policy['evidence_health']['state'] == 'HEALTHY')
             policies[role+'/'+arch] = digest(json.dumps(policy, sort_keys=True, separators=(',', ':')).encode())
     verify(root, proof_path)
-    shutil.copytree(base/'.context/scan', output, dirs_exist_ok=True)
     write(output/'requalified-existing-images.json', dict(
         schema_version='secpal-native-ci-v1', qualification='SUCCEEDED', runtime_source=context['source_commit'],
         scope_sha256=digest(Path(proof_path).read_bytes()), subjects=subjects, policies=policies,
