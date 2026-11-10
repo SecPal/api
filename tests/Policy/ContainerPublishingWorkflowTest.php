@@ -427,7 +427,7 @@ it('keeps Syft authoritative and scans immutable artifacts independently', funct
     $tools = (string) file_get_contents($root.'/scripts/container-tools.sh');
     expect($tools)->toContain('sha256sum --check --strict');
     foreach (['syft', 'grype', 'trivy', 'oras'] as $tool) {
-        expect($tools)->toMatch('/'.preg_quote($tool, '/').'_[0-9]+\.[0-9]+\.[0-9]+_[Ll]inux[_-]/');
+        expect($tools)->toMatch('/^\h*download '.preg_quote($tool, '/').' "?https:\/\/\S+\/'.preg_quote($tool, '/').'_[0-9]+\.[0-9]+\.[0-9]+_[Ll]inux[_-]/m');
     }
 });
 

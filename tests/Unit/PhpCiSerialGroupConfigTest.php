@@ -5,6 +5,8 @@
 
 declare(strict_types=1);
 
+use Symfony\Component\Yaml\Yaml;
+
 function phpCiWorkflowContents(): string
 {
     $contents = file_get_contents(base_path('.github/workflows/php-ci.yml'));
@@ -32,7 +34,8 @@ test('php ci uses the precreated worker database public schema for parallel pest
 });
 
 test('php ci pins its current PostgreSQL 18 service fixture', function (): void {
-    expect(phpCiWorkflowContents())
-        ->toMatch('/image: postgres:18(?:\.\d+)*-bookworm@sha256:[0-9a-f]{64}(?:\s|$)/')
-        ->not->toMatch('/image: postgres:(?:16|17)(?:[-@:]|$)/');
+    $workflow = Yaml::parse(phpCiWorkflowContents());
+
+    expect($workflow['jobs']['test']['services']['postgres']['image'])
+        ->toMatch('/\Apostgres:18(?:\.\d+)*-bookworm@sha256:[0-9a-f]{64}\z/');
 });
