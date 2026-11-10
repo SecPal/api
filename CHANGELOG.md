@@ -21,6 +21,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Keep test-only pull requests from rebuilding unchanged native OCI images.
+  Verify complete Git scope with the protected base policy, retain explicit
+  nonapplicability evidence, and fully requalify existing images for CI changes.
+  Runtime, dependency and publisher implementation changes still require builds.
 - Require the existing manual release entry point for API registry publication;
   merging source into main cannot automatically publish the retained runtime.
 - Repair the retained FrankenPHP runtime's SQLite library with the same genuine

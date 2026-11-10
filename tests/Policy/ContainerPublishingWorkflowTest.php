@@ -262,9 +262,8 @@ it('gates official publication on source security and native validation', functi
         ->and($w['jobs']['build']['uses'])->toBe('./.github/workflows/container-image.yml')
         ->and($w['jobs']['prepare']['needs'])->toBe(['build', 'repository-security'])
         ->and($w['jobs']['accept']['needs'])->toBe(['prepare', 'attest', 'verify', 'scan', 'repository-security']);
-    foreach (['build', 'repository-security'] as $job) {
-        expect($w['jobs'][$job]['permissions'])->toBe(['contents' => 'read']);
-    }
+    expect($w['jobs']['repository-security']['permissions'])->toBe(['contents' => 'read'])
+        ->and($w['jobs']['build']['permissions'])->toBe(['contents' => 'read', 'actions' => 'read']);
     foreach (['verify', 'scan'] as $job) {
         expect($w['jobs'][$job]['permissions'])->toBe([
             'contents' => 'read', 'packages' => 'read', 'attestations' => 'read',
@@ -363,10 +362,10 @@ it('shares database-free native Buildah builds without PR publication or emulati
     $root = dirname(__DIR__, 2);
     $ci = Yaml::parseFile($root.'/.github/workflows/container-image.yml');
     $build = (string) file_get_contents($root.'/scripts/build-container.sh');
-    expect($ci['permissions'])->toBe(['contents' => 'read'])
+    expect($ci['permissions'])->toBe(['contents' => 'read', 'actions' => 'read'])
         ->and($ci['on'])->toHaveKey('workflow_call')
         ->and(array_keys($ci['on']))->toBe(['workflow_call'])
-        ->and($ci['jobs']['build-and-test']['needs'])->toBe('validate')
+        ->and($ci['jobs']['build-and-test']['needs'])->toBe(['applicability', 'validate'])
         ->and($ci['jobs']['build-and-test']['steps'][0]['with']['path'])->toBe('source')
         ->and($ci['jobs']['build-and-test']['defaults']['run']['working-directory'])->toBe('source')
         ->and(containerPublishingRunScripts($ci['jobs']['build-and-test']))->toContain('"$RUNNER_TEMP/secpal-native/$NATIVE_ARCH"')
