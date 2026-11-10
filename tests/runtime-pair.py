@@ -298,7 +298,10 @@ class RuntimePairTests(unittest.TestCase):
         root = Path(__file__).resolve().parents[1]
         workflow = (root/'.github/workflows/container-image.yml').read_text()
         scan = (root/'scripts/scan-container-artifact.sh').read_text()
-        self.assertRegex(workflow, r'repository: SecPal/\.github\n\s+ref: [0-9a-f]{40}\n\s+path: \.context/publisher-governance')
+        checkout = r'repository: SecPal/\.github\n\s+ref: [0-9a-f]{40}\n\s+path: \.context/publisher-governance[ \t]*(?:\n|$)'
+        self.assertRegex(workflow, checkout)
+        self.assertNotRegex(workflow.replace('path: .context/publisher-governance',
+                                             'path: .context/publisher-governance-evil'), checkout)
         self.assertIn('path: .context/reviewed-vex', workflow)
         self.assertIn('API_NATIVE_AMD64_ATTEMPT: ${{ needs.build-and-test.outputs.amd64-attempt }}', workflow)
         self.assertIn('API_NATIVE_ARM64_ATTEMPT: ${{ needs.build-and-test.outputs.arm64-attempt }}', workflow)
