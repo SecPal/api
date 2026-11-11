@@ -39,41 +39,41 @@ jobs:
     timeout-minutes: 5
     permissions: {}
     env:
-      # Authenticated publisher 42757690047: candidate attempt 2, acceptance 3.
+      # Authenticated publisher 42987289933: candidate attempt 1, acceptance 2.
       # One attested pair; each component retains its own index and native SBOMs.
       # Update this tuple only from another reviewed, accepted publication.
       MONITORED_RELEASE: |
         {
-          "pair-artifact": "ghcr.io/secpal/api@sha256:f2b09c90d60973af84bbcba87e89fa98531cae53a0c6600ff24534688517a911",
-          "publisher-workflow-sha": "da806926a754d7446cdfa9f6f19ed331e5dbee31",
+          "pair-artifact": "ghcr.io/secpal/api@sha256:b95c184cfc999d8be7a36c3d9f8a8b9bf402856a0d0923c095fe828e20a3d80a",
+          "publisher-workflow-sha": "30a326d6c2e32a9e1251d75bfe603b3026babfc1",
           "components": {
             "php-fpm": {
-              "index-digest": "sha256:1a84eb5224750efefbb609a1801acce84c8b5e8b8d6e2ec5514b77a8fe3ccd73",
+              "index-digest": "sha256:e6bd9bb7608298e2d4ac807883cbb378d58134025a9b5e8dbec88af919112024",
               "platforms": {
                 "linux/amd64": {
-                  "platform-digest": "sha256:c175e73eeb9b45af5a5c7aac5ce13d90979d79bf264bffbdf05518679e081f2d",
+                  "platform-digest": "sha256:4eeda7c044430073b16cf52ae83a5b1c9a66b8d65902f5df2ea7c6386fec955f",
                   "syft-spdx-artifact":
-                    "ghcr.io/secpal/api@sha256:bc285df0377a672ad787f478f17d6184885f61366d3feecc77a19972c237523a"
+                    "ghcr.io/secpal/api@sha256:160a54d0a4ff91a88047c8483bfb8b1540f4b720081cb98fc830126b2b9bb27d"
                 },
                 "linux/arm64": {
-                  "platform-digest": "sha256:70790c63d4ff0fe32fd9b617ef20587d26bb2281ab8c5b17cb51151e44a2cf43",
+                  "platform-digest": "sha256:cc3fe6fd421a6692e2fe90026fe855c18cf7525f2fac3c6b1f545cc3e75ad455",
                   "syft-spdx-artifact":
-                    "ghcr.io/secpal/api@sha256:22165d951b4536fb792d2e0beb67877ccf8ef8a6ece7ac1af6f736efc90434d9"
+                    "ghcr.io/secpal/api@sha256:83d3dd20f84b0202d1253d54676189ed886ae56f34c6f601b876cff2d95ae1c3"
                 }
               }
             },
             "nginx": {
-              "index-digest": "sha256:f912cd93778454b7c3910e559a5773c9c0532347e07d8e99ee7be231b5f9795c",
+              "index-digest": "sha256:4bfeca7ead5436c5c4b9d51823d2438be91e5f88c25d07b8695a0a5c614a8b90",
               "platforms": {
                 "linux/amd64": {
-                  "platform-digest": "sha256:86ffda2552cbbe51cbc391fba1a44e73b8ad74f08fdced156cd9fc23346c81d1",
+                  "platform-digest": "sha256:15a00fa123f26ccc02d29251ceac44be11bf83dde721d8a0a06507e00992c02f",
                   "syft-spdx-artifact":
-                    "ghcr.io/secpal/api@sha256:1fb49adf850da09b34abe7cb04477c0efa4425d30dbe541f3a2ee47c6fcc8f86"
+                    "ghcr.io/secpal/api@sha256:f4202119568f2aaf2ba01fd5bacc466df5e13c568db45c39e095ff3c5b9a275e"
                 },
                 "linux/arm64": {
-                  "platform-digest": "sha256:5a3fc7bd00c1bdcda861423a7fd370087c5c3c2e5ab33608f98e64d3e7c59531",
+                  "platform-digest": "sha256:3f8c99815b132bbacd1665c0bc8e0645275b9913f173da3c2560eb1a23e840b6",
                   "syft-spdx-artifact":
-                    "ghcr.io/secpal/api@sha256:51a80b8567f83c216a4931dbbb2140c46cb2831683473fe34f3b0589b3bb4653"
+                    "ghcr.io/secpal/api@sha256:7b3316ba39d855d98898aa86d71598efb6e71c50d63932782e203fc0aba9a3ef"
                 }
               }
             }
@@ -156,7 +156,7 @@ jobs:
       issues: write
       packages: read
     uses: >-
-      SecPal/.github/.github/workflows/reusable-vulnerability-reevaluation.yml@4d22fb55fcd2f4c6ae6e473afb1dc2fa1d3a81ef
+      SecPal/.github/.github/workflows/reusable-vulnerability-reevaluation.yml@03bbb63cf7d02acaa2c679ffd8bb92246ecefaa6
     with:
       artifact-repository: ghcr.io/secpal/api
       index-digest: ${{ needs.subject.outputs.index-digest }}
