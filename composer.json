@@ -14,7 +14,7 @@
     "laragear/two-factor": "^4.0",
     "laravel/framework": "^13.40",
     "laravel/sanctum": "^4.3",
-    "laravel/tinker": "^3.0",
+    "laravel/tinker": "^3.1",
     "minishlink/web-push": "^11.0",
     "opis/json-schema": "^2.4",
     "spatie/laravel-activitylog": "^5.1",
