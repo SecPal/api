@@ -37,7 +37,7 @@ permissions:
 
 jobs:
   auto-merge:
-    uses: SecPal/.github/.github/workflows/reusable-dependabot-auto-merge.yml@31555f23d459031248006f77785d872bc3947127
+    uses: SecPal/.github/.github/workflows/reusable-dependabot-auto-merge.yml@03bbb63cf7d02acaa2c679ffd8bb92246ecefaa6
     with:
       allowed-ecosystems: "github_actions,npm_and_yarn,composer"
       phase: "2" # Verified PATCH and MINOR; Source Safety must be required
