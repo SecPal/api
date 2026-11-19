@@ -57,7 +57,6 @@ vex_arguments=()
       --trusted-commit "$vex_commit"
     vex_arguments+=(--reviewed-vex-manifest "$manifest")
   done < "$cache/vex-list"
-policy_failure=0
 components=(legacy)
 if [ "$runtime_set" = pair ]; then components=(php-fpm nginx); fi
 for component in "${components[@]}"; do
@@ -167,13 +166,9 @@ for scanner in ('grype','trivy'):
                         evidence_sha256='sha256:'+hashlib.sha256((root/'raw'/(scanner+'.json')).read_bytes()).hexdigest()))
 (root/'scan-records.json').write_text(json.dumps(records,sort_keys=True,separators=(',',':'))+'\n')
 PY
-  if [ "$mode" = local ] && [ "$(jq -er .gate_state "$output/policy-result.json")" != CLEAN ]; then
-    policy_failure=1
-  fi
 done
 done
 # No DB payload or registry credential is an evidence artifact.
 rm -rf -- "$cache"
 cleanup
 trap - EXIT
-exit "$policy_failure"

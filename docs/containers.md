@@ -165,8 +165,10 @@ emulation. PR code receives neither package-write nor GitHub OIDC authority.
 
 Before building, the publisher verifies the exact clean Git commit and creates
 a sealed snapshot through the accepted organization snapshot helper. No ignored
-or untracked runner files enter the build context. Each pinned multi-platform
-base is resolved and verified to its native platform manifest. Composer cache
+or untracked runner files enter the build context. Each external image uses a
+literal tag-and-index-digest `FROM` reference. The publisher verifies the
+index and native platform manifest, then binds that reference to the verified
+local child in Buildah with `--pull=never`. Composer cache
 mounts are build caches; they are not additional source materials or runtime
 volumes. Distribution package resolutions are recorded by Syft; normalized
 source timestamps do not imply bit-for-bit reproducibility.
@@ -336,8 +338,9 @@ The PHP image uses the official PHP 8.4.27 FPM/CLI Alpine 3.24 base, full ICU
 data, the existing extensions, OPcache configuration and hash-locked
 OpenTimestamps dependencies. It contains the application, private storage and
 the CLI used by queues, the activity hash chain, scheduling and migrations.
-Nginx uses the official 1.30.6 Alpine 3.24 slim base and contains only public
-application files, HTTP configuration and the license. Both bases and Composer
+Nginx uses the official Alpine 3.24 slim base and contains only public
+application files, HTTP configuration and the license. Its Containerfile also
+pins the patched Alpine OpenSSL runtime libraries. Both bases and Composer
 are pinned to immutable multi-platform digests in their Containerfiles.
 
 Both processes run as UID/GID 10001 with read-only root filesystems, dropped
@@ -397,13 +400,18 @@ native record and smoke must still match that exact producing attempt, platform,
 source and runtime pair; a future attempt or changed subject cannot inherit VEX.
 
 After scanning, the same publisher's `qualify-unpublished-pair` command
-re-observes all four native layouts, SBOM and raw scanner bindings, fresh CLEAN
-policy decisions and successful smoke records naming both exact companions.
-It retains `unpublished-runtime-pair.json` with source/tree, manifest/config
-digests, candidate index digests and a shared pair identity. Missing, substituted,
-non-CLEAN or mismatched-run evidence removes any stale result and fails closed.
-This explicitly unpublished qualification grants no registry admission or
-attestation; those remain in the protected publication workflow.
+re-observes all four native layouts, SBOM and raw scanner bindings, fresh
+policy evidence and successful smoke records naming both exact companions.
+It retains `unpublished-runtime-pair.json` with `qualification: SUCCEEDED`,
+source/tree, manifest/config digests, candidate index digests and a shared pair
+identity. The original scanner records and findings stay bound to each
+platform. Fresh `CLEAN`, `ACTIONABLE` and `REVIEW_REQUIRED` results can qualify
+when the evidence is healthy and complete, including during requalification
+of existing images. The PR workflow builds and qualifies current source when
+the authenticated publisher history has no compatible baseline. Missing,
+substituted, stale, unhealthy or mismatched-run qualification evidence fails
+closed. Registry admission and attestation remain in the protected publication
+workflow.
 
 Publication requires the existing explicit `workflow_dispatch` selecting
 `pair`; merging source into main does not trigger registry writes. Running

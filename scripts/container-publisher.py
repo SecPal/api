@@ -708,6 +708,12 @@ def recheck_admission(root, prepared, scan_root, smoke_root):
     temporary.unlink(missing_ok=True)
 
 
+def qualifies_unpublished_policy(policy):
+    """Check technical eligibility without changing the vulnerability verdict."""
+    return (policy['evidence_health']['state'] == 'HEALTHY'
+            and policy['gate_state'] in ('CLEAN', 'ACTIONABLE', 'REVIEW_REQUIRED'))
+
+
 def qualify_unpublished_pair(root, native, scan_root, output):
     """Re-observe PR artifacts; this is never registry/publication admission."""
     root, native, scan_root, output = map(Path, (root, native, scan_root, output))
@@ -736,7 +742,7 @@ def qualify_unpublished_pair(root, native, scan_root, output):
                     or subject['manifest_digest'] in manifest_digests
                     or read(folder/'evaluation.json')['subject'] != target
                     or association['subject'] != target or association['spdx_digest'] != spdx_digest
-                    or policy['evidence_health']['state'] != 'HEALTHY' or policy['gate_state'] != 'CLEAN'
+                    or not qualifies_unpublished_policy(policy)
                     or smoke['platform'] != target['platform'] or smoke['digest'] != target['oci_digest']
                     or smoke['runner_architecture'] != arch or smoke['test'] != 'tests/docker/smoke.sh'
                     or smoke['workflow_run_id'] != run_id or smoke['workflow_run_attempt'] != build_attempt
@@ -750,7 +756,7 @@ def qualify_unpublished_pair(root, native, scan_root, output):
                 expected_input = spdx_digest if scanner == 'grype' else target['oci_digest']
                 if (scan['platform'] != target['platform'] or scan['subject_digest'] != expected_input
                         or scan['status'] != 'SUCCEEDED' or metadata['status'] != 'SUCCEEDED'
-                        or scan['policy_result'] != 'CLEAN'
+                        or scan['policy_result'] != policy['gate_state']
                         or scan['scanner_version'] != metadata['scanner_identity']['version']
                         or scan['database'] != metadata['database']
                         or scan['completed_at'] != metadata['completed_at']
@@ -774,7 +780,7 @@ def qualify_unpublished_pair(root, native, scan_root, output):
     source_record = dict(repository=SOURCE, commit=commit,
                          tree=run(['git', 'rev-parse', 'HEAD^{tree}'], cwd=root).decode().strip())
     binding = dict(source=source_record, images=images)
-    write(output, dict(schema_version='1.0.0', published=False, qualification='CLEAN',
+    write(output, dict(schema_version='1.0.0', published=False, qualification='SUCCEEDED',
                        generated_at=observed_at, pair_sha256=digest(canonical(binding)), **binding,
                        workflow=dict(repository='SecPal/api', path='.github/workflows/container-image.yml',
                                      run_id=run_id, run_attempt=attempt)))

@@ -679,7 +679,8 @@ class DiscoveryContinuation(unittest.TestCase):
 class ArtifactScanCollection(unittest.TestCase):
     def test_both_platform_policy_verdicts_are_retained_before_admission(self):
         script=(ROOT/'scripts/scan-container-artifact.sh').read_text()
-        block=script.split('python3 - "$output" "$arch" <<\'PY\'\n',1)[1].split('\nPY',1)[0]
+        marker='python3 - "$output" "$arch" <<\'PY\'\n'
+        block=marker+script.split(marker,1)[1].replace('\ndone\ndone\n','\n',1)
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory)
             for arch,state in [('amd64','ACTIONABLE'),('arm64','REVIEW_REQUIRED')]:
@@ -692,11 +693,25 @@ class ArtifactScanCollection(unittest.TestCase):
                     (d/f'{scanner}-metadata.json').write_text(json.dumps(dict(
                         scanner_identity=dict(version='0.0.1'),database=dict(identity='fixture-db'),
                         completed_at=NOW,status='SUCCEEDED')))
-            for arch in ('amd64','arm64'):
-                p=subprocess.run([sys.executable,'-',str(root/arch),arch],input=block,text=True,capture_output=True)
-                self.assertEqual(p.returncode,0,p.stderr)
+            def collect(mode,arch):
+                env=dict(os.environ,mode=mode,arch=arch,output=str(root/arch),cache=str(root/'cache'))
+                setup='set -euo pipefail\ncleanup() { :; }\n'
+                return subprocess.run(['bash'],input=setup+block,env=env,text=True,capture_output=True)
+
+            for mode in ('local','published'):
+                for arch in ('amd64','arm64'):
+                    with self.subTest(mode=mode,arch=arch):
+                        p=collect(mode,arch)
+                        self.assertEqual(p.returncode,0,p.stderr)
             self.assertEqual([json.loads((root/a/'scan-records.json').read_text())[0]['policy_result']
                               for a in ('amd64','arm64')],['ACTIONABLE','REVIEW_REQUIRED'])
+            (root/'arm64/scan-records.json').unlink()
+            (root/'arm64/policy-result.json').write_text(json.dumps(dict(
+                gate_state='UNKNOWN_STALE',evidence_health=dict(state='UNKNOWN_STALE'))))
+            p=collect('local','arm64')
+            self.assertNotEqual(p.returncode,0)
+            self.assertIn('Artifact vulnerability evidence is not healthy and complete',p.stderr)
+            self.assertFalse((root/'arm64/scan-records.json').exists())
 
 
 
@@ -798,6 +813,24 @@ class AdmissionConsumer(unittest.TestCase):
             self.invoke(complete=True,locator='')
         self.assertEqual(self.calls,[])
         self.assertFalse((self.prepared/'build-evidence.json').exists())
+
+    def test_runtime_pair_cannot_use_operator_authority_for_nonclean_artifacts(self):
+        for state in ('ACTIONABLE','REVIEW_REQUIRED'):
+            with self.subTest(state=state):
+                source_path=self.prepared/'source.json'
+                source=publisher.read(source_path);source['runtime']='php-fpm'
+                publisher.write(source_path,source)
+                for arch in ('amd64','arm64'):
+                    folder=self.scan/arch
+                    result=publisher.read(folder/'policy-result.json');result['gate_state']=state
+                    publisher.write(folder/'policy-result.json',result)
+                    records=publisher.read(folder/'scan-records.json')
+                    for record in records:record['policy_result']=state
+                    publisher.write(folder/'scan-records.json',records)
+                with self.assertRaisesRegex(ValueError,'publisher-runtime-security-not-clean'):
+                    self.invoke()
+                self.assertEqual(self.calls,[])
+                self.assertFalse(self.output.exists())
 
     def test_exact_acceptance_retains_original_records_and_complete_findings(self):
         document=self.invoke(complete=True)
