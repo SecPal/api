@@ -21,6 +21,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Update the Nginx runtime to 1.30.7 and install the patched Alpine OpenSSL
+  libraries on both architectures (refs #2920).
+
+- Align PHP-FPM PostgreSQL build/runtime pins and the shared SQLite builder's
+  OpenSSL pin with the Alpine 3.24 package set to restore native container builds
+  (refs #2920).
+
 - Monitor the published customer-lock security fix in the accepted PHP-FPM/Nginx
   pair on both native architectures through the shared dual-scanner workflow and
   its reviewed, expiring subject-bound VEX (refs #1615).

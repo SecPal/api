@@ -318,7 +318,7 @@ def scan(root, proof_path, native, output):
             evaluation = json.loads((folder/'evaluation.json').read_text())
             require(evaluation['subject'] == dict(platform='linux/'+arch, oci_digest=subjects[arch][role]))
             policy = pub['observe_policy'](base, folder, pub['evidence_now']())
-            require(policy['gate_state'] == 'CLEAN' and policy['evidence_health']['state'] == 'HEALTHY')
+            require(pub['qualifies_unpublished_policy'](policy))
             policies[role+'/'+arch] = digest(json.dumps(policy, sort_keys=True, separators=(',', ':')).encode())
     verify(root, proof_path)
     write(output/'requalified-existing-images.json', dict(
