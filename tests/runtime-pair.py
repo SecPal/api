@@ -246,8 +246,10 @@ wait_for_http() {
             self.assertTrue(any(v.startswith('type=tmpfs,destination='+directory+',')
                                 and 'chown=true' in v for v in args), directory)
 
-    def test_unpublished_pair_observes_four_images_and_rejects_incomplete_or_nonclean_inputs(self):
-        for change in (None, 'retry', 'missing', 'companion', 'source', 'policy', 'raw', 'sbom', 'run', 'attempt'):
+    def test_unpublished_pair_requires_complete_healthy_evidence_and_preserves_policy_results(self):
+        for change in (None, 'retry', 'ACTIONABLE', 'REVIEW_REQUIRED', 'UNKNOWN_STALE', 'stale',
+                       'missing', 'platform', 'companion', 'source', 'subject', 'raw', 'sbom', 'run',
+                       'attempt', 'scanner', 'verdict-mismatch', 'smoke'):
             with self.subTest(change=change), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory); native = root/'native'; scans = root/'scan'
                 output = root/'pair.json'; output.write_text('stale')
@@ -283,43 +285,70 @@ wait_for_http() {
                         publisher.write(folder/'scan-records.json', scans_record)
                 selected = native/'api-native-amd64-123-1/nginx/smoke.json'
                 folder = scans/'nginx/amd64'
+                gate_state = change if change in ('ACTIONABLE', 'REVIEW_REQUIRED', 'UNKNOWN_STALE') else 'CLEAN'
+                policy = dict(evidence_health=dict(state='UNKNOWN_STALE' if change == 'stale' else 'HEALTHY'),
+                              gate_state=gate_state, findings=[] if gate_state == 'CLEAN' else [
+                                  dict(id='fixture-observation')])
+                publisher.write(folder/'policy-result.json', policy)
+                policy_bytes = (folder/'policy-result.json').read_bytes()
+                records_path = folder/'scan-records.json'
+                scanner_records = publisher.read(records_path)
+                for scan in scanner_records:
+                    scan['policy_result'] = 'ACTIONABLE' if change == 'verdict-mismatch' else gate_state
+                if change == 'scanner':
+                    scanner_records[0]['status'] = 'FAILED'
+                publisher.write(records_path, scanner_records)
                 if change == 'missing':
                     selected.unlink()
-                elif change in ('companion', 'run', 'attempt'):
+                elif change in ('companion', 'run', 'attempt', 'smoke'):
                     value = publisher.read(selected)
                     if change == 'companion':
                         value['runtime_pair']['php-fpm'] = 'sha256:'+'f'*64
                     elif change == 'run':
                         value['workflow_run_id'] = '999'
-                    else:
+                    elif change == 'attempt':
                         value['workflow_run_attempt'] = '2'
+                    else:
+                        value['result'] = 'FAILED'
                     publisher.write(selected, value)
                 elif change == 'source':
                     records[('amd64', 'nginx')]['source']['commit'] = 'f'*40
+                elif change == 'platform':
+                    del records[('arm64', 'nginx')]
+                elif change == 'subject':
+                    publisher.write(folder/'evaluation.json', dict(subject=dict(
+                        platform='linux/amd64', oci_digest='sha256:'+'f'*64)))
                 elif change == 'raw':
                     (folder/'raw/grype.json').write_bytes(b'substituted')
                 elif change == 'sbom':
                     (folder/'sbom/syft.spdx.json').write_bytes(b'substituted')
-                policy = dict(evidence_health=dict(state='HEALTHY'), gate_state='ACTIONABLE' if change == 'policy' else 'CLEAN')
                 def observe(_root, own, arch, expected, *, attempt=None):
                     self.assertEqual(attempt, '1')
                     self.assertEqual(own, native/f'api-native-{arch}-123-1'/expected['runtime'])
-                    return records[(arch, expected['runtime'])], b'manifest', b'config'
+                    record = records.get((arch, expected['runtime']))
+                    if record is None:
+                        raise FileNotFoundError(own)
+                    return record, b'manifest', b'config'
                 with unittest.mock.patch.dict(os.environ, GITHUB_SHA=SHA, GITHUB_RUN_ID='123', GITHUB_RUN_ATTEMPT='2' if change == 'retry' else '1',
                      GITHUB_EVENT_NAME='pull_request', API_NATIVE_AMD64_ATTEMPT='1', API_NATIVE_ARM64_ATTEMPT='1'), \
                      unittest.mock.patch.object(publisher, 'source', side_effect=lambda _r, sha, role: dict(repository=publisher.SOURCE, commit=sha, runtime=role)), \
                      unittest.mock.patch.object(publisher, 'observe_native', side_effect=observe) as observation, \
-                     unittest.mock.patch.object(publisher, 'observe_policy', return_value=policy), \
+                     unittest.mock.patch.object(publisher, 'observe_policy', side_effect=lambda _r, path, _time: (
+                         policy if path == folder else dict(evidence_health=dict(state='HEALTHY'), gate_state='CLEAN'))), \
                      unittest.mock.patch.object(publisher, 'evidence_now', return_value=NOW), \
                      unittest.mock.patch.object(publisher, 'run', return_value=b'fixture-tree'):
-                    if change in (None, 'retry'):
+                    if change in (None, 'retry', 'ACTIONABLE', 'REVIEW_REQUIRED'):
                         publisher.qualify_unpublished_pair(root, native, scans, output)
                         value = publisher.read(output)
                         self.assertFalse(value['published'])
                         self.assertEqual(value['source']['commit'], SHA)
-                        self.assertEqual(value['qualification'], 'CLEAN')
+                        self.assertEqual(value['qualification'], 'SUCCEEDED')
                         self.assertEqual(observation.call_count, 4)
                         self.assertEqual(len(value['images']['nginx']['platforms']), 2)
+                        image = value['images']['nginx']['platforms'][0]
+                        self.assertEqual([scan['policy_result'] for scan in image['scans']], [gate_state, gate_state])
+                        self.assertEqual(image['policy_sha256'], digest(encoded(policy)))
+                        self.assertEqual((folder/'policy-result.json').read_bytes(), policy_bytes)
                     else:
                         with self.assertRaises((ValueError, OSError)):
                             publisher.qualify_unpublished_pair(root, native, scans, output)

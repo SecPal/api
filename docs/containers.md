@@ -397,13 +397,16 @@ native record and smoke must still match that exact producing attempt, platform,
 source and runtime pair; a future attempt or changed subject cannot inherit VEX.
 
 After scanning, the same publisher's `qualify-unpublished-pair` command
-re-observes all four native layouts, SBOM and raw scanner bindings, fresh CLEAN
-policy decisions and successful smoke records naming both exact companions.
-It retains `unpublished-runtime-pair.json` with source/tree, manifest/config
-digests, candidate index digests and a shared pair identity. Missing, substituted,
-non-CLEAN or mismatched-run evidence removes any stale result and fails closed.
-This explicitly unpublished qualification grants no registry admission or
-attestation; those remain in the protected publication workflow.
+re-observes all four native layouts, SBOM and raw scanner bindings, fresh
+policy evidence and successful smoke records naming both exact companions.
+It retains `unpublished-runtime-pair.json` with `qualification: SUCCEEDED`,
+source/tree, manifest/config digests, candidate index digests and a shared pair
+identity. The original scanner records and findings stay bound to each
+platform. Fresh `CLEAN`, `ACTIONABLE` and `REVIEW_REQUIRED` results can qualify
+when the evidence is healthy and complete, including during requalification
+of existing images. Missing, substituted, stale, unhealthy or mismatched-run
+evidence fails closed. Registry admission and attestation remain in the
+protected publication workflow.
 
 Publication requires the existing explicit `workflow_dispatch` selecting
 `pair`; merging source into main does not trigger registry writes. Running

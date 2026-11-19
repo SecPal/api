@@ -237,5 +237,75 @@ class ArchiveTests(unittest.TestCase):
                     ci.observe(root, proof, root, 'amd64')
 
 
+class ScanTests(unittest.TestCase):
+    def test_reuse_requalifies_exact_images_with_fresh_healthy_evidence(self):
+        for case in ('CLEAN', 'ACTIONABLE', 'REVIEW_REQUIRED', 'UNKNOWN_STALE',
+                     'stale', 'failed-scan', 'subject', 'smoke', 'scope'):
+            with self.subTest(case=case), tempfile.TemporaryDirectory() as directory:
+                root=Path(directory)
+                base=root/'producer';base.mkdir()
+                output=root/'scan';native=root/'native'
+                proof_path=root/'scope.json';proof_path.write_text('{}')
+                context=dict(source_commit='a'*40,run_id='10',run_attempt='2')
+                proof=dict(mode='reuse',baseline=dict(context=context))
+                subjects={arch: {role: 'sha256:'+str(num)*64 for num,role in enumerate(ci.ROLES,1)}
+                          for arch in ('amd64','arm64')}
+                for arch in subjects:
+                    folder=native/f'api-native-{arch}-20-3';folder.mkdir(parents=True)
+                    ci.write(folder/'ci-smoke.json',dict(
+                        subjects=subjects[arch],arch=arch,
+                        result='FAILED' if case=='smoke' else 'SUCCEEDED',
+                        run_id='20',attempt='3',scope_sha256=ci.digest(proof_path.read_bytes())))
+                policy=dict(gate_state=case if case.isupper() else 'CLEAN',
+                            evidence_health=dict(state='UNKNOWN_STALE' if case=='stale' else 'HEALTHY'),
+                            findings=[] if case=='CLEAN' else [dict(id='fixture-observation')])
+
+                def run_command(command, **kwargs):
+                    if command[:1]==['git']:
+                        return
+                    self.assertEqual(command,['scripts/scan-container-artifact.sh','local'])
+                    self.assertEqual(kwargs['cwd'],base)
+                    self.assertEqual(kwargs['env']['GITHUB_SHA'],context['source_commit'])
+                    self.assertEqual(kwargs['env']['GITHUB_RUN_ID'],context['run_id'])
+                    self.assertEqual(kwargs['env']['GITHUB_RUN_ATTEMPT'],context['run_attempt'])
+                    if case=='failed-scan':
+                        raise subprocess.CalledProcessError(1,command)
+                    for arch in subjects:
+                        for role,target in subjects[arch].items():
+                            folder=base/'.context/scan'/role/arch
+                            folder.mkdir(parents=True)
+                            ci.write(folder/'evaluation.json',dict(subject=dict(
+                                platform='linux/'+arch,oci_digest='sha256:'+'f'*64 if case=='subject' else target)))
+                            ci.write(folder/'policy-result.json',policy)
+
+                pub=ci.runpy.run_path(str(POLICY.parents[2]/'scripts/container-publisher.py'))
+                pub['observe_policy']=lambda _root, folder, _at: json.loads((folder/'policy-result.json').read_text())
+                scope=[proof, ValueError('changed scope') if case=='scope' else proof]
+                with patch.dict(os.environ,GITHUB_RUN_ID='20',GITHUB_RUN_ATTEMPT='4',
+                                API_NATIVE_AMD64_ATTEMPT='3',API_NATIVE_ARM64_ATTEMPT='3'), \
+                        patch.object(ci,'verify',side_effect=scope), \
+                        patch.object(ci,'base_checkout',return_value=base), \
+                        patch.object(ci,'git',return_value=b'fixture-commit'), \
+                        patch.object(ci,'observe',side_effect=lambda _root,_proof,_folder,arch: subjects[arch]), \
+                        patch.object(ci,'publisher',return_value=pub), \
+                        patch.object(ci.subprocess,'run',side_effect=run_command):
+                    receipt=output/'requalified-existing-images.json'
+                    if case in ('CLEAN','ACTIONABLE','REVIEW_REQUIRED'):
+                        ci.scan(root,proof_path,native,output)
+                        value=json.loads(receipt.read_text())
+                        self.assertEqual(value['qualification'],'SUCCEEDED')
+                        self.assertEqual(value['producer'],context)
+                        self.assertEqual(value['verification'],dict(run_id='20',attempt='4'))
+                        self.assertEqual(value['subjects'],subjects)
+                        self.assertEqual(len(value['policies']),4)
+                        for arch in subjects:
+                            for role in ci.ROLES:
+                                self.assertEqual(json.loads((output/role/arch/'policy-result.json').read_text()),policy)
+                    else:
+                        with self.assertRaises((ValueError,subprocess.CalledProcessError)):
+                            ci.scan(root,proof_path,native,output)
+                        self.assertFalse(receipt.exists())
+
+
 if __name__ == '__main__':
     unittest.main()
