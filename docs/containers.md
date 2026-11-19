@@ -165,8 +165,10 @@ emulation. PR code receives neither package-write nor GitHub OIDC authority.
 
 Before building, the publisher verifies the exact clean Git commit and creates
 a sealed snapshot through the accepted organization snapshot helper. No ignored
-or untracked runner files enter the build context. Each pinned multi-platform
-base is resolved and verified to its native platform manifest. Composer cache
+or untracked runner files enter the build context. Each external image uses a
+literal tag-and-index-digest `FROM` reference. The publisher verifies the
+index and native platform manifest, then binds that reference to the verified
+local child in Buildah with `--pull=never`. Composer cache
 mounts are build caches; they are not additional source materials or runtime
 volumes. Distribution package resolutions are recorded by Syft; normalized
 source timestamps do not imply bit-for-bit reproducibility.
@@ -405,9 +407,11 @@ source/tree, manifest/config digests, candidate index digests and a shared pair
 identity. The original scanner records and findings stay bound to each
 platform. Fresh `CLEAN`, `ACTIONABLE` and `REVIEW_REQUIRED` results can qualify
 when the evidence is healthy and complete, including during requalification
-of existing images. Missing, substituted, stale, unhealthy or mismatched-run
-evidence fails closed. Registry admission and attestation remain in the
-protected publication workflow.
+of existing images. The PR workflow builds and qualifies current source when
+the authenticated publisher history has no compatible baseline. Missing,
+substituted, stale, unhealthy or mismatched-run qualification evidence fails
+closed. Registry admission and attestation remain in the protected publication
+workflow.
 
 Publication requires the existing explicit `workflow_dispatch` selecting
 `pair`; merging source into main does not trigger registry writes. Running

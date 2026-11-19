@@ -204,7 +204,11 @@ def origin(root, proof_path, run_id):
 def verify(root, proof_path):
     proof = json.loads(Path(proof_path).read_text())
     expected = current_scope(root, proof.get('policy_source') == 'bootstrap')
+    # Reuse is an optimization. Full qualification can always cover the same scope.
+    if expected['mode'] == 'reuse' and proof.get('mode') == 'build':
+        expected['mode'] = 'build'
     require(all(proof.get(k) == v for k, v in expected.items()))
+    require(('baseline' in proof) == (proof['mode'] == 'reuse'))
     if proof['mode'] == 'reuse':
         observed = origin(root, proof_path, proof['baseline']['context']['run_id'])
         require(observed == proof['baseline'])
@@ -349,7 +353,8 @@ def main():
                 if excluded_context(root, commit, delta):
                     proof['baseline'] = origin(root, args.proof, candidate['id'])
                     break
-            require('baseline' in proof)
+            if 'baseline' not in proof:
+                proof['mode'] = 'build'
             write(args.proof, proof)
         with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
             output.write('mode='+proof['mode']+'\n')

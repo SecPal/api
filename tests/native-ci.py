@@ -86,6 +86,37 @@ class ScopeTests(unittest.TestCase):
         self.write('tests/Unit/a.php', 'changed\n')
         self.assertEqual(self.scope(bootstrap=True)['mode'], 'reuse')
 
+    def test_config_change_builds_when_published_source_has_different_runtime_inputs(self):
+        producer = self.base
+        self.write('Containerfile', 'FROM newer-fixture\nCOPY app /app\n')
+        self.git('add', '.')
+        self.git('commit', '-qm', 'change native build inputs')
+        self.git('branch', '-f', 'main')
+        self.base = self.git('rev-parse', 'HEAD')
+        self.write('.github/dependabot.yml', 'version: 2\nupdates: []\n')
+        scope = self.scope()
+        self.assertEqual(scope['mode'], 'reuse')
+        with tempfile.TemporaryDirectory() as temp:
+            proof = Path(temp)/'proof.json'
+            outputs = Path(temp)/'outputs'
+            with patch.object(ci, 'current_scope', side_effect=lambda *_: dict(scope)), \
+                    patch.object(ci, 'successful_runs', return_value=[dict(id=1, head_sha=producer)]), \
+                    patch.object(ci, 'origin') as origin, \
+                    patch.object(sys, 'argv', ['native-ci.py', 'plan', '--root', str(self.root), '--proof', str(proof)]), \
+                    patch.dict(os.environ, GITHUB_OUTPUT=str(outputs)):
+                ci.main()
+                strict = ci.verify(self.root, proof)
+                self.assertEqual(strict['mode'], 'build')
+                self.assertNotIn('baseline', strict)
+                self.assertEqual(outputs.read_text(), 'mode=build\n')
+                origin.assert_not_called()
+                ci.write(proof, dict(strict, mode='not-applicable'))
+                with self.assertRaises(ValueError):
+                    ci.verify(self.root, proof)
+                ci.write(proof, dict(strict, baseline={}))
+                with self.assertRaises(ValueError):
+                    ci.verify(self.root, proof)
+
     def test_adding_a_regular_test_does_not_require_images(self):
         self.write('tests/Unit/new.php', '<?php // another assertion\n')
         self.assertEqual(self.scope()['mode'], 'not-applicable')

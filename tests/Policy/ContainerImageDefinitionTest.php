@@ -25,13 +25,13 @@ it('defines the production API image contract', function (): void {
     $dependenciesStage = explode('FROM extensions AS dependencies', $dockerfile, 2)[1];
     $dependenciesStage = explode('FROM extensions AS runtime', $dependenciesStage, 2)[0];
 
-    preg_match('/^ARG FRANKENPHP_IMAGE=.*:([0-9]+\.[0-9]+\.[0-9]+)-php/m', $dockerfile, $frankenInput);
+    preg_match('/^FROM .*:([0-9]+\.[0-9]+\.[0-9]+)-php/m', $dockerfile, $frankenInput);
     expect(version_compare($frankenInput[1] ?? '0', '1.13.5', '>='))->toBeTrue();
 
     expect($dockerfile)
-        ->toMatch('/^ARG FRANKENPHP_IMAGE=docker\\.io\\/dunglas\\/frankenphp:[0-9]+\\.[0-9]+\\.[0-9]+-php8\\.4\\.[0-9]+-alpine@sha256:[a-f0-9]{64}$/m')
-        ->toMatch('/^ARG COMPOSER_IMAGE=docker\\.io\\/library\\/composer:[0-9]+\\.[0-9]+\\.[0-9]+@sha256:[a-f0-9]{64}$/m')
-        ->toContain('FROM ${COMPOSER_IMAGE} AS composer', 'FROM ${FRANKENPHP_IMAGE} AS extensions')
+        ->toMatch('/^FROM docker\\.io\\/dunglas\\/frankenphp:[0-9]+\\.[0-9]+\\.[0-9]+-php8\\.4\\.[0-9]+-alpine@sha256:[a-f0-9]{64} AS api-base$/m')
+        ->toMatch('/^FROM docker\\.io\\/library\\/composer:[0-9]+\\.[0-9]+\\.[0-9]+@sha256:[a-f0-9]{64} AS composer$/m')
+        ->toContain('FROM api-base AS sqlite-build', 'FROM api-base AS extensions')
         ->toContain('composer install')
         ->toContain('libcurl=8.23.0-r0', 'brotli-libs=1.2.1-r0')
         ->toContain('python3 -m pip check', 'apk del --no-network .python-build-deps curl')
@@ -189,7 +189,7 @@ it('keeps the qualified FPM and public HTTP runtimes separate from the accepted 
     expect($nginx)->toContain('listen 8080;', 'root /app/public;', 'disable_symlinks on from=/app/public;', 'error_log /dev/null;', '"path":"$uri"')
         ->not->toContain('$request_uri', '$http_authorization', '$args');
     expect($fastcgi)->toContain('fastcgi_pass unix:/run/secpal-fpm/api.sock;', 'SCRIPT_FILENAME /app/public/index.php;', 'PATH_INFO "";', 'HTTP_PROXY "";', 'fastcgi_buffering off;');
-    expect((string) file_get_contents($root.'/Containerfile'))->toContain('FRANKENPHP_IMAGE=', 'CMD ["frankenphp"');
+    expect((string) file_get_contents($root.'/Containerfile'))->toContain(' AS api-base', 'CMD ["frankenphp"');
 });
 
 it('keeps secrets out of the FPM environment allowlist and reuses the qualified secret bootstrap', function (): void {
