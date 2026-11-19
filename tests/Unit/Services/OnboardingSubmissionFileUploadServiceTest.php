@@ -111,6 +111,7 @@ test('fails instead of reporting success when a persisted blob cannot be cleaned
     $repository->shouldReceive('findForTenantAndIdempotencyKey')->once()->andReturnNull();
     $repository->shouldReceive('create')->once()->andReturn($uploadedFile);
 
+    DB::shouldReceive('getConnections')->andReturn([]);
     DB::shouldReceive('transaction')->once()->andReturnUsing(function (callable $callback): never {
         $callback();
 
