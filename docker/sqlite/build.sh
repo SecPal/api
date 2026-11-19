@@ -4,7 +4,7 @@
 set -eu
 apk add --no-cache alpine-sdk=1.1-r1 abuild=3.17.0-r0 binutils=2.45.1-r1 \
         gcc=15.2.0-r5 musl-dev=1.2.6-r3 make=4.4.1-r4 readline-dev=8.3.3-r1 \
-        tcl=8.6.17-r1 unzip=6.0-r16 openssl=3.5.9-r0
+        tcl=8.6.17-r1 unzip=6.0-r16 openssl=3.5.9-r1
 export PACKAGER='SecPal Contributors <build@secpal.dev>'
 export REPODEST=/tmp/sqlite-packages
 export SRCDEST=/tmp/sqlite-distfiles

@@ -336,8 +336,9 @@ The PHP image uses the official PHP 8.4.27 FPM/CLI Alpine 3.24 base, full ICU
 data, the existing extensions, OPcache configuration and hash-locked
 OpenTimestamps dependencies. It contains the application, private storage and
 the CLI used by queues, the activity hash chain, scheduling and migrations.
-Nginx uses the official 1.30.6 Alpine 3.24 slim base and contains only public
-application files, HTTP configuration and the license. Both bases and Composer
+Nginx uses the official Alpine 3.24 slim base and contains only public
+application files, HTTP configuration and the license. Its Containerfile also
+pins the patched Alpine OpenSSL runtime libraries. Both bases and Composer
 are pinned to immutable multi-platform digests in their Containerfiles.
 
 Both processes run as UID/GID 10001 with read-only root filesystems, dropped
