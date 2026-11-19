@@ -1,7 +1,6 @@
 # SPDX-FileCopyrightText: 2026 SecPal Contributors
 # SPDX-License-Identifier: CC0-1.0
-ARG NGINX_IMAGE=docker.io/library/nginx:1.30.6-alpine3.24-slim@sha256:dede8895648b461178c3bc604f7eed4423efe5220b2c4d839f5eb3d34ac3f8f7
-FROM ${NGINX_IMAGE} AS runtime
+FROM docker.io/library/nginx:1.30.6-alpine3.24-slim@sha256:dede8895648b461178c3bc604f7eed4423efe5220b2c4d839f5eb3d34ac3f8f7 AS runtime
 RUN apk add --no-cache zlib=1.4-r0 \
     && apk del --no-network gettext-envsubst \
     && addgroup -g 10001 secpal \

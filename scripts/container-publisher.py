@@ -28,11 +28,11 @@ INDEX = 'application/vnd.oci.image.index.v1+json'
 
 RUNTIME_COMPONENTS = ('php-fpm', 'nginx')
 RUNTIMES = {
-    'legacy': dict(containerfile='Containerfile', argument='FRANKENPHP_IMAGE',
+    'legacy': dict(containerfile='Containerfile',
                    repository='docker.io/dunglas/frankenphp', composer=True),
-    'php-fpm': dict(containerfile='docker/php-fpm/Containerfile', argument='PHP_IMAGE',
+    'php-fpm': dict(containerfile='docker/php-fpm/Containerfile',
                     repository='docker.io/library/php', composer=True),
-    'nginx': dict(containerfile='docker/nginx/Containerfile', argument='NGINX_IMAGE',
+    'nginx': dict(containerfile='docker/nginx/Containerfile',
                   repository='docker.io/library/nginx', composer=False),
 }
 
@@ -122,36 +122,88 @@ def source(root, commit, runtime='legacy'):
     return result
 
 
+def reviewed_bases(text, runtime):
+    definition = runtime_definition(runtime)
+    # Keep base declarations in the literal, single-line grammar shared with Dependabot.
+    if (text.startswith('\ufeff') or '<<' in text
+            or re.search(r'^\s*#\s*(?:escape|syntax)\s*=', text, re.I | re.M)):
+        raise ValueError('publisher-base-stage-syntax')
+
+    runtime_stage = 'api-base' if definition['composer'] else 'runtime'
+    parents = {runtime_stage: definition['repository']}
+    if definition['composer']:
+        parents = {
+            'composer': 'docker.io/library/composer',
+            **parents,
+            'sqlite-build': 'api-base',
+            'extensions': 'api-base',
+            'dependencies': 'extensions',
+            'runtime': 'extensions',
+        }
+    stages = {}
+    continued = False
+    for line in text.split('\n'):
+        if not line.strip() or line.lstrip().startswith('#'):
+            continue
+        if re.match(r'^\s*FROM\b', line, re.I):
+            match = re.fullmatch(r'FROM (\S+) AS ([a-z][a-z0-9-]*)', line)
+            if match is None or continued:
+                raise ValueError('publisher-base-stage-syntax')
+            reference, stage = match.groups()
+            if stage in stages:
+                raise ValueError('publisher-base-stage')
+            stages[stage] = reference
+        continued = line.rstrip().endswith('\\')
+
+    if list(stages) != list(parents):
+        raise ValueError('publisher-base-stage')
+    pins = {}
+    for stage, parent in parents.items():
+        reference = stages[stage]
+        if stage in ('composer', runtime_stage):
+            if not re.fullmatch(re.escape(parent)+r':[A-Za-z0-9_][A-Za-z0-9._-]{0,127}@sha256:[0-9a-f]{64}',
+                                reference):
+                raise ValueError('publisher-reviewed-base')
+            pins['extensions' if stage == runtime_stage else stage] = reference
+        elif reference != parent:
+            raise ValueError('publisher-base-stage-parent')
+    return pins
+
+
 def bases(root, arch, runtime='legacy'):
     if 'linux/'+arch not in PLATFORMS:
         raise ValueError('publisher-base-platform')
     definition = runtime_definition(runtime)
     text = (Path(root)/definition['containerfile']).read_text()
     result = []
-    inputs = [('COMPOSER_IMAGE','composer','docker.io/library/composer')] if definition['composer'] else []
-    inputs.append((definition['argument'],'extensions',definition['repository']))
-    for argument, stage, repository in inputs:
-        match = re.search(r'^ARG '+argument+r'=(\S+)$',text,re.M)
-        if not match or not re.fullmatch(re.escape(repository)+r':[A-Za-z0-9._-]+@sha256:[0-9a-f]{64}',match[1]):
-            raise ValueError('publisher-reviewed-base')
-        reference = match[1]
-        raw = run(['skopeo','inspect','--raw','docker://'+repository+'@'+reference.split('@')[1]])
-        if digest(raw) != reference.split('@')[1]:
+    index_types = (INDEX, 'application/vnd.docker.distribution.manifest.list.v2+json')
+    manifest_types = (IMAGE, 'application/vnd.docker.distribution.manifest.v2+json')
+    for stage, reference in reviewed_bases(text, runtime).items():
+        tagged, index_digest = reference.split('@')
+        repository = tagged.rsplit(':', 1)[0]
+        raw = run(['skopeo','inspect','--raw','docker://'+repository+'@'+index_digest])
+        if digest(raw) != index_digest:
             raise ValueError('publisher-base-index-digest')
         index = json.loads(raw)
+        if index.get('schemaVersion') != 2 or index.get('mediaType') not in index_types:
+            raise ValueError('publisher-base-index')
+        variants = ('', 'v8') if arch == 'arm64' else ('',)
         descriptors = [d for d in index['manifests']
                        if d.get('platform',{}).get('os')=='linux'
                        and d['platform'].get('architecture')==arch
-                       and d['platform'].get('variant','') in ('','v8')]
-        if len(descriptors)!=1 or not re.fullmatch('sha256:[0-9a-f]{64}',descriptors[0]['digest']):
+                       and d['platform'].get('variant','') in variants]
+        if (len(descriptors) != 1 or not re.fullmatch('sha256:[0-9a-f]{64}', descriptors[0]['digest'])
+                or descriptors[0].get('mediaType') not in manifest_types):
             raise ValueError('publisher-base-descriptor')
-        resolved = repository+'@'+descriptors[0]['digest']
-        manifest = run(['skopeo','inspect','--raw','docker://'+resolved])
-        if digest(manifest)!=descriptors[0]['digest']:
+        descriptor = descriptors[0]
+        manifest = run(['skopeo','inspect','--raw','docker://'+repository+'@'+descriptor['digest']])
+        if digest(manifest) != descriptor['digest'] or len(manifest) != descriptor.get('size'):
             raise ValueError('publisher-base-manifest-digest')
-        result.append(dict(stage=stage,platform='linux/'+arch,reference=reference,digest=digest(manifest)))
+        child = json.loads(manifest)
+        if child.get('schemaVersion') != 2 or child.get('mediaType') != descriptor['mediaType']:
+            raise ValueError('publisher-base-manifest')
+        result.append(dict(stage=stage, platform='linux/'+arch, reference=reference, digest=descriptor['digest']))
     return result
-
 
 def expected_labels(source_record, base):
     labels = {

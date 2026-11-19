@@ -173,7 +173,7 @@ if [ "$runtime_set" = legacy ]; then
 # shellcheck disable=SC2016 # PHP variables must not be expanded by the shell.
 expected_runtime=$(php -r '
     $count = preg_match_all(
-        "~^ARG FRANKENPHP_IMAGE=docker\\.io/dunglas/frankenphp:([0-9]+\\.[0-9]+\\.[0-9]+)-php(8\\.4\\.[0-9]+)-alpine@sha256:[a-f0-9]{64}$~m",
+        "~^FROM docker\\.io/dunglas/frankenphp:([0-9]+\\.[0-9]+\\.[0-9]+)-php(8\\.4\\.[0-9]+)-alpine@sha256:[a-f0-9]{64} AS api-base$~m",
         file_get_contents("Containerfile"),
         $matches,
         PREG_SET_ORDER,

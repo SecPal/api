@@ -65,6 +65,83 @@ def platform(arch):
     return base,config,manifest,descriptor,subject
 
 
+class BaseInputTests(unittest.TestCase):
+    def setUp(self):
+        config = dict(mediaType='application/vnd.oci.image.config.v1+json',
+                      digest='sha256:'+'c'*64, size=123)
+        self.child = encoded(dict(schemaVersion=2, mediaType=publisher.IMAGE, config=config, layers=[]))
+        self.descriptor = dict(mediaType=publisher.IMAGE, digest=digest(self.child), size=len(self.child),
+                               platform=dict(os='linux', architecture='amd64'))
+        self.repository = 'docker.io/library/nginx'
+
+    def resolve(self, descriptors, *, index_override=None, child_override=None):
+        index = encoded(dict(schemaVersion=2, mediaType=publisher.INDEX, manifests=descriptors))
+        pin = self.repository+':1.30.6-alpine3.24-slim@'+digest(index)
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            recipe = root/'docker/nginx/Containerfile'
+            recipe.parent.mkdir(parents=True)
+            recipe.write_text(f'FROM {pin} AS runtime\n')
+            with patch.object(publisher, 'run', side_effect=[index if index_override is None else index_override,
+                                                             self.child if child_override is None else child_override]) as run:
+                records = publisher.bases(root, 'amd64', 'nginx')
+        self.assertEqual(run.call_args_list[0].args[0][-1], 'docker://'+self.repository+'@'+digest(index))
+        self.assertEqual(run.call_args_list[1].args[0][-1], 'docker://'+self.repository+'@'+digest(self.child))
+        return pin, records
+
+    def test_literal_pin_selects_the_exact_platform_child(self):
+        pin, records = self.resolve([self.descriptor])
+        self.assertEqual(records, [dict(stage='extensions', platform='linux/amd64', reference=pin,
+                                         digest=digest(self.child))])
+
+    def test_registry_bytes_and_platform_descriptor_are_verified(self):
+        cases = [
+            ([self.descriptor], dict(index_override=b'{}'), 'publisher-base-index-digest'),
+            ([self.descriptor], dict(child_override=b'{}'), 'publisher-base-manifest-digest'),
+            ([self.descriptor, self.descriptor], {}, 'publisher-base-descriptor'),
+            ([], {}, 'publisher-base-descriptor'),
+            ([dict(self.descriptor, platform=dict(os='linux', architecture='arm64'))], {},
+             'publisher-base-descriptor'),
+            ([dict(self.descriptor, size=len(self.child)+1)], {}, 'publisher-base-manifest-digest'),
+        ]
+        for descriptors, kwargs, error in cases:
+            with self.subTest(error=error), self.assertRaisesRegex(ValueError, error):
+                self.resolve(descriptors, **kwargs)
+
+    def test_actual_recipes_keep_single_updateable_pins_and_runtime_lineage(self):
+        legacy = publisher.reviewed_bases((ROOT/'Containerfile').read_text(), 'legacy')
+        php = publisher.reviewed_bases((ROOT/'docker/php-fpm/Containerfile').read_text(), 'php-fpm')
+        nginx = publisher.reviewed_bases((ROOT/'docker/nginx/Containerfile').read_text(), 'nginx')
+        self.assertEqual(legacy['composer'], php['composer'])
+        self.assertIn('dunglas/frankenphp:', legacy['extensions'])
+        self.assertIn('library/php:', php['extensions'])
+        self.assertIn('library/nginx:', nginx['extensions'])
+
+    def test_ambiguous_or_unreviewed_stage_inputs_fail_closed(self):
+        recipe = (ROOT/'docker/php-fpm/Containerfile').read_text()
+        primary = 'FROM api-base AS extensions'
+        external = recipe.split('FROM ', 1)[1].split(' AS ', 1)[0]
+        cases = {
+            'repository': recipe.replace('docker.io/library/php:', 'docker.io/unreviewed/php:'),
+            'mutable tag': recipe.replace('@'+external.split('@')[1], ''),
+            'wrong runtime lineage': recipe.replace(primary, 'FROM composer AS extensions'),
+            'wrong sqlite lineage': recipe.replace('FROM api-base AS sqlite-build', 'FROM composer AS sqlite-build'),
+            'duplicate alias': recipe+'\nFROM api-base AS runtime\n',
+            'second external declaration': recipe+f'\nFROM {external} AS replacement\n',
+            'context alias': recipe.replace('FROM api-base AS sqlite-build',
+                                            f'FROM api-base AS {external}'),
+            'variable': recipe.replace(primary, 'FROM ${PHP_IMAGE} AS extensions'),
+            'continued': recipe.replace(primary, 'RUN true '+chr(92)+'\n# comment\n\n'+primary),
+            'byte order mark': '\ufeffFROM '+external+' AS shadow\n'+recipe,
+            'noncanonical whitespace': recipe.replace(primary, '\u2003'+primary),
+            'platform override': recipe.replace(primary, 'FROM --platform=linux/arm64 api-base AS extensions'),
+        }
+        for case, candidate in cases.items():
+            self.assertNotEqual(recipe, candidate)
+            with self.subTest(case=case), self.assertRaises(ValueError):
+                publisher.reviewed_bases(candidate, 'php-fpm')
+
+
 class AttestationEvidenceFilenameTests(unittest.TestCase):
     def test_exact_digest_maps_to_portable_unique_filename(self):
         first = "sha256:" + "a" * 64

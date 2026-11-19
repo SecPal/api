@@ -17,7 +17,7 @@ class NginxHealthTests(unittest.TestCase):
     def test_exact_successful_laravel_liveness_without_php(self):
         recipe = (ROOT/'docker/nginx/Containerfile').read_text()
         source = re.search(r'COPY --chown=root:root --chmod=0555 (\S+) /usr/local/bin/secpal-http-live', recipe)[1]
-        image = re.search(r'^ARG NGINX_IMAGE=(\S+)$', recipe, re.M)[1]
+        image = re.search(r'^FROM (\S+) AS runtime$', recipe, re.M)[1]
         subprocess.run(['podman', 'pull', '--quiet', image], check=True, timeout=120)
         for status, body, accepted in (
             (200, b'{"status":"alive"}', True),
