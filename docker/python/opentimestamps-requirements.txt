@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2026 SecPal Contributors
 # SPDX-License-Identifier: CC0-1.0
 
-opentimestamps==0.4.5 --hash=sha256:a4912b3bd1b612a3ef5fac925b9137889e6c5cb91cc9e76c8202a2bf8abe26b5
+opentimestamps==0.5.0 --hash=sha256:bbe386274469292b54bb1d2e3af29b3e17f30025f12516bfc4aea3474b12e848 --hash=sha256:c38e20e3970b821273c827a14365d3f8542aad390f26f340091daf10d4d2e428
 pycryptodomex==3.23.0 \
     --hash=sha256:43c446e2ba8df8889e0e16f02211c25b4934898384c1ec1ec04d7889c0333587 \
     --hash=sha256:f489c4765093fb60e2edafdf223397bc716491b2b69fe74367b70d6999257a5c \
