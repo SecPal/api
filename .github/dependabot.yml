@@ -71,6 +71,10 @@ updates:
         patterns:
           - "library/composer"
         group-by: "dependency-name"
+    # Keep PHP 8.4 patch updates while excluding newer unsupported lines.
+    ignore:
+      - dependency-name: "library/php"
+        versions: [">= 8.5"]
     commit-message:
       prefix: "chore"
       include: "scope"

@@ -59,10 +59,11 @@ vex_arguments=()
   done < "$cache/vex-list"
 components=(legacy)
 if [ "$runtime_set" = pair ]; then components=(php-fpm nginx); fi
+if [ "$mode" = local ] && [ "${API_LOCAL_INCLUDE_LEGACY:-false}" = true ]; then components+=(legacy); fi
 for component in "${components[@]}"; do
   prepared="$prepared_root"
   scan_root="$repo_root/.context/scan"
-  if [ "$component" != legacy ]; then
+  if [ "$component" != legacy ] || [ "$mode" = local ]; then
     prepared="$prepared/$component"
     scan_root="$scan_root/$component"
   fi

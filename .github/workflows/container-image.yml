@@ -218,7 +218,12 @@ jobs:
         run: |
           scripts/build-container.sh "$NATIVE_ARCH" "$RUNNER_TEMP/secpal-native/$NATIVE_ARCH" "$RUNTIME_SET"
           if [ "$RUNTIME_SET" = pair ]; then
-            scripts/build-container.sh "$NATIVE_ARCH" "$RUNNER_TEMP/secpal-native/$NATIVE_ARCH/legacy" legacy
+            legacy="$RUNNER_TEMP/secpal-native/$NATIVE_ARCH/legacy"
+            scripts/build-container.sh "$NATIVE_ARCH" "$legacy" legacy
+            jq -n --arg completed_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --slurpfile record "$legacy/record.json" '
+              $record[0] | {platform:.subject.platform,digest:.subject.manifest_digest,runner_architecture,
+                test:"tests/docker/smoke.sh",result:"SUCCEEDED",completed_at:$completed_at,
+                workflow_run_id,workflow_run_attempt}' > "$legacy/smoke.json"
           fi
       - name: Exercise the exact existing qualified images natively
         if: needs.applicability.outputs.mode == 'reuse'
@@ -329,16 +334,34 @@ jobs:
           "$RUNNER_TEMP/secpal-policy/bin/pip" install --requirement .context/publisher-governance/requirements/vulnerability-policy.txt
           printf '%s\n' "$RUNNER_TEMP/secpal-policy/bin" >> "$GITHUB_PATH"
       - name: Scan exact unpublished artifacts under unchanged policy
+        id: scan
         if: needs.applicability.outputs.mode == 'build'
         env:
           API_RUNTIME_SET: pair
-        run: scripts/scan-container-artifact.sh local
+          DEPENDABOT_PR: ${{ github.event.pull_request.user.login == 'dependabot[bot]' }}
+        run: |
+          scope=.context/ci-scope/scope.json
+          if [ "$DEPENDABOT_PR" = true ]; then
+            python3 scripts/container-publisher.py verify-changed-base-tags --root . --scope "$scope"
+          fi
+          API_LOCAL_INCLUDE_LEGACY=$(jq -er 'any(.changes[]; .path == "Containerfile")|tostring' "$scope")
+          export API_LOCAL_INCLUDE_LEGACY
+          scripts/scan-container-artifact.sh local
+          echo "include-legacy=$API_LOCAL_INCLUDE_LEGACY" >> "$GITHUB_OUTPUT"
       - name: Verify complete same-source digest-bound runtime pair
         if: needs.applicability.outputs.mode == 'build'
+        env:
+          INCLUDE_LEGACY: ${{ steps.scan.outputs.include-legacy }}
         run: |
+          flags=()
+          case "$INCLUDE_LEGACY" in
+            true) flags+=(--include-legacy) ;;
+            false) ;;
+            *) exit 1 ;;
+          esac
           python3 scripts/container-publisher.py qualify-unpublished-pair \
             --root . --native .context/native --scan-root .context/scan \
-            --output .context/scan/unpublished-runtime-pair.json
+            --output .context/scan/unpublished-runtime-pair.json "${flags[@]}"
       - name: Requalify existing images with fresh independent artifact scans
         if: needs.applicability.outputs.mode == 'reuse'
         env:

@@ -714,7 +714,24 @@ def qualifies_unpublished_policy(policy):
             and policy['gate_state'] in ('CLEAN', 'ACTIONABLE', 'REVIEW_REQUIRED'))
 
 
-def qualify_unpublished_pair(root, native, scan_root, output):
+def verify_changed_base_tags(root, base, paths):
+    """Check new bot pins against the upstream tags without repinning existing builds."""
+    if not re.fullmatch(r'[a-f0-9]{40}', base):
+        raise ValueError('publisher-base-tag-source')
+    replacements = set()
+    for role, definition in RUNTIMES.items():
+        path = definition['containerfile']
+        if path in paths:
+            before = reviewed_bases(run(['git', 'show', base+':'+path], cwd=root).decode(), role)
+            after = reviewed_bases((Path(root)/path).read_text(), role)
+            replacements.update(pin for stage, pin in after.items() if pin != before[stage])
+    for pin in sorted(replacements):
+        tagged, index = pin.split('@')
+        if digest(run(['skopeo', 'inspect', '--raw', 'docker://'+tagged])) != index:
+            raise ValueError('publisher-base-tag-digest')
+
+
+def qualify_unpublished_pair(root, native, scan_root, output, *, include_legacy=False):
     """Re-observe PR artifacts; this is never registry/publication admission."""
     root, native, scan_root, output = map(Path, (root, native, scan_root, output))
     output.unlink(missing_ok=True)
@@ -722,7 +739,8 @@ def qualify_unpublished_pair(root, native, scan_root, output):
     run_id, attempt = os.environ['GITHUB_RUN_ID'], os.environ['GITHUB_RUN_ATTEMPT']
     observed_at = evidence_now()
     images, companions, manifest_digests = {}, {}, set()
-    for role in RUNTIME_COMPONENTS:
+    roles = (*RUNTIME_COMPONENTS, 'legacy') if include_legacy else RUNTIME_COMPONENTS
+    for role in roles:
         expected = source(root, commit, role)
         platforms, sizes = [], []
         for arch in ('amd64', 'arm64'):
@@ -738,7 +756,7 @@ def qualify_unpublished_pair(root, native, scan_root, output):
             smoke = read(own/'smoke.json')
             scans = read(folder/'scan-records.json')
             if (record['source'] != expected or subject['platform'] != target['platform']
-                    or subject['labels'].get('secpal.dev/runtime-component') != role
+                    or subject['labels'].get('secpal.dev/runtime-component') != (None if role == 'legacy' else role)
                     or subject['manifest_digest'] in manifest_digests
                     or read(folder/'evaluation.json')['subject'] != target
                     or association['subject'] != target or association['spdx_digest'] != spdx_digest
@@ -764,7 +782,10 @@ def qualify_unpublished_pair(root, native, scan_root, output):
                         or scan['evidence_sha256'] != digest(read_bytes(folder/'raw'/(scanner+'.json')))):
                     raise ValueError('publisher-unpublished-pair-scanner')
             manifest_digests.add(subject['manifest_digest'])
-            companions[(arch, role)] = smoke['runtime_pair']
+            if role != 'legacy':
+                companions[(arch, role)] = smoke['runtime_pair']
+            elif 'runtime_pair' in smoke:
+                raise ValueError('publisher-unpublished-legacy-smoke')
             sizes.append(len(manifest))
             platforms.append(dict(subject=subject, sbom_sha256=spdx_digest, scans=scans,
                                   smoke=smoke, policy_sha256=digest(canonical(policy))))
@@ -923,6 +944,10 @@ def main():
     c=sub.add_parser('qualify-unpublished-pair')
     for key in ('root','native','scan-root','output'):
         c.add_argument('--'+key,required=True)
+    c.add_argument('--include-legacy', action='store_true')
+    c=sub.add_parser('verify-changed-base-tags')
+    c.add_argument('--root',required=True)
+    c.add_argument('--scope',required=True)
     c=sub.add_parser('admission-pair')
     for key in ('root','prepared','scan-root','smoke-root'):
         c.add_argument('--'+key,required=True)
@@ -938,7 +963,12 @@ def main():
     elif args.command=='complete-pair':
         complete_runtime_pair(args.root,args.prepared,args.scan_root,args.smoke_root,args.output)
     elif args.command=='qualify-unpublished-pair':
-        qualify_unpublished_pair(args.root,args.native,args.scan_root,args.output)
+        qualify_unpublished_pair(args.root,args.native,args.scan_root,args.output,include_legacy=args.include_legacy)
+    elif args.command=='verify-changed-base-tags':
+        scope = read(args.scope)
+        if scope['mode'] != 'build' or scope['source']['merge'] != os.environ['GITHUB_SHA']:
+            raise ValueError('publisher-base-tag-source')
+        verify_changed_base_tags(args.root, scope['source']['base'], [entry['path'] for entry in scope['changes']])
     elif args.command=='admission-pair':
         recheck_runtime_pair(args.root,args.prepared,args.scan_root,args.smoke_root)
     elif args.command=='candidate-context':
