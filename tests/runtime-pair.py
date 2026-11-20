@@ -194,8 +194,8 @@ wait_for_http() {
     def test_missing_qualified_bootstrap_cleans_owned_temporary_directory(self):
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory);temporary=root/'temporary';temporary.mkdir()
-            env=dict(os.environ,RUNTIME_SET='pair',PHP_FPM_IMAGE='never-created',
-                     NGINX_IMAGE='never-created',GITHUB_WORKSPACE=str(root/'missing-checkout'),
+            env=dict(os.environ,PHP_FPM_IMAGE='never-created',
+                     NGINX_IMAGE='never-created',EXPECTED_ARCH='amd64',GITHUB_WORKSPACE=str(root/'missing-checkout'),
                      TMPDIR=str(temporary))
             script=Path(__file__).resolve().parents[1]/'tests/docker/smoke.sh'
             result=subprocess.run(['sh',str(script)],env=env,capture_output=True,text=True)
@@ -223,8 +223,8 @@ wait_for_http() {
             (scripts/'assert-port-closed.php').write_text('fixture')
             (root/'database').mkdir()
             env = dict(os.environ, PATH=str(tools)+':'+os.environ['PATH'],
-                       RUNTIME_SET='pair', PHP_FPM_IMAGE='fixture', NGINX_IMAGE='fixture',
-                       SKIP_BUILD='1', EXPECTED_ARCH='amd64', GITHUB_WORKSPACE=str(root))
+                        PHP_FPM_IMAGE='fixture', NGINX_IMAGE='fixture',
+                       EXPECTED_ARCH='amd64', GITHUB_WORKSPACE=str(root))
             script = Path(__file__).resolve().parents[1]/'tests/docker/smoke.sh'
             result = subprocess.run(['sh', str(script)], env=env, cwd=root, capture_output=True, text=True)
             self.assertEqual(result.returncode, 78)
@@ -232,9 +232,9 @@ wait_for_http() {
 
     def test_read_only_php_cli_supplies_its_writable_runtime_directories(self):
         script = (Path(__file__).resolve().parents[1]/'tests/docker/smoke.sh').read_text()
-        body = script[script.index('run_api() {'):script.index('\nif [ "$runtime_set" = pair ]; then\n    podman exec -i')]
+        body = script[script.index('run_api() {'):script.index('\npodman exec -i')]
         setup = (
-            'runtime_set=pair; network=fixture; api_env=fixture; secret_root=fixture; '
+            'network=fixture; api_env=fixture; secret_root=fixture; '
             'bootstrap_source=fixture; bootstrap_ini=fixture; image=fixture; '
             'podman() { printf "%s\\n" "$@"; };\n'
         )
@@ -249,29 +249,19 @@ wait_for_http() {
     def test_unpublished_pair_requires_complete_healthy_evidence_and_preserves_policy_results(self):
         for change in (None, 'retry', 'ACTIONABLE', 'REVIEW_REQUIRED', 'UNKNOWN_STALE', 'stale',
                        'missing', 'platform', 'companion', 'source', 'subject', 'raw', 'sbom', 'run',
-                       'attempt', 'scanner', 'verdict-mismatch', 'smoke', 'legacy', 'legacy-missing'):
+                       'attempt', 'scanner', 'verdict-mismatch', 'smoke'):
             with self.subTest(change=change), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory); native = root/'native'; scans = root/'scan'
                 output = root/'pair.json'; output.write_text('stale')
                 records = {}
                 docs = self.documents()
-                include_legacy = change in ('legacy', 'legacy-missing')
-                if change == 'legacy':
-                    docs['legacy'] = dict(subject=dict(platforms=[]), smoke_tests=[])
-                    for arch in ('amd64', 'arm64'):
-                        platform = 'linux/'+arch
-                        image = digest(('legacy'+arch).encode())
-                        docs['legacy']['subject']['platforms'].append(dict(platform=platform, manifest_digest=image, labels={}))
-                        docs['legacy']['smoke_tests'].append(dict(platform=platform, digest=image, result='SUCCEEDED'))
                 for arch in ('amd64', 'arm64'):
-                    for role in docs:
+                    for role in publisher.RUNTIME_COMPONENTS:
                         own = native/f'api-native-{arch}-123-1'/role; own.mkdir(parents=True)
                         folder = scans/role/arch; (folder/'sbom').mkdir(parents=True)
                         (folder/'raw').mkdir()
                         subject = next(p for p in docs[role]['subject']['platforms'] if p['platform'] == 'linux/'+arch)
-                        expected = dict(repository=publisher.SOURCE, commit=SHA)
-                        if role != 'legacy':
-                            expected['runtime'] = role
+                        expected = dict(repository=publisher.SOURCE, commit=SHA, runtime=role)
                         records[(arch, role)] = dict(source=expected, subject=subject)
                         spdx = b'fixture SPDX'
                         (folder/'sbom/syft.spdx.json').write_bytes(spdx)
@@ -334,28 +324,26 @@ wait_for_http() {
                     (folder/'sbom/syft.spdx.json').write_bytes(b'substituted')
                 def observe(_root, own, arch, expected, *, attempt=None):
                     self.assertEqual(attempt, '1')
-                    role = expected.get('runtime', 'legacy')
-                    self.assertEqual(own, native/f'api-native-{arch}-123-1'/role)
-                    record = records.get((arch, role))
+                    self.assertEqual(own, native/f'api-native-{arch}-123-1'/expected['runtime'])
+                    record = records.get((arch, expected['runtime']))
                     if record is None:
                         raise FileNotFoundError(own)
                     return record, b'manifest', b'config'
                 with unittest.mock.patch.dict(os.environ, GITHUB_SHA=SHA, GITHUB_RUN_ID='123', GITHUB_RUN_ATTEMPT='2' if change == 'retry' else '1',
                      GITHUB_EVENT_NAME='pull_request', API_NATIVE_AMD64_ATTEMPT='1', API_NATIVE_ARM64_ATTEMPT='1'), \
-                     unittest.mock.patch.object(publisher, 'source', side_effect=lambda _r, sha, role: dict(repository=publisher.SOURCE, commit=sha, **({'runtime':role} if role != 'legacy' else {}))), \
+                     unittest.mock.patch.object(publisher, 'source', side_effect=lambda _r, sha, role: dict(repository=publisher.SOURCE, commit=sha, runtime=role)), \
                      unittest.mock.patch.object(publisher, 'observe_native', side_effect=observe) as observation, \
                      unittest.mock.patch.object(publisher, 'observe_policy', side_effect=lambda _r, path, _time: (
                          policy if path == folder else dict(evidence_health=dict(state='HEALTHY'), gate_state='CLEAN'))), \
                      unittest.mock.patch.object(publisher, 'evidence_now', return_value=NOW), \
                      unittest.mock.patch.object(publisher, 'run', return_value=b'fixture-tree'):
-                    if change in (None, 'retry', 'ACTIONABLE', 'REVIEW_REQUIRED', 'legacy'):
-                        publisher.qualify_unpublished_pair(root, native, scans, output, include_legacy=include_legacy)
+                    if change in (None, 'retry', 'ACTIONABLE', 'REVIEW_REQUIRED'):
+                        publisher.qualify_unpublished_pair(root, native, scans, output)
                         value = publisher.read(output)
                         self.assertFalse(value['published'])
                         self.assertEqual(value['source']['commit'], SHA)
                         self.assertEqual(value['qualification'], 'SUCCEEDED')
-                        self.assertEqual(observation.call_count, 6 if include_legacy else 4)
-                        self.assertEqual('legacy' in value['images'], include_legacy)
+                        self.assertEqual(observation.call_count, 4)
                         self.assertEqual(len(value['images']['nginx']['platforms']), 2)
                         image = value['images']['nginx']['platforms'][0]
                         self.assertEqual([scan['policy_result'] for scan in image['scans']], [gate_state, gate_state])
@@ -363,25 +351,27 @@ wait_for_http() {
                         self.assertEqual((folder/'policy-result.json').read_bytes(), policy_bytes)
                     else:
                         with self.assertRaises((ValueError, OSError)):
-                            publisher.qualify_unpublished_pair(root, native, scans, output, include_legacy=include_legacy)
+                            publisher.qualify_unpublished_pair(root, native, scans, output)
                         self.assertFalse(output.exists())
 
     def test_changed_base_tag_must_resolve_to_the_proposed_index(self):
-        path = Path(__file__).resolve().parents[1]/'Containerfile'
+        path = Path(__file__).resolve().parents[1]/'docker/php-fpm/Containerfile'
         old = path.read_text()
-        before = publisher.reviewed_bases(old, 'legacy')['composer']
+        before = publisher.reviewed_bases(old, 'php-fpm')['composer']
         tag, old_digest = before.split('@')
         index = b'fixture upstream index'
         after = old.replace(old_digest, digest(index))
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            (root/'Containerfile').write_text(after)
+            recipe = root/'docker/php-fpm/Containerfile'
+            recipe.parent.mkdir(parents=True)
+            recipe.write_text(after)
             with unittest.mock.patch.object(publisher, 'run', side_effect=[old.encode(), index]) as execute:
-                publisher.verify_changed_base_tags(root, SHA, ['Containerfile'])
+                publisher.verify_changed_base_tags(root, SHA, ['docker/php-fpm/Containerfile'])
                 self.assertEqual(execute.call_args.args[0][-1], 'docker://'+tag)
             with unittest.mock.patch.object(publisher, 'run', side_effect=[old.encode(), b'other index']):
                 with self.assertRaisesRegex(ValueError, 'publisher-base-tag-digest'):
-                    publisher.verify_changed_base_tags(root, SHA, ['Containerfile'])
+                    publisher.verify_changed_base_tags(root, SHA, ['docker/php-fpm/Containerfile'])
 
     def test_qualification_reads_reviewed_data_without_changing_pinned_policy_or_builds(self):
         root = Path(__file__).resolve().parents[1]

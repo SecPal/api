@@ -43,8 +43,7 @@ jobs:
       pip-manifest-path: "docker/python/opentimestamps-requirements.txt"
       pre-commit-path: ".pre-commit-config.yaml"
       docker-rules: >-
-        [{"image":"library/composer","paths":["Containerfile","docker/php-fpm/Containerfile"],"line":"2","suffix":""},
-         {"image":"dunglas/frankenphp","paths":["Containerfile"],"line":"1.13.5","suffix":"-php8.4.27-alpine","digestRefresh":true},
+        [{"image":"library/composer","paths":["docker/php-fpm/Containerfile"],"line":"2","suffix":""},
          {"image":"library/php","paths":["docker/php-fpm/Containerfile"],"line":"8.4","suffix":"-fpm-alpine3.24"},
          {"image":"library/nginx","paths":["docker/nginx/Containerfile"],"line":"1.30","suffix":"-alpine3.24-slim"}]
       phase: "2" # Verified PATCH and MINOR; Source Safety must be required

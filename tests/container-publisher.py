@@ -29,8 +29,8 @@ source_scanner = importlib.util.module_from_spec(scan_spec); scan_spec.loader.ex
 SOURCE_POLICY = json.loads((GOVERNANCE / 'policies/trivy-repository-scan-v1.json').read_bytes())
 
 SHA='a'*40
-SOURCE=dict(repository='https://github.com/SecPal/api',commit=SHA,epoch=1700000000,context=dict(path='.'),
-            containerfile=dict(path='Containerfile',sha256='sha256:'+'b'*64),
+SOURCE=dict(repository='https://github.com/SecPal/api',commit=SHA,epoch=1700000000,runtime='php-fpm',context=dict(path='.'),
+            containerfile=dict(path='docker/php-fpm/Containerfile',sha256='sha256:'+'b'*64),
             containerignore=dict(path='.containerignore',sha256='sha256:'+'c'*64))
 NOW='2026-10-18T07:00:00Z'
 
@@ -45,8 +45,9 @@ def digest(value):
 
 def platform(arch):
     base=[dict(stage=s,platform='linux/'+arch,reference='docker.io/'+name+':1@sha256:'+'d'*64,
-               digest='sha256:'+'e'*64) for s,name in [('composer','library/composer'),('extensions','dunglas/frankenphp')]]
+               digest='sha256:'+'e'*64) for s,name in [('composer','library/composer'),('extensions','library/php')]]
     labels={
+        'secpal.dev/runtime-component':'php-fpm',
         'org.opencontainers.image.source':'https://github.com/SecPal/api',
         'org.opencontainers.image.revision':SHA,
         'org.opencontainers.image.created':'2023-11-14T22:13:20Z',
@@ -66,6 +67,16 @@ def platform(arch):
 
 
 class BaseInputTests(unittest.TestCase):
+    def test_runtime_definition_accepts_only_the_two_supported_components(self):
+        cli = ['python3', str(ROOT/'scripts/container-publisher.py'), 'runtime-definition']
+        for role in ('php-fpm', 'nginx'):
+            result = subprocess.run(cli+['--runtime', role], capture_output=True, check=True)
+            self.assertEqual(json.loads(result.stdout)['component'], role)
+        for arguments in ([], ['--runtime', 'legacy'], ['--runtime', 'frankenphp']):
+            with self.subTest(arguments=arguments):
+                result = subprocess.run(cli+arguments, capture_output=True)
+                self.assertEqual(result.returncode, 2)
+
     def setUp(self):
         config = dict(mediaType='application/vnd.oci.image.config.v1+json',
                       digest='sha256:'+'c'*64, size=123)
@@ -109,11 +120,9 @@ class BaseInputTests(unittest.TestCase):
                 self.resolve(descriptors, **kwargs)
 
     def test_actual_recipes_keep_single_updateable_pins_and_runtime_lineage(self):
-        legacy = publisher.reviewed_bases((ROOT/'Containerfile').read_text(), 'legacy')
         php = publisher.reviewed_bases((ROOT/'docker/php-fpm/Containerfile').read_text(), 'php-fpm')
         nginx = publisher.reviewed_bases((ROOT/'docker/nginx/Containerfile').read_text(), 'nginx')
-        self.assertEqual(legacy['composer'], php['composer'])
-        self.assertIn('dunglas/frankenphp:', legacy['extensions'])
+        self.assertIn('library/composer:', php['composer'])
         self.assertIn('library/php:', php['extensions'])
         self.assertIn('library/nginx:', nginx['extensions'])
 
@@ -428,39 +437,13 @@ class Publisher(unittest.TestCase):
 
 
 
-class ExactArtifactAdmission(unittest.TestCase):
-    def test_separate_admission_preserves_nonclean_scan_records(self):
-        args=evidence()
-        for scan in args[3]:scan['policy_result']='ACTIONABLE'
-        admission=dict(admission='ADMITTED_WITH_KNOWN_FINDINGS',
-                       source=dict(repository='SecPal/api',commit=SHA,tree='c'*40),
-                       index_digest=args[1],expires_at='2026-10-18T08:00:00Z',
-                       evidence_sha256='sha256:'+'9'*64,policy_results=[])
-        with self.assertRaises(ValueError):
-            publisher.build_evidence(*args,expected_source=SOURCE,source_security_schema=SOURCE_SCHEMA)
-        result=publisher.build_evidence(*args,expected_source=SOURCE,source_security_schema=SOURCE_SCHEMA,
-                                        artifact_admission=admission)
-        self.assertEqual(result['scans'],args[3])
-        self.assertTrue(all(r['policy_result']=='ACTIONABLE' for r in result['scans']))
-        self.assertEqual(result['extensions'][publisher.SOURCE]['artifact_security_admission']['admission'],
-                         'ADMITTED_WITH_KNOWN_FINDINGS')
-        for key,value in [('admission','CLEAN'),('source',{}),('index_digest','sha256:'+'0'*64),
-                          ('expires_at',NOW),('expires_at','2026-10-18T06:00:00Z')]:
-            changed=dict(admission);changed[key]=value
-            with self.subTest(key=key,value=value),self.assertRaises(ValueError):
-                publisher.build_evidence(*args,expected_source=SOURCE,source_security_schema=SOURCE_SCHEMA,
-                                         artifact_admission=changed)
-        args[3][0]['policy_result']='UNKNOWN_STALE'
-        with self.assertRaises(ValueError):
-            publisher.build_evidence(*args,expected_source=SOURCE,source_security_schema=SOURCE_SCHEMA,
-                                     artifact_admission=admission)
-
-
 class CandidateContinuation(unittest.TestCase):
     def setUp(self):
         self.prepared='api-prepared-42-1'
         names=[self.prepared,'api-scans-42-1','api-smoke-amd64-42-1','api-smoke-arm64-42-1']
-        required=['Prepare exact digest subjects','Attest candidate index platforms and Syft artifacts',
+        required=['Prepare exact digest subjects',
+                  *('Attest candidate index platforms and Syft artifacts ('+role+')'
+                    for role in publisher.RUNTIME_COMPONENTS),
                   'Repository Security / Accept API Repository Security',
                   'Build native API candidates / Native API (amd64)',
                   'Build native API candidates / Native API (arm64)',
@@ -468,7 +451,7 @@ class CandidateContinuation(unittest.TestCase):
                   'Verify authoritative SPDX and independent artifact scans']
         self.artifacts=dict(total_count=len(names),artifacts=[
             dict(name=n,digest='sha256:'+'a'*64,expired=False) for n in names])
-        self.origin=dict(id=42,run_attempt=1,head_sha=SHA,head_branch='main',event='push',
+        self.origin=dict(id=42,run_attempt=1,head_sha=SHA,head_branch='main',event='workflow_dispatch',
                          path='.github/workflows/publish-container.yml',repository=dict(full_name='SecPal/api'))
         self.commit=dict(sha=SHA,commit=dict(verification=dict(verified=True)))
         self.comparison=dict(base_commit=dict(sha='d'*40),merge_base_commit=dict(sha=SHA),ahead_by=0,status='behind')
@@ -491,20 +474,16 @@ class CandidateContinuation(unittest.TestCase):
         self.assertEqual(publisher.candidate_context(SHA,'42','2',api=self.api)['run_attempt'],'1')
 
     def test_runtime_pair_requires_explicit_event_and_both_component_attestation_jobs(self):
-        self.origin['event']='workflow_dispatch'
+        self.origin['event']='push'
         with self.assertRaisesRegex(ValueError,'original-run-binding'):
             publisher.candidate_context(SHA,'42','1',api=self.api)
-        self.jobs['jobs']=[j for j in self.jobs['jobs']
-                           if j['name']!='Attest candidate index platforms and Syft artifacts']
-        for role in publisher.RUNTIME_COMPONENTS:
-            self.jobs['jobs'].append(dict(
-                name='Attest candidate index platforms and Syft artifacts ('+role+')',
-                status='completed',conclusion='success'))
-        self.jobs['total_count']=len(self.jobs['jobs'])
-        self.assertEqual(publisher.candidate_context(SHA,'42','1',api=self.api,runtime_set='pair')['source_commit'],SHA)
-        self.jobs['jobs'].pop();self.jobs['total_count']-=1
+        self.origin['event']='workflow_dispatch'
+        self.assertEqual(publisher.candidate_context(SHA,'42','1',api=self.api)['source_commit'],SHA)
+        self.jobs['jobs'] = [job for job in self.jobs['jobs']
+                             if job['name'] != 'Attest candidate index platforms and Syft artifacts (nginx)']
+        self.jobs['total_count']-=1
         with self.assertRaisesRegex(ValueError,'original-execution-incomplete'):
-            publisher.candidate_context(SHA,'42','1',api=self.api,runtime_set='pair')
+            publisher.candidate_context(SHA,'42','1',api=self.api)
 
     def test_new_readonly_scan_can_authorize_the_same_original_artifact(self):
         self.artifacts['artifacts'][1]['name']='api-scans-42-2'
@@ -525,7 +504,7 @@ class CandidateContinuation(unittest.TestCase):
             with self.assertRaises(ValueError):publisher.candidate_context(SHA,'42','2',api=self.api)
 
     def test_wrong_source_ref_workflow_repository_or_unaccepted_source_is_denied(self):
-        for key,value in [('head_sha','b'*40),('head_branch','topic'),('event','workflow_dispatch'),
+        for key,value in [('head_sha','b'*40),('head_branch','topic'),('event','push'),
                           ('path','.github/workflows/other.yml'),('path','.github/workflows/publish-container.yml@topic'),('repository',dict(full_name='other/api'))]:
             self.setUp();self.origin[key]=value
             with self.assertRaises(ValueError):publisher.candidate_context(SHA,'42','2',api=self.api)
@@ -549,7 +528,6 @@ class CandidateContinuation(unittest.TestCase):
 
     def test_only_existing_acceptance_job_gains_continuation_and_discovery_is_last(self):
         workflow=(ROOT/'.github/workflows/publish-container.yml').read_text()
-        self.assertIn("github.event_name == 'workflow_dispatch' && 'pair' || 'legacy'",workflow)
         acceptance=workflow.split('  accept:\n',1)[1]
         self.assertIn('steps.candidate.outputs.candidate_attempt',acceptance)
         self.assertNotIn('build-container.sh',acceptance)
@@ -557,42 +535,15 @@ class CandidateContinuation(unittest.TestCase):
         self.assertNotIn('.context/admission-decision/scripts/',acceptance)
         shell=(ROOT/'scripts/publish-container.sh').read_text()
         accept=shell.rsplit('  accept)\n',1)[1]
-        self.assertLess(accept.index('container-publisher.py admission'),accept.index('publish_discovery "$index_digest"'))
+        self.assertLess(accept.index('container-publisher.py admission'),accept.index('publish_discovery "$evidence_digest"'))
         self.assertIn('candidate_attempt=$(jq -er .workflow.run_attempt',accept)
 
 
 class EvidenceRetention(unittest.TestCase):
-    def test_actual_retention_preserves_normal_and_exceptional_evidence_files(self):
-        script=(ROOT/'scripts/publish-container.sh').read_text()
-        start=script.index('    # The file attestation already exists')
-        end=script.index('    evidence_digest=',start)
-        block=script[start:end]
-        normal=['build-evidence.json','source-security.json','build-evidence.bundle.json']
-        extra=['artifact-risk-acceptance.json','artifact-security-evidence.json']
-        for exceptional in (False,True):
-            with self.subTest(exceptional=exceptional),tempfile.TemporaryDirectory() as directory:
-                root=Path(directory);prepared=root/'prepared';prepared.mkdir()
-                expected=normal+extra if exceptional else normal
-                for name in expected:(prepared/name).write_bytes(encoded(dict(fixture=name)))
-                tools=root/'tools';tools.mkdir()
-                (tools/'oras').symlink_to(Path(os.environ['SECPAL_TEST_ORAS']).resolve())
-                result=subprocess.run(['bash','-c','set -euo pipefail'+chr(10)+block],
-                                      env=dict(os.environ,prepared=str(prepared),tools=str(tools),RUNNER_TEMP=str(root),runtime_set='legacy',component='legacy'),
-                                      capture_output=True,text=True)
-                self.assertEqual(result.returncode,0,result.stderr)
-                manifest=json.loads((prepared/'build-evidence-manifest.json').read_bytes())
-                titles=[layer.get('annotations',{}).get('org.opencontainers.image.title') for layer in manifest['layers']]
-                self.assertEqual(set(titles),set(expected))
-                for layer in manifest['layers']:
-                    name=layer['annotations']['org.opencontainers.image.title']
-                    blob=root/'build-evidence/blobs/sha256'/layer['digest'].split(':')[1]
-                    self.assertEqual(blob.read_bytes(),(prepared/name).read_bytes())
-
-
     def test_pair_retains_both_complete_evidence_documents_and_shared_bundle(self):
         script=(ROOT/'scripts/publish-container.sh').read_text()
-        start=script.index('    # The file attestation already exists')
-        block=script[start:script.index('    evidence_digest=',start)]
+        start=script.index('      evidence_files=(runtime-pair.json')
+        block=script[start:script.index('      evidence_digest=',start)]
         expected=['runtime-pair.json','build-evidence.bundle.json',
                   'php-fpm/build-evidence.json','php-fpm/source-security.json',
                   'nginx/build-evidence.json','nginx/source-security.json']
@@ -600,13 +551,10 @@ class EvidenceRetention(unittest.TestCase):
             root=Path(directory);prepared=root/'prepared';prepared.mkdir()
             for name in expected:
                 path=prepared/name;path.parent.mkdir(exist_ok=True);path.write_bytes(encoded(dict(fixture=name)))
-            # A legacy exceptional receipt must not enter replacement evidence.
-            (prepared/'artifact-risk-acceptance.json').write_text('{}')
             tools=root/'tools';tools.mkdir()
             (tools/'oras').symlink_to(Path(os.environ['SECPAL_TEST_ORAS']).resolve())
             result=subprocess.run(['bash','-c','set -euo pipefail'+chr(10)+block],
-                                  env=dict(os.environ,prepared=str(prepared),tools=str(tools),RUNNER_TEMP=str(root),
-                                           runtime_set='pair',component='legacy'),capture_output=True,text=True)
+                                  env=dict(os.environ,prepared=str(prepared),tools=str(tools),RUNNER_TEMP=str(root)),capture_output=True,text=True)
             self.assertEqual(result.returncode,0,result.stderr)
             manifest=json.loads((prepared/'build-evidence-manifest.json').read_bytes())
             titles=[layer['annotations']['org.opencontainers.image.title'] for layer in manifest['layers']]
@@ -620,16 +568,15 @@ class EvidenceRetention(unittest.TestCase):
 class InterruptedContinuation(unittest.TestCase):
     def test_failed_final_admission_cannot_reach_discovery(self):
         script=(ROOT/'scripts/publish-container.sh').read_text()
-        start=script.index('    # Reauthenticate current authority')
-        end=script.index('    {\n      printf',start)
+        start=script.index('      python3 scripts/container-publisher.py admission-pair')
+        end=script.index('      printf \'runtime_pair_digest=',start)
         block=script[start:end]
         with tempfile.TemporaryDirectory() as directory:
-            root=Path(directory);(root/'oras').write_text('#!/bin/sh\nprintf invoked > "$MARKER"\n')
-            (root/'oras').chmod(0o755)
-            env=dict(os.environ,MARKER=str(root/'discovery'),tools=str(root),repo_root='/fixture',
-                     prepared='/fixture',GITHUB_SHA=SHA,GITHUB_RUN_ID='42')
-            result=subprocess.run(['bash','-c','set -eu\npython3() { return 1; }\n'+block],
-                                  env=env,capture_output=True,text=True)
+            root=Path(directory)
+            env=dict(os.environ, MARKER=str(root/'discovery'), repo_root='/fixture',
+                     prepared='/fixture', GITHUB_SHA=SHA, GITHUB_RUN_ID='42', evidence_digest=digest(b'fixture'))
+            setup='set -eu\npython3() { return 1; }\npublish_discovery() { touch "$MARKER"; }\n'
+            result=subprocess.run(['bash','-c',setup+block],env=env,capture_output=True,text=True)
             self.assertNotEqual(result.returncode,0)
             self.assertFalse((root/'discovery').exists())
 
@@ -716,7 +663,7 @@ class ArtifactScanCollection(unittest.TestCase):
 
 
 class AdmissionConsumer(unittest.TestCase):
-    """Publisher boundary fixtures; never a real operator decision."""
+    """Publication admission and evidence assembly fixtures."""
 
     def setUp(self):
         self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
@@ -724,7 +671,7 @@ class AdmissionConsumer(unittest.TestCase):
         (self.root/'.context').mkdir()
         (self.root/'.context/publisher-governance').symlink_to(GOVERNANCE,target_is_directory=True)
         self.prepared=self.root/'prepared';self.prepared.mkdir()
-        self.scan=self.root/'scan'
+        self.scan=self.root/'scan'/'php-fpm'
         args=evidence();self.records=args[0];self.smokes=args[4];self.sboms=args[2]
         index=encoded(publisher.assemble_index(
             [r['subject'] for r in self.records],[len(platform(a)[2]) for a in ('amd64','arm64')]))
@@ -760,109 +707,60 @@ class AdmissionConsumer(unittest.TestCase):
                     completed_at=record['completed_at'],status=record['status'])))
             (folder/'scan-records.json').write_bytes(encoded(records))
         (self.prepared/'sboms.json').write_bytes(encoded(self.sboms))
-        self.calls=[]
-        self.output=self.prepared/'artifact-risk-acceptance.json'
 
-    def invoke(self, denied=False, complete=False, locator='123'):
-        from types import SimpleNamespace
-        def acceptance(observed,comment_id,**kwargs):
-            results=[publisher.read(self.scan/arch/'policy-result.json') for arch in ('amd64','arm64')]
-            self.calls.append((observed,results,dict(kwargs,comment_id=comment_id)))
-            if denied:raise ValueError('operator acceptance required')
-            return dict(admission='ADMITTED_WITH_KNOWN_FINDINGS',source=observed['source'],
-                        index_digest=self.index,evidence_sha256=digest(encoded(observed)),
-                        expires_at='2026-10-18T08:00:00Z',
-                        comment=dict(id=comment_id,body_sha256='sha256:'+'7'*64),
-                        operator=dict(id=9,login='synthetic-operator'),policy_results=results)
-        adapter=SimpleNamespace(observe_artifact_risk_acceptance=acceptance)
+    def invoke(self, *, complete=False):
         context=dict(source_commit=SHA,run_id='42',run_attempt='2',scan_attempt='2',execution_attempt='3')
         with patch.object(publisher,'source',return_value=copy.deepcopy(SOURCE)), \
-             patch.object(publisher,'run',return_value=('c'*40+'\n').encode()), \
-             patch.object(publisher,'security_modules',return_value=[adapter,None]), \
              patch.object(publisher,'observe_policy',side_effect=lambda root,folder,now:publisher.read(folder/'policy-result.json')), \
              patch.object(publisher,'candidate_context',return_value=context), \
              patch.object(publisher,'evidence_now',return_value=NOW), \
-             patch.dict(os.environ,GITHUB_SHA=SHA,GITHUB_RUN_ID='42',GITHUB_RUN_ATTEMPT='3',ARTIFACT_RISK_ACCEPTANCE_COMMENT_ID=locator):
-            if complete:
-                smoke_root=self.root/'smokes'
-                for smoke in self.smokes:
-                    d=smoke_root/f"api-smoke-{smoke['runner_architecture']}-42-2"
-                    d.mkdir(parents=True,exist_ok=True);(d/'smoke.json').write_bytes(encoded(smoke))
-                output=self.prepared/'build-evidence.json'
-                publisher.complete(self.prepared,self.scan,smoke_root,self.root,output)
-                return publisher.read(output)
-            return publisher.publication_admission(self.root,self.prepared,self.scan,self.smokes)
+             patch.dict(os.environ,GITHUB_SHA=SHA,GITHUB_RUN_ID='42',GITHUB_RUN_ATTEMPT='3'):
+            if not complete:
+                return publisher.publication_admission(self.root,self.prepared,self.scan)
+            smoke_root=self.root/'smokes'
+            for smoke in self.smokes:
+                folder=smoke_root/f"api-smoke-{smoke['runner_architecture']}-42-2"/'php-fpm'
+                folder.mkdir(parents=True,exist_ok=True)
+                publisher.write(folder/'smoke.json',smoke)
+            output=self.prepared/'build-evidence.json'
+            publisher.complete(self.prepared,self.scan,smoke_root,self.root,output)
+            return publisher.read(output)
 
-    def test_actual_shared_interface_rejects_missing_locator_without_github_reads(self):
-        adapter,_=publisher.security_modules(ROOT)
-        with self.assertRaisesRegex(ValueError,'ARTIFACT_RISK_AUTHORITY_LOCATION'):
-            adapter.observe_artifact_risk_acceptance(
-                dict(source=dict(repository='SecPal/api')),0,issue_number=1445,
-                get=lambda endpoint:self.fail('invalid locator must not query GitHub'))
-
-    def test_nonclean_without_authority_never_assembles_build_evidence(self):
-        (self.prepared/'build-evidence.json').write_text('{}')
-        self.output.write_text('{}')
-        with self.assertRaises(ValueError):self.invoke(denied=True,complete=True)
-        self.assertFalse((self.prepared/'build-evidence.json').exists())
-        self.assertFalse(self.output.exists())
-        self.assertTrue((self.prepared/'artifact-security-evidence.json').exists())
-
-    def test_no_locator_cannot_select_an_old_approval(self):
-        with self.assertRaisesRegex(ValueError,'publisher-operator-risk-acceptance-required'):
-            self.invoke(complete=True,locator='')
-        self.assertEqual(self.calls,[])
-        self.assertFalse((self.prepared/'build-evidence.json').exists())
-
-    def test_runtime_pair_cannot_use_operator_authority_for_nonclean_artifacts(self):
-        for state in ('ACTIONABLE','REVIEW_REQUIRED'):
-            with self.subTest(state=state):
-                source_path=self.prepared/'source.json'
-                source=publisher.read(source_path);source['runtime']='php-fpm'
-                publisher.write(source_path,source)
-                for arch in ('amd64','arm64'):
-                    folder=self.scan/arch
-                    result=publisher.read(folder/'policy-result.json');result['gate_state']=state
-                    publisher.write(folder/'policy-result.json',result)
-                    records=publisher.read(folder/'scan-records.json')
-                    for record in records:record['policy_result']=state
-                    publisher.write(folder/'scan-records.json',records)
-                with self.assertRaisesRegex(ValueError,'publisher-runtime-security-not-clean'):
-                    self.invoke()
-                self.assertEqual(self.calls,[])
-                self.assertFalse(self.output.exists())
-
-    def test_exact_acceptance_retains_original_records_and_complete_findings(self):
-        document=self.invoke(complete=True)
-        receipt=publisher.read(self.output)
-        self.assertTrue(all(s['policy_result']=='ACTIONABLE' for s in document['scans']))
-        self.assertTrue(all(p['findings'] for p in receipt['policy_results']))
-        self.assertEqual(receipt['evidence_sha256'],digest((self.prepared/'artifact-security-evidence.json').read_bytes()))
-        self.assertEqual(document['workflow']['run_attempt'],'2')
-        self.assertEqual(self.calls[0][2]['issue_number'],1445)
-        self.assertEqual(document['smoke_tests'],self.smokes)
-
-    def test_clean_does_not_need_an_operator_or_cached_exceptional_receipt(self):
+    def set_policy(self, state):
         for arch in ('amd64','arm64'):
             folder=self.scan/arch
-            result=publisher.read(folder/'policy-result.json');result['gate_state']='CLEAN';result['findings']=[]
-            (folder/'policy-result.json').write_bytes(encoded(result))
-            records=publisher.read(folder/'scan-records.json')
-            for r in records:r['policy_result']='CLEAN'
-            (folder/'scan-records.json').write_bytes(encoded(records))
-        document=self.invoke(denied=True,complete=True)
-        self.assertEqual(self.calls,[])
-        self.assertNotIn('artifact_security_admission',document['extensions'][publisher.SOURCE])
+            result=publisher.read(folder/'policy-result.json')
+            publisher.write(folder/'policy-result.json',dict(result,gate_state=state))
+            records=[dict(record,policy_result=state) for record in publisher.read(folder/'scan-records.json')]
+            publisher.write(folder/'scan-records.json',records)
+
+    def test_nonclean_policy_cannot_assemble_build_evidence(self):
+        output=self.prepared/'build-evidence.json'
+        for state in ('ACTIONABLE','REVIEW_REQUIRED'):
+            with self.subTest(state=state):
+                self.set_policy(state)
+                output.write_text('{}')
+                with self.assertRaisesRegex(ValueError,'publisher-runtime-security-not-clean'):
+                    self.invoke(complete=True)
+                self.assertFalse(output.exists())
+
+    def test_clean_admission_retains_original_attempt_smoke_and_scans(self):
+        self.set_policy('CLEAN')
+        document=self.invoke(complete=True)
+        self.assertTrue(all(scan['policy_result']=='CLEAN' for scan in document['scans']))
+        self.assertEqual(document['workflow']['run_attempt'],'2')
+        self.assertEqual(document['smoke_tests'],self.smokes)
+        self.assertEqual(document['extensions'][publisher.SOURCE]['acceptance_execution']['run_attempt'],'3')
 
     def test_stale_refreshed_source_cannot_reach_admission(self):
-        source=self.scan/'source';source.mkdir()
+        source=self.scan.parent/'source';source.mkdir(parents=True)
         value=source_security();value['database']['next_update']=NOW
         (source/'result.json').write_bytes(encoded(value))
         with self.assertRaises(ValueError):self.invoke(complete=True)
-        self.assertEqual(self.calls,[])
         self.assertFalse((self.prepared/'build-evidence.json').exists())
 
-    def test_wrong_oci_spdx_raw_source_and_unhealthy_results_deny_before_authority(self):
+    def test_wrong_oci_spdx_raw_source_and_unhealthy_results_fail_closed(self):
+        self.set_policy('CLEAN')
         for name in ('config','platform','association','raw','policy'):
             with self.subTest(name=name):
                 path=(self.prepared/('config-amd64.json') if name=='config' else
@@ -878,9 +776,7 @@ class AdmissionConsumer(unittest.TestCase):
                     value=json.loads(before);value['gate_state']='UNKNOWN_STALE'
                     path.write_bytes(encoded(value))
                 else:path.write_bytes(before+b' ')
-                self.calls=[]
                 with self.assertRaises(ValueError):self.invoke()
-                self.assertEqual(self.calls,[])
                 path.write_bytes(before)
 
 

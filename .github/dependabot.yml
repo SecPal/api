@@ -59,18 +59,12 @@ updates:
   # OCI base images use reviewed literal FROM pins.
   - package-ecosystem: "docker"
     directories:
-      - "/"
       - "/docker/php-fpm"
       - "/docker/nginx"
     schedule:
       interval: "daily"
       time: "04:00"
       timezone: "Europe/Berlin"
-    groups:
-      composer-image:
-        patterns:
-          - "library/composer"
-        group-by: "dependency-name"
     # Keep PHP 8.4 patch updates while excluding newer unsupported lines.
     ignore:
       - dependency-name: "library/php"

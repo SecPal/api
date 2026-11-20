@@ -390,7 +390,6 @@ def main():
     require(len(sys.argv) == 2, "CONTEXT_ARGUMENT")
     require(os.environ.get("GITHUB_REPOSITORY") == "SecPal/api"
             and os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch"
-            and os.environ.get("API_RUNTIME_SET") == "pair"
             and os.environ.get("GITHUB_REF") == "refs/heads/main"
             and os.environ.get("RUNNER_ENVIRONMENT") == "github-hosted"
             and os.environ.get("GITHUB_WORKFLOW_REF") ==

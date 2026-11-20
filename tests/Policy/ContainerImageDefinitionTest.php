@@ -44,132 +44,20 @@ it('rejects mutable, unhashed or unapproved Python runtime requirements', functi
         ->and(isLockedOpenTimestampsGraph($manifest."\n--extra-index-url https://packages.invalid/simple\n"))->toBeFalse();
 });
 
-it('defines the production API image contract', function (): void {
+it('keeps the runtime build context and production PHP configuration isolated', function (): void {
     $root = dirname(__DIR__, 2);
-    $artifacts = ['Containerfile', '.containerignore', 'docker/frankenphp/Caddyfile', 'docker/php/conf.d/production.ini',
-        'docker/python/opentimestamps-requirements.txt', 'docker/healthchecks/http-live.sh', 'tests/docker/smoke.sh',
-        'tests/docker/assert-port-closed.php', '.github/workflows/container-image.yml', 'config/trustedproxy.php'];
-    foreach ($artifacts as $path) {
-        expect(is_file($root.'/'.$path))->toBeTrue("Missing container artifact: {$path}");
-    }
+    $ignore = (string) file_get_contents($root.'/.containerignore');
+    $php = (string) file_get_contents($root.'/docker/php-fpm/Containerfile');
+    $productionIni = (string) file_get_contents($root.'/docker/php/conf.d/production.ini');
+    $documentation = (string) file_get_contents($root.'/docs/containers.md');
 
-    $dockerfile = file_get_contents($root.'/Containerfile');
-    $dockerignore = file_get_contents($root.'/.containerignore');
-    $caddyfile = file_get_contents($root.'/docker/frankenphp/Caddyfile');
-    $productionIni = file_get_contents($root.'/docker/php/conf.d/production.ini');
-    $pythonRequirements = file_get_contents($root.'/docker/python/opentimestamps-requirements.txt');
-    $workflow = file_get_contents($root.'/.github/workflows/container-image.yml');
-    $documentation = file_get_contents($root.'/docs/containers.md');
-    $proxyConfig = file_get_contents($root.'/config/trustedproxy.php');
-    $smokeScript = file_get_contents($root.'/tests/docker/smoke.sh');
-    $extensionsStage = explode('FROM extensions AS dependencies', $dockerfile, 2)[0];
-    $dependenciesStage = explode('FROM extensions AS dependencies', $dockerfile, 2)[1];
-    $dependenciesStage = explode('FROM extensions AS runtime', $dependenciesStage, 2)[0];
-
-    preg_match('/^FROM .*:([0-9]+\.[0-9]+\.[0-9]+)-php/m', $dockerfile, $frankenInput);
-    expect(version_compare($frankenInput[1] ?? '0', '1.13.5', '>='))->toBeTrue();
-
-    expect($dockerfile)
-        ->toMatch('/^FROM docker\\.io\\/dunglas\\/frankenphp:[0-9]+\\.[0-9]+\\.[0-9]+-php8\\.4\\.[0-9]+-alpine@sha256:[a-f0-9]{64} AS api-base$/m')
-        ->toMatch('/^FROM docker\\.io\\/library\\/composer:[0-9]+\\.[0-9]+\\.[0-9]+@sha256:[a-f0-9]{64} AS composer$/m')
-        ->toContain('FROM api-base AS sqlite-build', 'FROM api-base AS extensions')
-        ->toContain('composer install')
-        ->toContain('libcurl=8.23.0-r0', 'brotli-libs=1.2.1-r0')
-        ->toContain('python3 -m pip check', 'apk del --no-network .python-build-deps curl')
-        ->toContain('--no-dev')
-        ->toContain('--no-scripts')
-        ->toContain(
-            'COPY docker/python/opentimestamps-requirements.txt /tmp/opentimestamps-requirements.txt',
-            'pip3 install --break-system-packages --no-cache-dir --only-binary=:all:',
-            '--require-hashes -r /tmp/opentimestamps-requirements.txt',
-        )
-        ->toContain('rm -f bootstrap/cache/*.php', '/config/caddy /config/psysh')
-        ->not->toContain('redis-6.3.0', 'apt-get', 'dpkg', '--allow-untrusted', 'edge/')
-        ->toContain('COPY --chown=root:root --chmod=0644 docker/frankenphp/Caddyfile /etc/frankenphp/Caddyfile')
-        ->toContain('COPY --chown=root:root --chmod=0644 docker/php/conf.d/production.ini /usr/local/etc/php/conf.d/zz-secpal-production.ini')
-        ->toContain('COPY --chown=root:root --chmod=0755 docker/healthchecks/http-live.sh /usr/local/bin/secpal-http-live')
-        ->toContain('chmod 0644 /etc/frankenphp/Caddyfile')
-        ->toContain('chmod 0644 "${PHP_INI_DIR}/conf.d/zz-secpal-production.ini"')
-        ->toContain('chmod 0755 /usr/local/bin/secpal-http-live')
-        ->toContain('find /app -xdev -type d -exec chmod 0755 {} +')
-        ->toContain('find /app -xdev -type f -exec chmod 0644 {} +')
-        ->toContain('USER secpal')
-        ->toContain('EXPOSE 8080')
-        ->toContain('HEALTHCHECK NONE')
-        ->not->toContain('artisan migrate')
-        ->not->toContain('octane');
-
-    expect(preg_match('/^[ \t]*&& apk add --no-cache python3=(3\.14\.\d+)-r\d+\b/m', $extensionsStage, $pythonInput))->toBe(1);
-    expect(version_compare($pythonInput[1] ?? '0', '3.14.8', '>='))->toBeTrue();
-
-    expect(isLockedOpenTimestampsGraph($pythonRequirements))->toBeTrue();
-
-    expect($smokeScript)
-        ->toContain('DB_SSLMODE=verify-full', 'apk info --installed libcurl=8.23.0-r0', '--read-only', '--cap-drop=all', '--security-opt=no-new-privileges')
-        ->toContain('DB_SSLROOTCERT=/run/secrets/postgresql-ca.crt')
-        ->toContain("POSTGRES_INITDB_ARGS='--auth-host=scram-sha-256'")
-        ->toContain('-c password_encryption=scram-sha-256')
-        ->toContain('SELECT ssl FROM pg_stat_ssl WHERE pid = pg_backend_pid()')
-        ->not->toContain('valkey_image=');
-
-    expect($extensionsStage)->not->toContain('unzip');
-    expect($dependenciesStage)
-        ->toContain('apk add --no-cache unzip=6.0-r16');
-
-    expect($caddyfile)
-        ->toContain('admin off', 'auto_https off', ':8080')
-        ->toContain('root * /app/public')
-        ->toContain('php_server')
-        ->toContain(
-            'request>uri query',
-            'replace token REDACTED',
-            'replace email REDACTED',
-            'replace expires REDACTED',
-            'replace signature REDACTED',
-        )
-        ->toContain('/.htaccess', '/*.license')
-        ->not->toContain('worker');
-
+    expect($ignore)->toMatch('/^storage\/app$/m')
+        ->toMatch('/^\*\*\/\*\.sqlite\*$/m')
+        ->toContain("docs/*\n!docs/ADDRESS_DATA.md");
+    expect($php)->toContain('COPY docs/ADDRESS_DATA.md ./docs/ADDRESS_DATA.md', '--no-dev', '--no-scripts')
+        ->not->toContain('redis-6.3.0', 'apt-get', '--allow-untrusted', 'edge/');
     expect($productionIni)->toContain('upload_max_filesize=10M', 'post_max_size=12M');
-    expect(Symfony\Component\Yaml\Yaml::parse($workflow)['on'])->toHaveKey('workflow_call');
-    expect($documentation)->toContain('/app/storage/app/private')->toContain('persistent')->and($dockerignore)->toMatch('/^storage\/app$/m');
-    expect($dockerignore)->toMatch('/^\*\*\/\*\.sqlite\*$/m');
-    expect($dockerignore)->toContain("docs/*\n!docs/ADDRESS_DATA.md")
-        ->and($dockerfile)->toContain('COPY docs/ADDRESS_DATA.md ./docs/ADDRESS_DATA.md');
-
-    expect($smokeScript)
-        ->toContain('notice=/app/docs/ADDRESS_DATA.md', 'test -r /app/LICENSES/ODbL-1.0.txt')
-        ->toContain('assert_output_contains "$php_ini_output" \'/usr/local/etc/php/conf.d/zz-secpal-production.ini\'')
-        ->toContain('test -r "$ini"')
-        ->toContain('test ! -w "$ini"')
-        ->toContain('test "$(stat -c "%U:%G %a" "$ini")" = "root:root 644"')
-        ->toContain('test -r "$caddyfile"')
-        ->toContain('test ! -w "$caddyfile"')
-        ->toContain('test "$(stat -c "%U:%G %a" "$caddyfile")" = "root:root 644"')
-        ->toContain('test -r "$healthcheck"')
-        ->toContain('test -x "$healthcheck"')
-        ->toContain('test ! -w "$healthcheck"')
-        ->toContain('test "$(stat -c "%U:%G %a" "$healthcheck")" = "root:root 755"')
-        ->toContain('if test -e "$sqlite_probe"; then')
-        ->toContain('chmod 0444 "$port_probe"')
-        ->toContain('-v "${port_probe}:/tmp/assert-port-closed.php:ro,z"');
-    expect($proxyConfig)->toContain('TRUSTED_PROXIES');
-});
-
-it('checks container command output without early-terminating pipelines', function (): void {
-    $smokeScript = (string) file_get_contents(dirname(__DIR__, 2).'/tests/docker/smoke.sh');
-
-    expect($smokeScript)
-        ->toContain('php_version=$(podman run --rm "$image" php -v)')
-        ->toContain('frankenphp_version=$(podman run --rm "$image" frankenphp version)')
-        ->toContain('php_modules=$(podman run --rm "$image" php -m)')
-        ->toContain('exit(extension_loaded("redis") ? 1 : 0)')
-        ->not->toContain('php --ri redis')
-        ->toContain('php_ini_output=$(podman run --rm "$image" php --ini)')
-        ->toContain('podman run --rm "$image" python3 -c \'import opentimestamps\'')
-        ->toContain('from importlib.metadata import PackageNotFoundError, version')
-        ->toContain('raise SystemExit("Unneeded runtime distribution: " + name)')
-        ->not->toMatch('/podman run[^\n]*\\|[ \t]*grep\\b/');
+    expect($documentation)->toContain('/app/storage/app/private', 'persistent');
 });
 
 it('distinguishes a listening TCP port from a closed port', function (): void {
@@ -212,7 +100,7 @@ it('excludes obsolete Laravel Sail from the dependency graph', function (): void
         ->and(array_column(array_merge($lock['packages'], $lock['packages-dev']), 'name'))->not->toContain('laravel/sail');
 });
 
-it('keeps the qualified FPM and public HTTP runtimes separate from the accepted legacy image', function (): void {
+it('keeps FPM and the public HTTP image as the sole runtime definitions', function (): void {
     $root = dirname(__DIR__, 2);
     foreach (['docker/php-fpm/Containerfile', 'docker/php-fpm/pool.conf', 'docker/nginx/Containerfile', 'docker/nginx/nginx.conf', 'docker/nginx/fastcgi.conf'] as $path) {
         expect(is_file($root.'/'.$path))->toBeTrue("Missing paired runtime artifact: {$path}");
@@ -238,7 +126,8 @@ it('keeps the qualified FPM and public HTTP runtimes separate from the accepted 
     expect($nginx)->toContain('listen 8080;', 'root /app/public;', 'disable_symlinks on from=/app/public;', 'error_log /dev/null;', '"path":"$uri"')
         ->not->toContain('$request_uri', '$http_authorization', '$args');
     expect($fastcgi)->toContain('fastcgi_pass unix:/run/secpal-fpm/api.sock;', 'SCRIPT_FILENAME /app/public/index.php;', 'PATH_INFO "";', 'HTTP_PROXY "";', 'fastcgi_buffering off;');
-    expect((string) file_get_contents($root.'/Containerfile'))->toContain(' AS api-base', 'CMD ["frankenphp"');
+    expect(file_exists($root.'/Containerfile'))->toBeFalse()
+        ->and(file_exists($root.'/docker/frankenphp/Caddyfile'))->toBeFalse();
 });
 
 it('keeps secrets out of the FPM environment allowlist and reuses the qualified secret bootstrap', function (): void {

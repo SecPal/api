@@ -180,7 +180,7 @@ def origin(root, proof_path, run_id):
                            cwd=root, capture_output=True).returncode == 0)
     _, delta = changes(root, commit, proof['source']['merge'])
     require(excluded_context(root, commit, delta))
-    context = pub['candidate_context'](commit, str(run_id), str(producing['run_attempt']), runtime_set='pair')
+    context = pub['candidate_context'](commit, str(run_id), str(producing['run_attempt']))
     inventory = api('actions/runs/'+str(run_id)+'/artifacts?per_page=100')
     require(inventory['total_count'] == len(inventory['artifacts']))
 
@@ -230,7 +230,7 @@ def observe(root, proof_path, native, arch):
     pub = publisher(root, proof_path)
     base = base_checkout(root, context['source_commit'])
     observed = {}
-    for role in (*ROLES, 'legacy'):
+    for role in ROLES:
         folder = native/role
         expected = pub['source'](base, context['source_commit'], role)
         bases = pub['bases'](base, arch, role)
@@ -239,8 +239,7 @@ def observe(root, proof_path, native, arch):
         require(record['source'] == expected and record['subject'] == subject and record['bases'] == bases
                 and record['runner_architecture'] == arch and record['workflow_run_id'] == context['run_id']
                 and record['workflow_run_attempt'] == context['run_attempt'])
-        if role in ROLES:
-            require(record == baseline['records'][role][arch])
+        require(record == baseline['records'][role][arch])
         observed[role] = subject['manifest_digest']
     return observed
 
@@ -264,13 +263,8 @@ def restore(root, proof_path, output, arch):
         require(image_id.removeprefix('sha256:') == configs[role].removeprefix('sha256:'))
         subprocess.run(['podman', 'tag', image_id, image], check=True)
     env = {k: v for k, v in os.environ.items() if k not in ('GH_TOKEN', 'GITHUB_TOKEN')}
-    env.update(SKIP_BUILD='1', EXPECTED_ARCH=arch)
-    for role in ROLES:
-        subprocess.run(['tests/docker/runtime-component.sh', role, images[role], arch], cwd=root, env=env, check=True)
     subprocess.run(['tests/docker/smoke.sh'], cwd=root, check=True,
-                   env=dict(env, RUNTIME_SET='pair', PHP_FPM_IMAGE=images['php-fpm'], NGINX_IMAGE=images['nginx']))
-    subprocess.run(['tests/docker/smoke.sh'], cwd=root, check=True,
-                   env=dict(env, RUNTIME_SET='legacy', IMAGE_TAG=images['legacy']))
+                   env=dict(env, EXPECTED_ARCH=arch, PHP_FPM_IMAGE=images['php-fpm'], NGINX_IMAGE=images['nginx']))
     for role, image in images.items():
         image_id = run('podman', 'image', 'inspect', '--format', '{{.Id}}', image).decode().strip()
         require(image_id.removeprefix('sha256:') == configs[role].removeprefix('sha256:'))
@@ -309,7 +303,7 @@ def scan(root, proof_path, native, output):
     try:
         subprocess.run(['scripts/scan-container-artifact.sh', 'local'], cwd=base, check=True,
                        env=dict(os.environ, GITHUB_SHA=context['source_commit'], GITHUB_RUN_ID=context['run_id'],
-                                GITHUB_RUN_ATTEMPT=context['run_attempt'], API_RUNTIME_SET='pair',
+                                GITHUB_RUN_ATTEMPT=context['run_attempt'],
                                 API_NATIVE_AMD64_ATTEMPT=context['run_attempt'], API_NATIVE_ARM64_ATTEMPT=context['run_attempt']))
     finally:
         if (base/'.context/scan').exists():
