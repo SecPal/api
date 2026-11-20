@@ -72,8 +72,10 @@ class BaseInputTests(unittest.TestCase):
         for role in ('php-fpm', 'nginx'):
             result = subprocess.run(cli+['--runtime', role], capture_output=True, check=True)
             self.assertEqual(json.loads(result.stdout)['component'], role)
-        result = subprocess.run(cli, capture_output=True)
-        self.assertEqual(result.returncode, 2)
+        for arguments in ([], ['--runtime', 'unexpected']):
+            with self.subTest(arguments=arguments):
+                result = subprocess.run(cli+arguments, capture_output=True)
+                self.assertEqual(result.returncode, 2)
 
     def setUp(self):
         config = dict(mediaType='application/vnd.oci.image.config.v1+json',
