@@ -37,8 +37,9 @@ permissions:
 
 jobs:
   auto-merge:
-    uses: SecPal/.github/.github/workflows/reusable-dependabot-auto-merge.yml@dc5d0edcfdfbf3277f318958b3c07b3b25f2f132
+    uses: SecPal/.github/.github/workflows/reusable-dependabot-auto-merge.yml@8e1cc6fb4fd2c8646859f793cf5c1df4d0a67f88
     with:
-      allowed-ecosystems: "github_actions,npm_and_yarn,composer"
+      allowed-ecosystems: "github_actions,npm_and_yarn,composer,pip"
+      pip-manifest-path: "docker/python/opentimestamps-requirements.txt"
       phase: "2" # Verified PATCH and MINOR; Source Safety must be required
       merge-method: "squash" # Use squash merge for cleaner history
