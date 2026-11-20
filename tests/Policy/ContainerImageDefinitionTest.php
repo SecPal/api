@@ -5,17 +5,22 @@
 
 function isLockedOpenTimestampsGraph(string $requirements): bool
 {
+    $requirements = str_replace("\r\n", "\n", $requirements);
+    if (preg_match('/[^\x09\x0a\x20-\x7e]|^[ \t]*\#.*(?:coding[:=]|\\\\[ \t]*$)/m', $requirements) !== 0) {
+        return false;
+    }
+
     $packages = [];
-    $declarations = preg_replace('/\\\\\h*\R/', ' ', $requirements);
-    foreach (explode("\n", $declarations ?? '') as $declaration) {
+    $declarations = str_replace("\\\n", '', $requirements);
+    foreach (explode("\n", $declarations) as $declaration) {
         $declaration = trim($declaration);
         if ($declaration === '' || str_starts_with($declaration, '#')) {
             continue;
         }
-        if (preg_match('/\A([a-z][a-z0-9-]*)==\d+\.\d+\.\d+(?:\h+--hash=sha256:[a-f0-9]{64})+\z/', $declaration, $match) !== 1) {
+        if (preg_match('/\A([A-Za-z0-9](?:[A-Za-z0-9_.-]*[A-Za-z0-9])?)==\d+\.\d+\.\d+(?:\h+--hash=sha256:[a-f0-9]{64})+\z/', $declaration, $match) !== 1) {
             return false;
         }
-        $packages[] = $match[1];
+        $packages[] = preg_replace('/[-_.]+/', '-', strtolower($match[1]));
     }
 
     sort($packages);
@@ -27,11 +32,15 @@ it('rejects mutable, unhashed or unapproved Python runtime requirements', functi
     $manifest = (string) file_get_contents(dirname(__DIR__, 2).'/docker/python/opentimestamps-requirements.txt');
 
     expect(isLockedOpenTimestampsGraph($manifest))->toBeTrue()
+        ->and(isLockedOpenTimestampsGraph(str_replace('python-bitcoinlib==', 'Python_Bitcoinlib==', $manifest)))->toBeTrue()
         ->and(isLockedOpenTimestampsGraph(str_replace('opentimestamps==', 'opentimestamps>=', $manifest)))->toBeFalse()
         ->and(isLockedOpenTimestampsGraph((string) preg_replace('/\h*--hash=sha256:[a-f0-9]{64}/', '', $manifest)))->toBeFalse()
         ->and(isLockedOpenTimestampsGraph(str_replace('sha256:', 'sha512:', $manifest)))->toBeFalse()
         ->and(isLockedOpenTimestampsGraph($manifest."\n".$manifest))->toBeFalse()
         ->and(isLockedOpenTimestampsGraph(str_replace('opentimestamps==', 'opentimestamps-client==', $manifest)))->toBeFalse()
+        ->and(isLockedOpenTimestampsGraph($manifest."\n# comment\\\nnot-a-requirement\n"))->toBeFalse()
+        ->and(isLockedOpenTimestampsGraph("# coding: latin1\n".$manifest))->toBeFalse()
+        ->and(isLockedOpenTimestampsGraph($manifest."\n# comment\rnot-a-requirement\n"))->toBeFalse()
         ->and(isLockedOpenTimestampsGraph($manifest."\n--extra-index-url https://packages.invalid/simple\n"))->toBeFalse();
 });
 
