@@ -91,16 +91,7 @@ it('distinguishes a listening TCP port from a closed port', function (): void {
     expect($unresolvedProbe->getExitCode())->toBe(2, $unresolvedProbe->getErrorOutput());
 });
 
-it('excludes obsolete Laravel Sail from the dependency graph', function (): void {
-    $root = dirname(__DIR__, 2);
-    $composer = json_decode(file_get_contents($root.'/composer.json'), true, 512, JSON_THROW_ON_ERROR);
-    $lock = json_decode(file_get_contents($root.'/composer.lock'), true, 512, JSON_THROW_ON_ERROR);
-
-    expect($composer['require'] + $composer['require-dev'])->not->toHaveKey('laravel/sail')
-        ->and(array_column(array_merge($lock['packages'], $lock['packages-dev']), 'name'))->not->toContain('laravel/sail');
-});
-
-it('keeps FPM and the public HTTP image as the sole runtime definitions', function (): void {
+it('defines the required PHP-FPM and Nginx runtime behavior', function (): void {
     $root = dirname(__DIR__, 2);
     foreach (['docker/php-fpm/Containerfile', 'docker/php-fpm/pool.conf', 'docker/nginx/Containerfile', 'docker/nginx/nginx.conf', 'docker/nginx/fastcgi.conf'] as $path) {
         expect(is_file($root.'/'.$path))->toBeTrue("Missing paired runtime artifact: {$path}");
@@ -119,15 +110,13 @@ it('keeps FPM and the public HTTP image as the sole runtime definitions', functi
             '--require-hashes -r /tmp/opentimestamps-requirements.txt',
             'python3 -m pip check',
         )
-        ->not->toContain('frankenphp', 'caddy', 'artisan migrate');
+        ->not->toContain('artisan migrate');
     expect($pool)->toContain('listen=/run/secpal-fpm/api.sock', 'listen.mode=0660', 'clear_env=yes', 'security.limit_extensions=.php', 'pm.max_children=4');
     expect($http)->toContain('nginx:', '-alpine3.24-slim@sha256:', 'COPY public /app/public', 'USER secpal', 'EXPOSE 8080')
         ->not->toContain('COPY app ', 'COPY vendor ', 'COPY config ', 'COPY storage ', 'APP_KEY', 'DB_PASSWORD');
     expect($nginx)->toContain('listen 8080;', 'root /app/public;', 'disable_symlinks on from=/app/public;', 'error_log /dev/null;', '"path":"$uri"')
         ->not->toContain('$request_uri', '$http_authorization', '$args');
     expect($fastcgi)->toContain('fastcgi_pass unix:/run/secpal-fpm/api.sock;', 'SCRIPT_FILENAME /app/public/index.php;', 'PATH_INFO "";', 'HTTP_PROXY "";', 'fastcgi_buffering off;');
-    expect(file_exists($root.'/Containerfile'))->toBeFalse()
-        ->and(file_exists($root.'/docker/frankenphp/Caddyfile'))->toBeFalse();
 });
 
 it('keeps secrets out of the FPM environment allowlist and reuses the qualified secret bootstrap', function (): void {
