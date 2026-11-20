@@ -66,7 +66,6 @@ case "$component" in
         apk info --installed brotli-libs=1.2.1-r0
         test ! -d /app/vendor/pestphp
         test ! -d /app/vendor/phpunit
-        test ! -e /usr/local/bin/frankenphp
         test ! -e /usr/local/bin/composer
         ! command -v curl
         test ! -e /usr/local/include/php

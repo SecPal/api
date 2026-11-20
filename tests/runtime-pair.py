@@ -109,7 +109,7 @@ wait_for_http() {
     def test_missing_extra_or_substituted_component_is_rejected(self):
         docs = self.documents()
         for value in ({'php-fpm': docs['php-fpm']},
-                      {**docs, 'legacy': docs['php-fpm']},
+                      {**docs, 'unexpected': docs['php-fpm']},
                       {'php-fpm': docs['nginx'], 'nginx': docs['php-fpm']}):
             with self.subTest(value=list(value)), self.assertRaises(ValueError):
                 self.assemble(value)

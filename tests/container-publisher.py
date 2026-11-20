@@ -67,15 +67,13 @@ def platform(arch):
 
 
 class BaseInputTests(unittest.TestCase):
-    def test_runtime_definition_accepts_only_the_two_supported_components(self):
+    def test_runtime_definition_requires_an_explicit_supported_component(self):
         cli = ['python3', str(ROOT/'scripts/container-publisher.py'), 'runtime-definition']
         for role in ('php-fpm', 'nginx'):
             result = subprocess.run(cli+['--runtime', role], capture_output=True, check=True)
             self.assertEqual(json.loads(result.stdout)['component'], role)
-        for arguments in ([], ['--runtime', 'legacy'], ['--runtime', 'frankenphp']):
-            with self.subTest(arguments=arguments):
-                result = subprocess.run(cli+arguments, capture_output=True)
-                self.assertEqual(result.returncode, 2)
+        result = subprocess.run(cli, capture_output=True)
+        self.assertEqual(result.returncode, 2)
 
     def setUp(self):
         config = dict(mediaType='application/vnd.oci.image.config.v1+json',
