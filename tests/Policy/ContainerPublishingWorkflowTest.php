@@ -674,5 +674,5 @@ it('limits OCI dependency updates to the supported runtime definitions', functio
         'library/composer' => ['docker/php-fpm/Containerfile'],
         'library/php' => ['docker/php-fpm/Containerfile'],
         'library/nginx' => ['docker/nginx/Containerfile'],
-    ]);
+    ])->and(array_column($rules, 'enforceLine', 'image')['library/php'] ?? null)->toBeTrue();
 });
