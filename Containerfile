@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: CC0-1.0
 
 FROM docker.io/library/composer:2.10.2@sha256:5946476338742b200bb9ff88f8be56275ddae4b3949c72305cb0dbf10cfcb760 AS composer
-FROM docker.io/dunglas/frankenphp:1.13.5-php8.4.27-alpine@sha256:2a0633266ba2c821ad3cabb88caa30792a81e2d6c3c3a0720906114c660ede08 AS api-base
+FROM docker.io/dunglas/frankenphp:1.13.5-php8.4.27-alpine@sha256:7b057eed5b9a1a67e3911ae83015963fc181a0ad886679f8f1b25dabad8873c4 AS api-base
 FROM api-base AS sqlite-build
 ARG SOURCE_DATE_EPOCH=0
 COPY docker/sqlite /build/sqlite
