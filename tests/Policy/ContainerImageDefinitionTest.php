@@ -3,6 +3,38 @@
 // SPDX-FileCopyrightText: 2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+function isLockedOpenTimestampsGraph(string $requirements): bool
+{
+    $packages = [];
+    $declarations = preg_replace('/\\\\\h*\R/', ' ', $requirements);
+    foreach (explode("\n", $declarations ?? '') as $declaration) {
+        $declaration = trim($declaration);
+        if ($declaration === '' || str_starts_with($declaration, '#')) {
+            continue;
+        }
+        if (preg_match('/\A([a-z][a-z0-9-]*)==\d+\.\d+\.\d+(?:\h+--hash=sha256:[a-f0-9]{64})+\z/', $declaration, $match) !== 1) {
+            return false;
+        }
+        $packages[] = $match[1];
+    }
+
+    sort($packages);
+
+    return $packages === ['opentimestamps', 'pycryptodomex', 'python-bitcoinlib'];
+}
+
+it('rejects mutable, unhashed or unapproved Python runtime requirements', function (): void {
+    $manifest = (string) file_get_contents(dirname(__DIR__, 2).'/docker/python/opentimestamps-requirements.txt');
+
+    expect(isLockedOpenTimestampsGraph($manifest))->toBeTrue()
+        ->and(isLockedOpenTimestampsGraph(str_replace('opentimestamps==', 'opentimestamps>=', $manifest)))->toBeFalse()
+        ->and(isLockedOpenTimestampsGraph((string) preg_replace('/\h*--hash=sha256:[a-f0-9]{64}/', '', $manifest)))->toBeFalse()
+        ->and(isLockedOpenTimestampsGraph(str_replace('sha256:', 'sha512:', $manifest)))->toBeFalse()
+        ->and(isLockedOpenTimestampsGraph($manifest."\n".$manifest))->toBeFalse()
+        ->and(isLockedOpenTimestampsGraph(str_replace('opentimestamps==', 'opentimestamps-client==', $manifest)))->toBeFalse()
+        ->and(isLockedOpenTimestampsGraph($manifest."\n--extra-index-url https://packages.invalid/simple\n"))->toBeFalse();
+});
+
 it('defines the production API image contract', function (): void {
     $root = dirname(__DIR__, 2);
     $artifacts = ['Containerfile', '.containerignore', 'docker/frankenphp/Caddyfile', 'docker/php/conf.d/production.ini',
@@ -37,7 +69,11 @@ it('defines the production API image contract', function (): void {
         ->toContain('python3 -m pip check', 'apk del --no-network .python-build-deps curl')
         ->toContain('--no-dev')
         ->toContain('--no-scripts')
-        ->toContain('--require-hashes', '--only-binary=:all:', 'opentimestamps-requirements.txt')
+        ->toContain(
+            'COPY docker/python/opentimestamps-requirements.txt /tmp/opentimestamps-requirements.txt',
+            'pip3 install --break-system-packages --no-cache-dir --only-binary=:all:',
+            '--require-hashes -r /tmp/opentimestamps-requirements.txt',
+        )
         ->toContain('rm -f bootstrap/cache/*.php', '/config/caddy /config/psysh')
         ->not->toContain('redis-6.3.0', 'apt-get', 'dpkg', '--allow-untrusted', 'edge/')
         ->toContain('COPY --chown=root:root --chmod=0644 docker/frankenphp/Caddyfile /etc/frankenphp/Caddyfile')
@@ -57,9 +93,7 @@ it('defines the production API image contract', function (): void {
     expect(preg_match('/^[ \t]*&& apk add --no-cache python3=(3\.14\.\d+)-r\d+\b/m', $extensionsStage, $pythonInput))->toBe(1);
     expect(version_compare($pythonInput[1] ?? '0', '3.14.8', '>='))->toBeTrue();
 
-    expect($pythonRequirements)
-        ->toContain('opentimestamps==0.4.5 --hash=sha256:', '6bbcb1dd0f646484939e142462d9e532482bc74475cecf9c4903d4e1cd21f003', '55ccbe27f049743a4caf4f4221b166560d3438d0b1e5ab929e07ae1702a4d6fd', '43c446e2ba8df8889e0e16f02211c25b4934898384c1ec1ec04d7889c0333587', 'f489c4765093fb60e2edafdf223397bc716491b2b69fe74367b70d6999257a5c')
-        ->not->toContain('opentimestamps-client', 'gitpython', 'gitdb', 'smmap', 'appdirs', 'pysocks');
+    expect(isLockedOpenTimestampsGraph($pythonRequirements))->toBeTrue();
 
     expect($smokeScript)
         ->toContain('DB_SSLMODE=verify-full', 'apk info --installed libcurl=8.23.0-r0', '--read-only', '--cap-drop=all', '--security-opt=no-new-privileges')
@@ -181,7 +215,13 @@ it('keeps the qualified FPM and public HTTP runtimes separate from the accepted 
     $nginx = (string) file_get_contents($root.'/docker/nginx/nginx.conf');
     $fastcgi = (string) file_get_contents($root.'/docker/nginx/fastcgi.conf');
 
-    expect($php)->toContain('php:8.4.', '-fpm-alpine3.24@sha256:', 'icu-data-full=', '--require-hashes', 'USER secpal', 'STOPSIGNAL SIGQUIT')
+    expect($php)->toContain('php:8.4.', '-fpm-alpine3.24@sha256:', 'icu-data-full=', 'USER secpal', 'STOPSIGNAL SIGQUIT')
+        ->toContain(
+            'COPY docker/python/opentimestamps-requirements.txt /tmp/opentimestamps-requirements.txt',
+            'pip3 install --break-system-packages --no-cache-dir --only-binary=:all:',
+            '--require-hashes -r /tmp/opentimestamps-requirements.txt',
+            'python3 -m pip check',
+        )
         ->not->toContain('frankenphp', 'caddy', 'artisan migrate');
     expect($pool)->toContain('listen=/run/secpal-fpm/api.sock', 'listen.mode=0660', 'clear_env=yes', 'security.limit_extensions=.php', 'pm.max_children=4');
     expect($http)->toContain('nginx:', '-alpine3.24-slim@sha256:', 'COPY public /app/public', 'USER secpal', 'EXPOSE 8080')
