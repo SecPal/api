@@ -10,9 +10,13 @@ use Illuminate\Database\Connection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 
-it('returns 503 instead of 500 when database connectivity throws a non-exception throwable', function (): void {
+beforeEach(function (): void {
     app(ResponseFactory::class);
 
+    DB::shouldReceive('getConnections')->andReturn([]);
+});
+
+it('returns 503 instead of 500 when database connectivity throws a non-exception throwable', function (): void {
     DB::shouldReceive('connection')
         ->zeroOrMoreTimes()
         ->andThrow(new TypeError('Database password must be a string.'));
@@ -30,8 +34,6 @@ it('returns 503 instead of 500 when database connectivity throws a non-exception
 });
 
 it('returns 503 instead of 500 when tenant-key checks throw a non-exception throwable', function (): void {
-    app(ResponseFactory::class);
-
     $connection = Mockery::mock(Connection::class);
     $connection->shouldReceive('getPdo')->once()->andReturn(new PDO('sqlite::memory:'));
 

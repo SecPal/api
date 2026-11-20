@@ -34,7 +34,6 @@ PYPAIR
 fi
 definition=$(python3 scripts/container-publisher.py runtime-definition --runtime "$runtime")
 containerfile=$(jq -er .containerfile <<< "$definition")
-runtime_argument=$(jq -er .argument <<< "$definition")
 governance="${GITHUB_WORKSPACE:?}/.context/publisher-governance"
 tools="${RUNNER_TEMP:?}/secpal-publisher-tools"
 case "$arch:$(uname -m):${RUNNER_ARCH:-}" in
@@ -60,14 +59,16 @@ snapshot="$snapshot_parent/source"
 python3 -I "$governance/scripts/secpal-trivy-repository-scan.py" prepare-snapshot \
   --workspace "$repo_root" --commit "$GITHUB_SHA" --destination "$snapshot"
 python3 scripts/container-publisher.py bases --root "$snapshot" --arch "$arch" --runtime "$runtime" --output "$output/bases.json"
-runtime_base=$(jq -er '.[] | select(.stage=="extensions") | (.reference | split("@")[0] | split(":")[0])+"@"+.digest' "$output/bases.json")
-build_arguments=(--build-arg "$runtime_argument=$runtime_base")
-if [ "$(jq -er .composer <<< "$definition")" = true ]; then
-  composer_base=$(jq -er '.[] | select(.stage=="composer") | (.reference | split("@")[0] | split(":")[0])+"@"+.digest' "$output/bases.json")
-  buildah pull --arch "$arch" "$composer_base"
-  build_arguments+=(--build-arg "COMPOSER_IMAGE=$composer_base")
-fi
-buildah pull --arch "$arch" "$runtime_base"
+bindings=$(jq -er '.[] | [.reference, .digest] | @tsv' "$output/bases.json")
+build_arguments=()
+while IFS=$'\t' read -r reviewed child_digest; do
+  tagged=${reviewed%@*}
+  child="${tagged%:*}@$child_digest"
+  buildah pull --arch "$arch" "$child"
+  buildah inspect --type image "$child" | jq -e --arg digest "$child_digest" --arg arch "$arch" \
+    '.FromImageDigest == $digest and .OCIv1.os == "linux" and .OCIv1.architecture == $arch' > /dev/null
+  build_arguments+=(--build-context "$reviewed=container-image://$child")
+done <<< "$bindings"
 epoch=$(jq -er .epoch "$output/source.json")
 if [ "$runtime" != nginx ]; then
   build_arguments+=(--build-arg "SOURCE_DATE_EPOCH=$epoch")

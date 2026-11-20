@@ -204,7 +204,11 @@ def origin(root, proof_path, run_id):
 def verify(root, proof_path):
     proof = json.loads(Path(proof_path).read_text())
     expected = current_scope(root, proof.get('policy_source') == 'bootstrap')
+    # Reuse is an optimization. Full qualification can always cover the same scope.
+    if expected['mode'] == 'reuse' and proof.get('mode') == 'build':
+        expected['mode'] = 'build'
     require(all(proof.get(k) == v for k, v in expected.items()))
+    require(('baseline' in proof) == (proof['mode'] == 'reuse'))
     if proof['mode'] == 'reuse':
         observed = origin(root, proof_path, proof['baseline']['context']['run_id'])
         require(observed == proof['baseline'])
@@ -318,7 +322,7 @@ def scan(root, proof_path, native, output):
             evaluation = json.loads((folder/'evaluation.json').read_text())
             require(evaluation['subject'] == dict(platform='linux/'+arch, oci_digest=subjects[arch][role]))
             policy = pub['observe_policy'](base, folder, pub['evidence_now']())
-            require(policy['gate_state'] == 'CLEAN' and policy['evidence_health']['state'] == 'HEALTHY')
+            require(pub['qualifies_unpublished_policy'](policy))
             policies[role+'/'+arch] = digest(json.dumps(policy, sort_keys=True, separators=(',', ':')).encode())
     verify(root, proof_path)
     write(output/'requalified-existing-images.json', dict(
@@ -349,7 +353,8 @@ def main():
                 if excluded_context(root, commit, delta):
                     proof['baseline'] = origin(root, args.proof, candidate['id'])
                     break
-            require('baseline' in proof)
+            if 'baseline' not in proof:
+                proof['mode'] = 'build'
             write(args.proof, proof)
         with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
             output.write('mode='+proof['mode']+'\n')
