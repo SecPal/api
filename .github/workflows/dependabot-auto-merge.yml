@@ -37,14 +37,14 @@ permissions:
 
 jobs:
   auto-merge:
-    uses: SecPal/.github/.github/workflows/reusable-dependabot-auto-merge.yml@fea677e6bcdb1ccaf183aa6f56532c287ed36cd4
+    uses: SecPal/.github/.github/workflows/reusable-dependabot-auto-merge.yml@cbf343cf4521690f15157d6602a53ef9d0662ec7
     with:
       allowed-ecosystems: "github_actions,npm_and_yarn,composer,pip,pre_commit,docker"
       pip-manifest-path: "docker/python/opentimestamps-requirements.txt"
       pre-commit-path: ".pre-commit-config.yaml"
       docker-rules: >-
         [{"image":"library/composer","paths":["docker/php-fpm/Containerfile"],"line":"2","suffix":""},
-         {"image":"library/php","paths":["docker/php-fpm/Containerfile"],"line":"8.4","suffix":"-fpm-alpine3.24"},
+         {"image":"library/php","paths":["docker/php-fpm/Containerfile"],"line":"8.4","suffix":"-fpm-alpine3.24","enforceLine":true},
          {"image":"library/nginx","paths":["docker/nginx/Containerfile"],"line":"1.30","suffix":"-alpine3.24-slim"}]
       phase: "2" # Verified PATCH and MINOR; Source Safety must be required
       merge-method: "squash" # Use squash merge for cleaner history
