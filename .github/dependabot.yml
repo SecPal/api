@@ -56,27 +56,6 @@ updates:
     pull-request-branch-name:
       separator: "-"
 
-  # npm - JavaScript dependencies (if frontend assets exist)
-  - package-ecosystem: "npm"
-    directory: "/"
-    schedule:
-      interval: "daily"
-      time: "04:00"
-      timezone: "Europe/Berlin"
-    versioning-strategy: "increase"
-    commit-message:
-      prefix: "chore"
-      include: "scope"
-    labels:
-      - "dependencies"
-      - "npm"
-      - "dependabot"
-    open-pull-requests-limit: 10
-    rebase-strategy: "auto"
-    target-branch: "main"
-    pull-request-branch-name:
-      separator: "-"
-
   # OCI base images use reviewed literal FROM pins.
   - package-ecosystem: "docker"
     directories:
