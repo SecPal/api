@@ -34,7 +34,7 @@ class ScopeTests(unittest.TestCase):
         self.git('config', 'commit.gpgsign', 'false')
         for name, data in {
             '.containerignore': '.git\n.github\ntests\nCHANGELOG.md\n!docs/ADDRESS_DATA.md\n',
-            'Containerfile': 'FROM fixture\nCOPY app /app\n',
+            'docker/php-fpm/Containerfile': 'FROM fixture\nCOPY app /app\n',
             'app/a.php': '<?php // original\n',
             'composer.lock': '{}\n',
             'tests/Unit/a.php': '<?php // original assertion\n',
@@ -88,7 +88,7 @@ class ScopeTests(unittest.TestCase):
 
     def test_config_change_builds_when_published_source_has_different_runtime_inputs(self):
         producer = self.base
-        self.write('Containerfile', 'FROM newer-fixture\nCOPY app /app\n')
+        self.write('docker/php-fpm/Containerfile', 'FROM newer-fixture\nCOPY app /app\n')
         self.git('add', '.')
         self.git('commit', '-qm', 'change native build inputs')
         self.git('branch', '-f', 'main')
@@ -122,7 +122,7 @@ class ScopeTests(unittest.TestCase):
         self.assertEqual(self.scope()['mode'], 'not-applicable')
 
     def test_runtime_dependency_publisher_or_context_changes_require_new_native_builds(self):
-        for path in ['app/a.php', 'composer.lock', 'scripts/publish-container.sh', 'Containerfile', '.containerignore']:
+        for path in ['app/a.php', 'composer.lock', 'scripts/publish-container.sh', 'docker/nginx/Containerfile', '.containerignore']:
             with self.subTest(path=path):
                 self.write(path, 'changed\n')
         self.assertEqual(self.scope()['mode'], 'build')
@@ -246,7 +246,7 @@ class ArchiveTests(unittest.TestCase):
             root = Path(temp)
             context = dict(source_commit='a'*40, run_id='123', run_attempt='2')
             records = {}
-            for role in (*ci.ROLES, 'legacy'):
+            for role in ci.ROLES:
                 own = root/role
                 own.mkdir()
                 record = dict(source=dict(commit=context['source_commit'], runtime=role), bases=[],

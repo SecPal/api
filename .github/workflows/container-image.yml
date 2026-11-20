@@ -5,11 +5,6 @@
 name: Container Image
 "on":
   workflow_call:
-    inputs:
-      runtime-set:
-        type: string
-        default: legacy
-        required: false
 permissions:
   contents: read
   actions: read
@@ -130,16 +125,13 @@ jobs:
       - name: Lint Containerfile and shell
         run:
           'podman run --rm -i docker.io/hadolint/hadolint:v2.14.0-debian@sha256:158cd0184dcaa18bd8ec20b61f4c1cabdf8b32a592d062f57bdcb8e4c1d312e2
-          < Containerfile
-
-          podman run --rm -i docker.io/hadolint/hadolint:v2.14.0-debian@sha256:158cd0184dcaa18bd8ec20b61f4c1cabdf8b32a592d062f57bdcb8e4c1d312e2
           < docker/php-fpm/Containerfile
 
           podman run --rm -i docker.io/hadolint/hadolint:v2.14.0-debian@sha256:158cd0184dcaa18bd8ec20b61f4c1cabdf8b32a592d062f57bdcb8e4c1d312e2
           < docker/nginx/Containerfile
 
           podman run --rm -v "$PWD:/mnt:ro" -w /mnt docker.io/koalaman/shellcheck:v0.10.0@sha256:2097951f02e735b613f4a34de20c40f937a6c8f18ecb170612c88c34517221fb
-          docker/healthchecks/http-live.sh tests/docker/smoke.sh scripts/build-container.sh scripts/container-tools.sh
+          docker/nginx/http-live.sh tests/docker/smoke.sh scripts/build-container.sh scripts/container-tools.sh
           scripts/publish-container.sh scripts/scan-container-artifact.sh tests/docker/runtime-component.sh'
   build-and-test:
     name: Native API (${{ matrix.arch }})
@@ -188,7 +180,7 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
       - name: Read qualified production secret contract
-        if: needs.applicability.outputs.mode != 'not-applicable' && (github.event_name == 'pull_request' || inputs.runtime-set == 'pair')
+        if: needs.applicability.outputs.mode != 'not-applicable'
         # v7.0.1
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -214,17 +206,7 @@ jobs:
         if: needs.applicability.outputs.mode == 'build'
         env:
           NATIVE_ARCH: ${{ matrix.arch }}
-          RUNTIME_SET: ${{ github.event_name == 'pull_request' && 'pair' || inputs.runtime-set }}
-        run: |
-          scripts/build-container.sh "$NATIVE_ARCH" "$RUNNER_TEMP/secpal-native/$NATIVE_ARCH" "$RUNTIME_SET"
-          if [ "$RUNTIME_SET" = pair ]; then
-            legacy="$RUNNER_TEMP/secpal-native/$NATIVE_ARCH/legacy"
-            scripts/build-container.sh "$NATIVE_ARCH" "$legacy" legacy
-            jq -n --arg completed_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --slurpfile record "$legacy/record.json" '
-              $record[0] | {platform:.subject.platform,digest:.subject.manifest_digest,runner_architecture,
-                test:"tests/docker/smoke.sh",result:"SUCCEEDED",completed_at:$completed_at,
-                workflow_run_id,workflow_run_attempt}' > "$legacy/smoke.json"
-          fi
+        run: scripts/build-container.sh "$NATIVE_ARCH" "$RUNNER_TEMP/secpal-native/$NATIVE_ARCH"
       - name: Exercise the exact existing qualified images natively
         if: needs.applicability.outputs.mode == 'reuse'
         env:
@@ -334,34 +316,20 @@ jobs:
           "$RUNNER_TEMP/secpal-policy/bin/pip" install --requirement .context/publisher-governance/requirements/vulnerability-policy.txt
           printf '%s\n' "$RUNNER_TEMP/secpal-policy/bin" >> "$GITHUB_PATH"
       - name: Scan exact unpublished artifacts under unchanged policy
-        id: scan
         if: needs.applicability.outputs.mode == 'build'
         env:
-          API_RUNTIME_SET: pair
           DEPENDABOT_PR: ${{ github.event.pull_request.user.login == 'dependabot[bot]' }}
         run: |
-          scope=.context/ci-scope/scope.json
           if [ "$DEPENDABOT_PR" = true ]; then
-            python3 scripts/container-publisher.py verify-changed-base-tags --root . --scope "$scope"
+            python3 scripts/container-publisher.py verify-changed-base-tags --root . --scope .context/ci-scope/scope.json
           fi
-          API_LOCAL_INCLUDE_LEGACY=$(jq -er 'any(.changes[]; .path == "Containerfile")|tostring' "$scope")
-          export API_LOCAL_INCLUDE_LEGACY
           scripts/scan-container-artifact.sh local
-          echo "include-legacy=$API_LOCAL_INCLUDE_LEGACY" >> "$GITHUB_OUTPUT"
       - name: Verify complete same-source digest-bound runtime pair
         if: needs.applicability.outputs.mode == 'build'
-        env:
-          INCLUDE_LEGACY: ${{ steps.scan.outputs.include-legacy }}
         run: |
-          flags=()
-          case "$INCLUDE_LEGACY" in
-            true) flags+=(--include-legacy) ;;
-            false) ;;
-            *) exit 1 ;;
-          esac
           python3 scripts/container-publisher.py qualify-unpublished-pair \
             --root . --native .context/native --scan-root .context/scan \
-            --output .context/scan/unpublished-runtime-pair.json "${flags[@]}"
+            --output .context/scan/unpublished-runtime-pair.json
       - name: Requalify existing images with fresh independent artifact scans
         if: needs.applicability.outputs.mode == 'reuse'
         env:

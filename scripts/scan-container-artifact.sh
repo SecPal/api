@@ -4,11 +4,10 @@
 # Publisher observation only; accepted .github adapters/policy own decisions.
 set -euo pipefail
 test "${GITHUB_REPOSITORY:?}" = SecPal/api
-mode=${1:-published}
-runtime_set=${API_RUNTIME_SET:-legacy}
-case "$mode:$runtime_set:${GITHUB_EVENT_NAME:?}" in
-  local:pair:pull_request) ;;
-  published:legacy:push|published:pair:workflow_dispatch)
+mode=${1:?artifact scan mode}
+case "$mode:${GITHUB_EVENT_NAME:?}" in
+  local:pull_request) ;;
+  published:workflow_dispatch)
     test "${GITHUB_REF:?}" = refs/heads/main ;;
   *) echo 'Artifact scan invocation rejected' >&2; exit 1 ;;
 esac
@@ -57,16 +56,9 @@ vex_arguments=()
       --trusted-commit "$vex_commit"
     vex_arguments+=(--reviewed-vex-manifest "$manifest")
   done < "$cache/vex-list"
-components=(legacy)
-if [ "$runtime_set" = pair ]; then components=(php-fpm nginx); fi
-if [ "$mode" = local ] && [ "${API_LOCAL_INCLUDE_LEGACY:-false}" = true ]; then components+=(legacy); fi
-for component in "${components[@]}"; do
-  prepared="$prepared_root"
-  scan_root="$repo_root/.context/scan"
-  if [ "$component" != legacy ] || [ "$mode" = local ]; then
-    prepared="$prepared/$component"
-    scan_root="$scan_root/$component"
-  fi
+for component in php-fpm nginx; do
+  prepared="$prepared_root/$component"
+  scan_root="$repo_root/.context/scan/$component"
 for arch in amd64 arm64; do
   output="$scan_root/$arch"
   mkdir -p "$output/raw" "$output/sbom"

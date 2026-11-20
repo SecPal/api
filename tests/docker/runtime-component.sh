@@ -9,6 +9,14 @@ case "$arch:$(uname -m)" in amd64:x86_64|arm64:aarch64) ;; *) exit 1 ;; esac
 test "$(podman info --format '{{.Host.Security.Rootless}}')" = true
 test "$(podman image inspect --format '{{.Architecture}}' "$image")" = "$arch"
 test "$(podman image inspect --format '{{index .Config.Labels "secpal.dev/runtime-component"}}' "$image")" = "$component"
+image_config=$(podman image inspect "$image")
+image_history=$(podman history --no-trunc "$image")
+for bytes in "$image_config" "$image_history"; do
+    if grep -Eq 'APP_KEY=|DB_PASSWORD=|KEK_PATH=' <<< "$bytes"; then
+        echo 'Image metadata contains a runtime secret setting' >&2
+        exit 1
+    fi
+done
 args=(--rm --read-only --cap-drop=all --security-opt=no-new-privileges --network=none)
 podman run "${args[@]}" --entrypoint sh "$image" -eu -c '
     test "$(id -u)" -eq 10001
@@ -26,7 +34,7 @@ podman run "${args[@]}" --entrypoint sh "$image" -eu -c '
 case "$component" in
   php-fpm)
     podman run "${args[@]}" "$image" php -r '
-        if (PHP_VERSION !== "8.4.27" || PHP_ZTS || posix_geteuid() !== 10001) { exit(1); }
+        if (PHP_VERSION !== "8.4.27" || PHP_ZTS || posix_geteuid() !== 10001 || extension_loaded("redis")) { exit(1); }
         foreach (["bcmath","curl","gettext","intl","mbstring","Zend OPcache","pcntl","pdo_pgsql","pgsql","sodium","xml","zip"] as $extension) {
             if (!extension_loaded($extension)) { exit(1); }
         }
@@ -48,6 +56,14 @@ case "$component" in
     podman run "${args[@]}" "$image" sh -eu -c '
         test -r /app/LICENSES/ODbL-1.0.txt
         test -r /app/docs/ADDRESS_DATA.md
+        grep -F "Machine-readable alterations offer" /app/docs/ADDRESS_DATA.md >/dev/null
+        test -z "$(find /app/database -type f -name "*.sqlite*" -print -quit)"
+        test "$(stat -c "%U:%G %a" /usr/local/etc/php/conf.d/zz-secpal-production.ini)" = "root:root 644"
+        for writable in /app/storage /app/bootstrap/cache; do
+            test "$(stat -c "%U:%G %a" "$writable")" = "secpal:secpal 750"
+        done
+        apk info --installed libcurl=8.23.0-r0
+        apk info --installed brotli-libs=1.2.1-r0
         test ! -d /app/vendor/pestphp
         test ! -d /app/vendor/phpunit
         test ! -e /usr/local/bin/frankenphp
@@ -71,6 +87,7 @@ case "$component" in
         test ! -e /usr/local/bin/php
         test ! -e /run/secpal/secrets
         test "$(stat -c "%U:%G %a" /etc/nginx/nginx.conf)" = "root:root 444"
+        test "$(stat -c "%U:%G %a" /usr/local/bin/secpal-http-live)" = "root:root 555"
     '
     ;;
   *) echo 'Unknown runtime component' >&2; exit 1 ;;

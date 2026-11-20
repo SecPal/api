@@ -5,20 +5,11 @@
 name: Publish Container
 "on":
   workflow_dispatch:
-    inputs:
-      runtime-set:
-        description: Explicitly publish the qualified replacement runtime pair
-        type: choice
-        options:
-          - pair
-        default: pair
-        required: true
 permissions: {}
 concurrency:
   group: publish-container-${{ github.repository }}-${{ github.sha }}
   cancel-in-progress: false
 env:
-  API_RUNTIME_SET: ${{ github.event_name == 'workflow_dispatch' && 'pair' || 'legacy' }}
   GHCR_HOST: ghcr.io
   GHCR_REPOSITORY_PATH: secpal/api
   CANONICAL_IMAGE: ghcr.io/secpal/api
@@ -36,8 +27,6 @@ jobs:
       contents: read
       actions: read
     uses: ./.github/workflows/container-image.yml
-    with:
-      runtime-set: ${{ github.event_name == 'workflow_dispatch' && 'pair' || 'legacy' }}
   prepare:
     name: Prepare exact digest subjects
     needs:
@@ -49,15 +38,7 @@ jobs:
       contents: read
       packages: write
     outputs:
-      components: ${{ steps.prepare.outputs.components }}
       candidates: ${{ steps.prepare.outputs.candidates }}
-      index_digest: ${{ steps.prepare.outputs.index_digest }}
-      amd64_digest: ${{ steps.prepare.outputs.amd64_digest }}
-      arm64_digest: ${{ steps.prepare.outputs.arm64_digest }}
-      amd64_sbom: ${{ steps.prepare.outputs.amd64_sbom }}
-      arm64_sbom: ${{ steps.prepare.outputs.arm64_sbom }}
-      amd64_sbom_digest: ${{ steps.prepare.outputs.amd64_sbom_digest }}
-      arm64_sbom_digest: ${{ steps.prepare.outputs.arm64_sbom_digest }}
     steps:
       - name: Checkout exact publisher source
         # v7.0.1
@@ -118,11 +99,11 @@ jobs:
           if-no-files-found: error
           retention-days: 14
   attest:
-    name: ${{ matrix.component == 'legacy' && 'Attest candidate index platforms and Syft artifacts' || format('Attest candidate index platforms and Syft artifacts ({0})', matrix.component) }}
+    name: ${{ format('Attest candidate index platforms and Syft artifacts ({0})', matrix.component) }}
     strategy:
       fail-fast: false
       matrix:
-        component: ${{ fromJSON(needs.prepare.outputs.components) }}
+        component: [php-fpm, nginx]
     needs: prepare
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -340,7 +321,7 @@ jobs:
       - name: Observe exact artifacts and apply accepted central policy
         env:
           GH_TOKEN: ${{ github.token }}
-        run: scripts/scan-container-artifact.sh
+        run: scripts/scan-container-artifact.sh published
       - name: Retain bounded publisher evidence
         if: always()
         # v7.0.2
@@ -368,7 +349,6 @@ jobs:
       attestations: write
       id-token: write
     outputs:
-      image_digest: ${{ needs.prepare.outputs.index_digest }}
       evidence_digest: ${{ steps.retain.outputs.evidence_digest }}
       runtime_pair_digest: ${{ steps.accept.outputs.runtime_pair_digest }}
     steps:
@@ -402,7 +382,7 @@ jobs:
         id: candidate
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python3 scripts/container-publisher.py candidate-context --runtime-set "$API_RUNTIME_SET" --output .context/publisher-candidate-context.json
+        run: python3 scripts/container-publisher.py candidate-context --output .context/publisher-candidate-context.json
       - name: Read exact prepared subjects
         # v8.0.2
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
@@ -434,7 +414,6 @@ jobs:
       - name: Assemble complete builder-independent evidence
         env:
           GH_TOKEN: ${{ github.token }}
-          ARTIFACT_RISK_ACCEPTANCE_COMMENT_ID: ${{ vars.ARTIFACT_RISK_ACCEPTANCE_COMMENT_ID }}
         run: scripts/publish-container.sh evidence
       - name: Attest immutable build evidence document
         id: document
@@ -442,20 +421,16 @@ jobs:
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6
         with:
           subject-path: |
-            ${{ github.event_name == 'workflow_dispatch' && '.context/publisher/runtime-pair.json' || '.context/publisher/build-evidence.json' }}
-            ${{ github.event_name == 'workflow_dispatch' && '.context/publisher/php-fpm/build-evidence.json' || '' }}
-            ${{ github.event_name == 'workflow_dispatch' && '.context/publisher/nginx/build-evidence.json' || '' }}
+            .context/publisher/runtime-pair.json
+            .context/publisher/php-fpm/build-evidence.json
+            .context/publisher/nginx/build-evidence.json
           create-storage-record: false
       - name: Verify exact document and retain its bundle
         env:
           GH_TOKEN: ${{ github.token }}
           BUNDLE: ${{ steps.document.outputs.bundle-path }}
         run: |
-          documents=(.context/publisher/build-evidence.json)
-          if [ "$API_RUNTIME_SET" = pair ]; then
-            documents=(.context/publisher/runtime-pair.json .context/publisher/php-fpm/build-evidence.json .context/publisher/nginx/build-evidence.json)
-          fi
-          for document in "${documents[@]}"; do
+          for document in .context/publisher/runtime-pair.json .context/publisher/{php-fpm,nginx}/build-evidence.json; do
             gh attestation verify "$document" --bundle "$BUNDLE" --repo SecPal/api --signer-workflow SecPal/api/.github/workflows/publish-container.yml \
               --signer-digest "$GITHUB_SHA" --source-ref refs/heads/main --source-digest "$GITHUB_SHA" --deny-self-hosted-runners
           done
@@ -492,7 +467,6 @@ jobs:
         id: accept
         env:
           GH_TOKEN: ${{ github.token }}
-          ARTIFACT_RISK_ACCEPTANCE_COMMENT_ID: ${{ vars.ARTIFACT_RISK_ACCEPTANCE_COMMENT_ID }}
           EVIDENCE_DIGEST: ${{ steps.retain.outputs.evidence_digest }}
         run: scripts/publish-container.sh accept "$EVIDENCE_DIGEST"
       - name: Retain bounded publisher evidence

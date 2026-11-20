@@ -16,8 +16,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Add the qualified Alpine PHP-FPM/CLI and separate Nginx runtime pair with a
   private Unix socket, non-root execution and digest-bound dual-artifact
-  Buildah evidence. Preserve the accepted FrankenPHP publication and consumer
-  contract until the replacement is independently accepted (refs #2639).
+  Buildah evidence (refs #2639).
+
+### Removed
+
+- Retire the FrankenPHP API runtime from source, native CI and publication.
+  PHP 8.4-FPM and Nginx are the supported API runtime pair (refs #2994).
 
 ### Fixed
 
@@ -37,7 +41,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   nonapplicability evidence, and fully requalify existing images for CI changes.
   Runtime, dependency and publisher implementation changes still require builds.
 - Require the existing manual release entry point for API registry publication;
-  merging source into main cannot automatically publish the retained runtime.
+  merging source into main cannot automatically publish API images.
 - Repair the retained FrankenPHP runtime's SQLite library with the same genuine
   3.54.0 APK used by FPM; remove runtime pip and the unused curl command while
   preserving PHP/libcurl and OpenTimestamps. Validate both native architectures.
