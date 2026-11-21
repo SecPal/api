@@ -54,6 +54,7 @@ it('uses only the pinned shared scanners and isolated finding triage', function 
     expect($workflow['permissions'])->toBe([])
         ->and(array_keys($workflow['on']))->toBe(['schedule', 'workflow_dispatch'])
         ->and(array_keys($workflow['on']['workflow_dispatch']['inputs']))->toBe(['component', 'platform', 'index-digest'])
+        ->and(array_keys($workflow['jobs']))->toBe(['subject', 'reevaluate'])
         ->and($subject['permissions'])->toBe([])
         ->and($scan['uses'])->toMatch('/^SecPal\/\.github\/\.github\/workflows\/reusable-vulnerability-reevaluation\.yml@[a-f0-9]{40}$/')
         ->and($scan['needs'])->toBe('subject')
@@ -62,7 +63,7 @@ it('uses only the pinned shared scanners and isolated finding triage', function 
         ->and($scan['with']['publisher-repository'])->toBe('SecPal/api')
         ->and($scan['with']['publisher-workflow'])->toBe('SecPal/api/.github/workflows/publish-container.yml')
         ->and($scan['with']['triage'])->toBeTrue()
-        ->and($scan)->not->toHaveKeys(['steps', 'secrets', 'continue-on-error', 'strategy'])
+        ->and($scan)->not->toHaveKeys(['steps', 'secrets', 'continue-on-error', 'strategy', 'if'])
         ->and(array_keys($release['components']))->toBe(['php-fpm', 'nginx'])
         ->and($release['pair-artifact'])->toMatch('/^ghcr\.io\/secpal\/api@sha256:[a-f0-9]{64}$/')
         ->and($release['publisher-workflow-sha'])->toMatch('/^[a-f0-9]{40}$/');
