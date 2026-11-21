@@ -1,0 +1,36 @@
+---
+# SPDX-FileCopyrightText: 2026 SecPal Contributors
+# SPDX-License-Identifier: CC0-1.0
+
+name: Daily API Repository Security
+
+on:
+  schedule:
+    - cron: "57 2 * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  admit-source:
+    name: Admit protected API main event
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require exact protected main source
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REPOSITORY" != SecPal/api ||
+                "$GITHUB_REF" != refs/heads/main || "$GITHUB_REF_PROTECTED" != true ||
+                ! "$GITHUB_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo 'Source assessment requires the protected API main event SHA.' >&2
+            exit 1
+          fi
+          printf 'Source subject: %s@%s\n\n' "$GITHUB_REPOSITORY" "$GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
+
+  repository-security:
+    name: Repository Security
+    needs: admit-source
+    permissions:
+      contents: read
+    uses: ./.github/workflows/reusable-repository-security.yml
