@@ -11,7 +11,7 @@ PHP 8.4-FPM/CLI and Nginx form the API runtime pair. The build definitions are
 
 ## Runtime architecture
 
-The PHP image uses the official PHP 8.4.27 FPM/CLI Alpine 3.24 base, full ICU
+The PHP image uses the official PHP 8.4 FPM/CLI Alpine 3.24 base, full ICU
 data, the existing extensions, OPcache configuration and hash-locked
 OpenTimestamps dependencies. It contains the application and the CLI used by queues, the activity hash chain,
 scheduling and migrations. Mount persistent private storage at
