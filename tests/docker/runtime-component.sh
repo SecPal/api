@@ -33,14 +33,28 @@ podman run "${args[@]}" --entrypoint sh "$image" -eu -c '
 '
 case "$component" in
   php-fpm)
+    php_version="$(python3 -I - <<'PY'
+import re
+import runpy
+from pathlib import Path
+
+publisher = runpy.run_path("scripts/container-publisher.py")
+base = publisher["reviewed_bases"](Path("docker/php-fpm/Containerfile").read_text(), "php-fpm")["extensions"]
+tag = base.split(":", 1)[1].split("@", 1)[0]
+stable = re.fullmatch(r"(8\.4\.[0-9]+)-fpm-alpine3\.24", tag)
+if stable is None:
+    raise SystemExit("Expected a stable PHP 8.4 FPM Alpine 3.24 base")
+print(stable[1])
+PY
+    )"
     podman run "${args[@]}" "$image" php -r '
-        if (PHP_VERSION !== "8.4.27" || PHP_ZTS || posix_geteuid() !== 10001 || extension_loaded("redis")) { exit(1); }
+        if (PHP_VERSION !== $argv[1] || PHP_ZTS || posix_geteuid() !== 10001 || extension_loaded("redis")) { exit(1); }
         foreach (["bcmath","curl","gettext","intl","mbstring","Zend OPcache","pcntl","pdo_pgsql","pgsql","sodium","xml","zip"] as $extension) {
             if (!extension_loaded($extension)) { exit(1); }
         }
         exit(Locale::getDisplayRegion("en_DE","de") === "Deutschland"
             && ini_get("upload_max_filesize") === "10M" && ini_get("post_max_size") === "12M" ? 0 : 1);
-    '
+    ' -- "$php_version"
     # Both existing PHP SQLite drivers must load the authenticated replacement library.
     # shellcheck disable=SC2016 # These are PHP variables.
     podman run "${args[@]}" "$image" php -r '

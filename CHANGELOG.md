@@ -25,6 +25,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Update the PHP-FPM/CLI base to the PHP 8.4.28 security release and refresh the
+  build-only pip pin for Alpine 3.24 (refs #3057).
+
 - Update the Nginx runtime to 1.30.7 and install the patched Alpine OpenSSL
   libraries on both architectures (refs #2920).
 
