@@ -35,7 +35,75 @@ it('requires repository security acceptance before publication and provides PR f
     $download = array_values(array_filter($publisher['steps'], static fn (array $step): bool => $step['name'] === 'Read exact source security evidence'))[0];
     expect($download['with']['name'])->toBe('${{ needs.repository-security.outputs.evidence-artifact }}')
         ->and($download['with'])->not->toHaveKey('pattern');
-    expect(repositorySecurityWorkflow('quality')['on']['pull_request']['branches'])->toBe(['main']);
+    expect(array_keys(repositorySecurityWorkflow('publish-container')['on']))->toBe(['workflow_dispatch'])
+        ->and(repositorySecurityWorkflow('quality')['on'])->toBe([
+            'push' => ['branches' => ['main']],
+            'pull_request' => ['branches' => ['main']],
+        ]);
+});
+
+it('schedules source security through the existing gate with no publisher or artifact jobs', function (): void {
+    expect(is_file(dirname(__DIR__, 2).'/.github/workflows/daily-repository-security.yml'))->toBeTrue();
+
+    $workflow = repositorySecurityWorkflow('daily-repository-security');
+
+    expect($workflow['on'])->toBe([
+        'schedule' => [['cron' => '57 2 * * *']],
+        'workflow_dispatch' => null,
+    ])->and($workflow['permissions'])->toBe([])
+        ->and(array_keys($workflow['jobs']))->toBe(['admit-source', 'repository-security'])
+        ->and($workflow['jobs']['admit-source'])->not->toHaveKeys(['if', 'continue-on-error', 'permissions'])
+        ->and($workflow['jobs']['admit-source']['steps'])->toHaveCount(1)
+        ->and($workflow['jobs']['admit-source']['steps'][0])->not->toHaveKeys(['if', 'continue-on-error'])
+        ->and($workflow['jobs']['repository-security'])->toBe([
+            'name' => 'Repository Security',
+            'needs' => 'admit-source',
+            'permissions' => ['contents' => 'read'],
+            'uses' => './.github/workflows/reusable-repository-security.yml',
+        ]);
+});
+
+it('admits only the exact protected API main event source', function (array $changed, bool $accepted): void {
+    $step = repositorySecurityWorkflow('daily-repository-security')['jobs']['admit-source']['steps'][0];
+    $sha = str_repeat('a', 40);
+    $summary = tempnam(sys_get_temp_dir(), 'api-source-assessment-');
+
+    try {
+        $process = new Process(['bash', '-eo', 'pipefail', '-c', $step['run']], null, [
+            'GITHUB_REPOSITORY' => 'SecPal/api',
+            'GITHUB_REF' => 'refs/heads/main',
+            'GITHUB_REF_PROTECTED' => 'true',
+            'GITHUB_SHA' => $sha,
+            ...$changed,
+            'GITHUB_STEP_SUMMARY' => $summary,
+        ]);
+        $process->run();
+
+        expect($process->getExitCode())->toBe($accepted ? 0 : 1)
+            ->and($process->getOutput())->toBe('')
+            ->and(file_get_contents($summary))->toBe($accepted ? "Source subject: SecPal/api@$sha\n\n" : '');
+        if (! $accepted) {
+            expect($process->getErrorOutput())->toContain('requires the protected API main event SHA');
+        }
+    } finally {
+        unlink($summary);
+    }
+})->with([
+    'protected API main' => [[], true],
+    'wrong repository' => [['GITHUB_REPOSITORY' => 'Other/api'], false],
+    'wrong branch' => [['GITHUB_REF' => 'refs/heads/candidate'], false],
+    'main tag' => [['GITHUB_REF' => 'refs/tags/main'], false],
+    'unprotected main' => [['GITHUB_REF_PROTECTED' => 'false'], false],
+    'missing protection' => [['GITHUB_REF_PROTECTED' => false], false],
+    'moving ref as source' => [['GITHUB_SHA' => 'main'], false],
+    'abbreviated SHA' => [['GITHUB_SHA' => str_repeat('a', 39)], false],
+    'missing SHA' => [['GITHUB_SHA' => false], false],
+]);
+
+it('keeps direct assessment triggers out of the reusable security gate', function (): void {
+    $reusable = repositorySecurityWorkflow('reusable-repository-security');
+
+    expect(array_keys($reusable['on']))->toBe(['workflow_call']);
 });
 
 it('scans the exact commit through the immutable input-free organization action with read-only authority', function (): void {
@@ -59,6 +127,7 @@ it('scans the exact commit through the immutable input-free organization action 
         ->and($job['steps'][1]['name'])->toBe('Scan the checked-out API repository')
         ->and($job['steps'][1]['id'])->toBe('repository-scan')
         ->and($job['steps'][1]['uses'])->toMatch('/\ASecPal\/\.github\/\.github\/actions\/trivy-repository-scan@[0-9a-f]{40}\z/')
+        ->and($job['steps'][1])->not->toHaveKeys(['if', 'continue-on-error'])
         ->and($job['steps'][2]['env'])->toBe([
             'GATE_STATE' => '${{ steps.repository-scan.outputs.gate-state }}',
         ])->and($job['steps'][2])->not->toHaveKeys(['if', 'continue-on-error']);
