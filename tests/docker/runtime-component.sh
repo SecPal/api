@@ -53,6 +53,7 @@ PY
             if (!extension_loaded($extension)) { exit(1); }
         }
         exit(Locale::getDisplayRegion("en_DE","de") === "Deutschland"
+            && (string) simplexml_load_string("<probe>ok</probe>") === "ok"
             && ini_get("upload_max_filesize") === "10M" && ini_get("post_max_size") === "12M" ? 0 : 1);
     ' -- "$php_version"
     # Both existing PHP SQLite drivers must load the authenticated replacement library.
@@ -78,6 +79,7 @@ PY
         done
         apk info --installed libcurl=8.23.0-r0
         apk info --installed brotli-libs=1.2.1-r0
+        apk info --installed libxml2=2.13.9-r3
         test ! -d /app/vendor/pestphp
         test ! -d /app/vendor/phpunit
         test ! -e /usr/local/bin/composer

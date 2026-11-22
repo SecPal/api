@@ -25,6 +25,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Pin the fixed Alpine `libxml2` revision in the PHP-FPM/CLI runtime for
+  CVE-2026-86144 on AMD64 and ARM64 (refs #3062).
+
 - Update the PHP-FPM/CLI base to the PHP 8.4.28 security release and refresh the
   build-only pip pin for Alpine 3.24 (refs #3057).
 
