@@ -668,8 +668,8 @@ it('limits OCI dependency updates to the supported runtime definitions', functio
     $oci = array_find($updaters, fn (array $updater): bool => $updater['package-ecosystem'] === 'docker');
     expect($oci['directories'])->toBe(['/docker/php-fpm', '/docker/nginx'])
         ->and($oci['ignore'])->toBe([
-            ['dependency-name' => 'library/php', 'versions' => ['>= 8.5']],
-            ['dependency-name' => 'library/nginx', 'versions' => ['>= 1.31']],
+            ['dependency-name' => 'library/php', 'update-types' => ['version-update:semver-minor', 'version-update:semver-major']],
+            ['dependency-name' => 'library/nginx', 'update-types' => ['version-update:semver-minor', 'version-update:semver-major']],
         ]);
 
     $caller = Yaml::parseFile($root.'/.github/workflows/dependabot-auto-merge.yml');
@@ -678,5 +678,12 @@ it('limits OCI dependency updates to the supported runtime definitions', functio
         'library/composer' => ['docker/php-fpm/Containerfile'],
         'library/php' => ['docker/php-fpm/Containerfile'],
         'library/nginx' => ['docker/nginx/Containerfile'],
-    ])->and(array_column($rules, 'enforceLine', 'image')['library/php'] ?? null)->toBeTrue();
+    ])->and(array_column($rules, 'line', 'image'))->toBe([
+        'library/composer' => '2',
+        'library/php' => '8.4',
+        'library/nginx' => '1.30',
+    ])->and(array_column($rules, 'enforceLine', 'image'))->toBe([
+        'library/php' => true,
+        'library/nginx' => true,
+    ]);
 });
