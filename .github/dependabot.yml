@@ -36,6 +36,10 @@ updates:
       time: "04:00"
       timezone: "Europe/Berlin"
     groups:
+      shared-no-op-workflow-pins:
+        patterns:
+          - "SecPal/.github/.github/workflows/reusable-check-conflict-markers.yml"
+          - "SecPal/.github/.github/workflows/reusable-pr-size.yml"
       shared-github-workflows:
         patterns:
           - "SecPal/.github/.github/workflows/*"
