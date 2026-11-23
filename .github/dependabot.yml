@@ -69,10 +69,12 @@ updates:
       interval: "daily"
       time: "04:00"
       timezone: "Europe/Berlin"
-    # Keep PHP 8.4 patch updates while excluding newer unsupported lines.
+    # Keep stable PHP 8.4 and Nginx 1.30 patch updates eligible.
     ignore:
       - dependency-name: "library/php"
         versions: [">= 8.5"]
+      - dependency-name: "library/nginx"
+        versions: [">= 1.31"]
     commit-message:
       prefix: "chore"
       include: "scope"

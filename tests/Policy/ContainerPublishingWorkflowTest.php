@@ -666,7 +666,11 @@ it('limits OCI dependency updates to the supported runtime definitions', functio
     $root = dirname(__DIR__, 2);
     $updaters = Yaml::parseFile($root.'/.github/dependabot.yml')['updates'];
     $oci = array_find($updaters, fn (array $updater): bool => $updater['package-ecosystem'] === 'docker');
-    expect($oci['directories'])->toBe(['/docker/php-fpm', '/docker/nginx']);
+    expect($oci['directories'])->toBe(['/docker/php-fpm', '/docker/nginx'])
+        ->and($oci['ignore'])->toBe([
+            ['dependency-name' => 'library/php', 'versions' => ['>= 8.5']],
+            ['dependency-name' => 'library/nginx', 'versions' => ['>= 1.31']],
+        ]);
 
     $caller = Yaml::parseFile($root.'/.github/workflows/dependabot-auto-merge.yml');
     $rules = json_decode($caller['jobs']['auto-merge']['with']['docker-rules'], true, flags: JSON_THROW_ON_ERROR);
