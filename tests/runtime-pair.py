@@ -391,18 +391,19 @@ wait_for_http() {
         self.assertIn('reviewed-vex-checkout.json', scan)
         self.assertNotIn('"$vex_checkout/scripts/', scan)
         publication = (root/'.github/workflows/publish-container.yml').read_text()
-        self.assertEqual(publication.count('path: .context/reviewed-vex'), 2)
+        self.assertEqual(publication.count('path: .context/reviewed-vex'), 3)
         self.assertIn('vex_checkout="$repo_root/.context/reviewed-vex"', scan)
         self.assertNotIn('vex_checkout="$governance"', scan)
 
-    def test_retained_native_attempt_is_bounded_and_only_available_to_pr_qualification(self):
+    def test_only_pr_qualification_can_reuse_previous_native_attempts(self):
         for event, attempt in (('pull_request', '1'), ('pull_request', '2'),
                                ('pull_request', '3'), ('pull_request', '../1'),
-                               ('pull_request', '0'), ('workflow_dispatch', '1')):
+                               ('pull_request', '0'), ('workflow_dispatch', '1'),
+                               ('workflow_dispatch', '2'), ('workflow_dispatch', 'latest')):
             with self.subTest(event=event, attempt=attempt), unittest.mock.patch.dict(
                     os.environ, GITHUB_EVENT_NAME=event, GITHUB_RUN_ATTEMPT='2',
                     API_NATIVE_AMD64_ATTEMPT=attempt):
-                if event == 'pull_request' and attempt in ('1', '2'):
+                if attempt == '2' or (event == 'pull_request' and attempt == '1'):
                     self.assertEqual(publisher.native_attempt('amd64'), attempt)
                 else:
                     with self.assertRaises(ValueError):

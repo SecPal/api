@@ -624,24 +624,6 @@ class DiscoveryContinuation(unittest.TestCase):
 
 
 class PreRegistryAdmission(unittest.TestCase):
-    def test_release_requires_same_attempt_while_prs_can_retain_successful_builds(self):
-        for event, retained, allowed in (
-            ('workflow_dispatch', '2', True),
-            ('workflow_dispatch', '1', False),
-            ('pull_request', '1', True),
-            ('pull_request', '3', False),
-            ('workflow_dispatch', 'latest', False),
-        ):
-            with self.subTest(event=event, retained=retained), patch.dict(os.environ, {
-                'GITHUB_EVENT_NAME':event, 'GITHUB_RUN_ATTEMPT':'2',
-                'API_NATIVE_AMD64_ATTEMPT':retained,
-            }):
-                if allowed:
-                    self.assertEqual(publisher.native_attempt('amd64'),retained)
-                else:
-                    with self.assertRaisesRegex(ValueError,'publisher-native-attempt'):
-                        publisher.native_attempt('amd64')
-
     def test_release_requires_healthy_clean_without_weakening_pr_diagnostics(self):
         for state, health, pr_allowed, release_allowed in (
             ('CLEAN', 'HEALTHY', True, True),
