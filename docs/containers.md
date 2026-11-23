@@ -158,7 +158,11 @@ consumes the verified Syft bytes and Trivy scans each remote manifest
 independently.
 
 Both components must pass current, healthy CLEAN artifact policy on both
-platforms and fresh CLEAN source-security admission. The same workflow
+platforms and fresh CLEAN source-security admission. A read-only job scans
+all four local OCI layouts and requires current CLEAN results before the
+registry writer can start. The writer replays the run-bound evidence against
+the exact layouts and accepted VEX data before registry authentication.
+The same workflow then
 verifies remote index, manifest and config bytes, attests both indices, all
 four platform manifests and their Syft artifacts, and runs the smoke test
 against the exact companion digests on both native runners.

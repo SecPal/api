@@ -360,7 +360,7 @@ it('shares database-free native Buildah builds without PR publication or emulati
     $ci = Yaml::parseFile($root.'/.github/workflows/container-image.yml');
     $build = (string) file_get_contents($root.'/scripts/build-container.sh');
     expect($ci['permissions'])->toBe(['contents' => 'read', 'actions' => 'read'])
-        ->and($ci['on'])->toBe(['workflow_call' => null])
+        ->and(array_keys($ci['on']))->toBe(['workflow_call'])
         ->and($ci['jobs']['build-and-test']['needs'])->toBe(['applicability', 'validate'])
         ->and($ci['jobs']['build-and-test']['steps'][0]['with']['path'])->toBe('source')
         ->and($ci['jobs']['build-and-test']['defaults']['run']['working-directory'])->toBe('source')
@@ -385,6 +385,24 @@ it('shares database-free native Buildah builds without PR publication or emulati
             ->not->toContain('buildx', 'buildkit', 'setup-qemu', 'binfmt');
     }
     expect($build)->not->toMatch('/\bdocker\s|\bpodman\s+build\b/');
+});
+
+it('requires read-only local pair admission before starting the registry writer', function (): void {
+    $root = dirname(__DIR__, 2);
+    $ci = Yaml::parseFile($root.'/.github/workflows/container-image.yml');
+    $publisher = containerPublishingWorkflow();
+    $qualification = $ci['jobs']['qualify-pair'];
+    $prepare = $publisher['jobs']['prepare'];
+    $artifact = '${{ needs.build.outputs.pre-registry-evidence-id }}';
+
+    expect($qualification['permissions'])->toBe(['contents' => 'read', 'actions' => 'read'])
+        ->and($ci['on']['workflow_call']['outputs']['pre-registry-evidence-id']['value'])
+        ->toBe('${{ jobs.qualify-pair.outputs.pre-registry-evidence-id }}')
+        ->and($qualification['outputs']['pre-registry-evidence-id'])
+        ->toContain("github.event_name == 'workflow_dispatch'", "steps.qualification.outcome == 'success'", 'steps.evidence.outputs.artifact-id')
+        ->and(containerPublishingRunScripts($qualification))->toContain('--require-clean')
+        ->and($prepare['needs'])->toContain('build', 'repository-security')
+        ->and(array_column(array_column($prepare['steps'], 'with'), 'artifact-ids'))->toContain($artifact);
 });
 
 it('binds remote manifest config and native runtime content before acceptance', function (): void {

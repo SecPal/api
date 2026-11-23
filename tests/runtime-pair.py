@@ -247,9 +247,10 @@ wait_for_http() {
                                 and 'chown=true' in v for v in args), directory)
 
     def test_unpublished_pair_requires_complete_healthy_evidence_and_preserves_policy_results(self):
+        release_cases = ('release-clean', 'release-actionable', 'release-review', 'native-spdx', 'native-association')
         for change in (None, 'retry', 'ACTIONABLE', 'REVIEW_REQUIRED', 'UNKNOWN_STALE', 'stale',
                        'missing', 'platform', 'companion', 'source', 'subject', 'raw', 'sbom', 'run',
-                       'attempt', 'scanner', 'verdict-mismatch', 'smoke'):
+                       'attempt', 'scanner', 'verdict-mismatch', 'smoke', *release_cases):
             with self.subTest(change=change), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory); native = root/'native'; scans = root/'scan'
                 output = root/'pair.json'; output.write_text('stale')
@@ -266,7 +267,10 @@ wait_for_http() {
                         spdx = b'fixture SPDX'
                         (folder/'sbom/syft.spdx.json').write_bytes(spdx)
                         target = dict(platform='linux/'+arch, oci_digest=subject['manifest_digest'])
-                        publisher.write(folder/'sbom/association.json', dict(subject=target, spdx_digest=digest(spdx)))
+                        association = dict(subject=target, spdx_digest=digest(spdx))
+                        publisher.write(folder/'sbom/association.json', association)
+                        (own/'syft.spdx.json').write_bytes(spdx)
+                        publisher.write(own/'association.json', association)
                         publisher.write(folder/'evaluation.json', dict(subject=target))
                         smoke = next(v for v in docs[role]['smoke_tests'] if v['platform'] == 'linux/'+arch)
                         smoke.update(runner_architecture=arch, test='tests/docker/smoke.sh',
@@ -286,6 +290,8 @@ wait_for_http() {
                 selected = native/'api-native-amd64-123-1/nginx/smoke.json'
                 folder = scans/'nginx/amd64'
                 gate_state = change if change in ('ACTIONABLE', 'REVIEW_REQUIRED', 'UNKNOWN_STALE') else 'CLEAN'
+                gate_state = {'release-actionable': 'ACTIONABLE', 'release-review': 'REVIEW_REQUIRED'}.get(change, gate_state)
+                require_clean = change in release_cases
                 policy = dict(evidence_health=dict(state='UNKNOWN_STALE' if change == 'stale' else 'HEALTHY'),
                               gate_state=gate_state, findings=[] if gate_state == 'CLEAN' else [
                                   dict(id='fixture-observation')])
@@ -322,6 +328,12 @@ wait_for_http() {
                     (folder/'raw/grype.json').write_bytes(b'substituted')
                 elif change == 'sbom':
                     (folder/'sbom/syft.spdx.json').write_bytes(b'substituted')
+                elif change == 'native-spdx':
+                    (selected.parent/'syft.spdx.json').write_bytes(b'substituted')
+                elif change == 'native-association':
+                    association = publisher.read(selected.parent/'association.json')
+                    association['subject']['platform'] = 'linux/arm64'
+                    publisher.write(selected.parent/'association.json', association)
                 def observe(_root, own, arch, expected, *, attempt=None):
                     self.assertEqual(attempt, '1')
                     self.assertEqual(own, native/f'api-native-{arch}-123-1'/expected['runtime'])
@@ -330,15 +342,16 @@ wait_for_http() {
                         raise FileNotFoundError(own)
                     return record, b'manifest', b'config'
                 with unittest.mock.patch.dict(os.environ, GITHUB_SHA=SHA, GITHUB_RUN_ID='123', GITHUB_RUN_ATTEMPT='2' if change == 'retry' else '1',
-                     GITHUB_EVENT_NAME='pull_request', API_NATIVE_AMD64_ATTEMPT='1', API_NATIVE_ARM64_ATTEMPT='1'), \
+                     GITHUB_EVENT_NAME='workflow_dispatch' if require_clean else 'pull_request',
+                     API_NATIVE_AMD64_ATTEMPT='1', API_NATIVE_ARM64_ATTEMPT='1'), \
                      unittest.mock.patch.object(publisher, 'source', side_effect=lambda _r, sha, role: dict(repository=publisher.SOURCE, commit=sha, runtime=role)), \
                      unittest.mock.patch.object(publisher, 'observe_native', side_effect=observe) as observation, \
                      unittest.mock.patch.object(publisher, 'observe_policy', side_effect=lambda _r, path, _time: (
                          policy if path == folder else dict(evidence_health=dict(state='HEALTHY'), gate_state='CLEAN'))), \
                      unittest.mock.patch.object(publisher, 'evidence_now', return_value=NOW), \
                      unittest.mock.patch.object(publisher, 'run', return_value=b'fixture-tree'):
-                    if change in (None, 'retry', 'ACTIONABLE', 'REVIEW_REQUIRED'):
-                        publisher.qualify_unpublished_pair(root, native, scans, output)
+                    if change in (None, 'retry', 'ACTIONABLE', 'REVIEW_REQUIRED', 'release-clean'):
+                        publisher.qualify_unpublished_pair(root, native, scans, output, require_clean=require_clean)
                         value = publisher.read(output)
                         self.assertFalse(value['published'])
                         self.assertEqual(value['source']['commit'], SHA)
@@ -351,7 +364,7 @@ wait_for_http() {
                         self.assertEqual((folder/'policy-result.json').read_bytes(), policy_bytes)
                     else:
                         with self.assertRaises((ValueError, OSError)):
-                            publisher.qualify_unpublished_pair(root, native, scans, output)
+                            publisher.qualify_unpublished_pair(root, native, scans, output, require_clean=require_clean)
                         self.assertFalse(output.exists())
 
     def test_changed_base_tag_must_resolve_to_the_proposed_index(self):
@@ -391,18 +404,19 @@ wait_for_http() {
         self.assertIn('reviewed-vex-checkout.json', scan)
         self.assertNotIn('"$vex_checkout/scripts/', scan)
         publication = (root/'.github/workflows/publish-container.yml').read_text()
-        self.assertEqual(publication.count('path: .context/reviewed-vex'), 2)
+        self.assertEqual(publication.count('path: .context/reviewed-vex'), 3)
         self.assertIn('vex_checkout="$repo_root/.context/reviewed-vex"', scan)
         self.assertNotIn('vex_checkout="$governance"', scan)
 
-    def test_retained_native_attempt_is_bounded_and_only_available_to_pr_qualification(self):
+    def test_only_pr_qualification_can_reuse_previous_native_attempts(self):
         for event, attempt in (('pull_request', '1'), ('pull_request', '2'),
                                ('pull_request', '3'), ('pull_request', '../1'),
-                               ('pull_request', '0'), ('workflow_dispatch', '1')):
+                               ('pull_request', '0'), ('workflow_dispatch', '1'),
+                               ('workflow_dispatch', '2'), ('workflow_dispatch', 'latest')):
             with self.subTest(event=event, attempt=attempt), unittest.mock.patch.dict(
                     os.environ, GITHUB_EVENT_NAME=event, GITHUB_RUN_ATTEMPT='2',
                     API_NATIVE_AMD64_ATTEMPT=attempt):
-                if event == 'pull_request' and attempt in ('1', '2'):
+                if attempt == '2' or (event == 'pull_request' and attempt == '1'):
                     self.assertEqual(publisher.native_attempt('amd64'), attempt)
                 else:
                     with self.assertRaises(ValueError):

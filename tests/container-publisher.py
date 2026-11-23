@@ -422,7 +422,7 @@ class Publisher(unittest.TestCase):
                 destination=work/('copy-'+str(index))
                 actual=[str(auth) if value=='$REGISTRY_AUTH_FILE' else value for value in arguments]
                 result=subprocess.run([str(oras),'cp',*actual,'--to-oci-layout',
-                                       str(source)+':probe',str(destination)+':probe'],
+                                       str(source)+'@'+original,str(destination)+':probe'],
                                       cwd=work,capture_output=True,text=True,check=False)
                 self.assertEqual(result.returncode,0,result.stderr)
                 observed=json.loads((destination/'index.json').read_text())['manifests'][0]['digest']
@@ -621,6 +621,46 @@ class DiscoveryContinuation(unittest.TestCase):
                     self.assertEqual(result.returncode==0,allowed,result.stderr)
                     self.assertEqual((root/'tag-called').exists(),tagged)
                 finally:server.shutdown();server.server_close();thread.join()
+
+
+class PreRegistryAdmission(unittest.TestCase):
+    def test_release_requires_healthy_clean_without_weakening_pr_diagnostics(self):
+        for state, health, pr_allowed, release_allowed in (
+            ('CLEAN', 'HEALTHY', True, True),
+            ('ACTIONABLE', 'HEALTHY', True, False),
+            ('REVIEW_REQUIRED', 'HEALTHY', True, False),
+            ('UNKNOWN_STALE', 'HEALTHY', False, False),
+            ('CLEAN', 'UNKNOWN_STALE', False, False),
+        ):
+            with self.subTest(state=state, health=health):
+                policy=dict(gate_state=state,evidence_health=dict(state=health))
+                self.assertEqual(publisher.qualifies_unpublished_policy(policy),pr_allowed)
+                self.assertEqual(publisher.qualifies_unpublished_policy(policy,require_clean=True),release_allowed)
+
+    def test_prepare_rejects_missing_or_refused_local_evidence_before_registry_login(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            subprocess.run(['git','init','-q',str(root)],check=True)
+            bin_dir=root/'bin';bin_dir.mkdir()
+            tools=root/'secpal-publisher-tools';tools.mkdir()
+            mock_python=bin_dir/'python3'
+            mock_python.write_text('#!/bin/sh\nprintf "%s\n" "$*" > "$QUALIFICATION_CALL"\nexit "$FIXTURE_VERDICT"\n')
+            mock_python.chmod(0o700)
+            oras=tools/'oras'
+            oras.write_text('#!/bin/sh\ntouch "$REGISTRY_CALL"\nexit 91\n')
+            oras.chmod(0o700)
+            env=dict(os.environ, PATH=str(bin_dir)+os.pathsep+os.environ['PATH'],RUNNER_TEMP=str(root),
+                     GITHUB_REPOSITORY='SecPal/api',GITHUB_EVENT_NAME='workflow_dispatch',
+                     GITHUB_REF='refs/heads/main',GITHUB_REF_PROTECTED='true',GITHUB_ACTOR='fixture',
+                     GH_TOKEN='fixture-token',QUALIFICATION_CALL=str(root/'qualification'),
+                     REGISTRY_CALL=str(root/'registry'))
+            for verdict in (1,0):
+                result=subprocess.run(['bash',str(ROOT/'scripts/publish-container.sh'),'prepare'],cwd=root,
+                    env=dict(env,FIXTURE_VERDICT=str(verdict)),capture_output=True,text=True,timeout=15)
+                self.assertIn('qualify-unpublished-pair',(root/'qualification').read_text())
+                self.assertIn('--require-clean',(root/'qualification').read_text())
+                self.assertEqual((root/'registry').exists(),verdict==0)
+                self.assertEqual(result.returncode,91 if verdict==0 else 1)
 
 
 class ArtifactScanCollection(unittest.TestCase):

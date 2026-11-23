@@ -378,9 +378,9 @@ def native_attempt(arch):
     retained = os.environ.get('API_NATIVE_'+arch.upper()+'_ATTEMPT')
     if retained is None:
         return current
-    if (os.environ.get('GITHUB_EVENT_NAME') != 'pull_request'
-            or not re.fullmatch(r'[1-9][0-9]*', retained)
-            or int(retained) > int(current)):
+    if (not re.fullmatch(r'[1-9][0-9]*', retained)
+            or int(retained) > int(current)
+            or (retained != current and os.environ.get('GITHUB_EVENT_NAME') != 'pull_request')):
         raise ValueError('publisher-native-attempt')
     return retained
 
@@ -626,10 +626,10 @@ def complete(prepared, scan_root, smoke_root, root, output):
     write(output,result)
 
 
-def qualifies_unpublished_policy(policy):
-    """Check technical eligibility without changing the vulnerability verdict."""
-    return (policy['evidence_health']['state'] == 'HEALTHY'
-            and policy['gate_state'] in ('CLEAN', 'ACTIONABLE', 'REVIEW_REQUIRED'))
+def qualifies_unpublished_policy(policy, *, require_clean=False):
+    """Keep PR diagnostics separate from the publication decision."""
+    allowed = ('CLEAN',) if require_clean else ('CLEAN', 'ACTIONABLE', 'REVIEW_REQUIRED')
+    return policy['evidence_health']['state'] == 'HEALTHY' and policy['gate_state'] in allowed
 
 
 def verify_changed_base_tags(root, base, paths):
@@ -649,8 +649,8 @@ def verify_changed_base_tags(root, base, paths):
             raise ValueError('publisher-base-tag-digest')
 
 
-def qualify_unpublished_pair(root, native, scan_root, output):
-    """Re-observe PR artifacts; this is never registry/publication admission."""
+def qualify_unpublished_pair(root, native, scan_root, output, *, require_clean=False):
+    """Re-observe all native artifacts before returning a pair qualification."""
     root, native, scan_root, output = map(Path, (root, native, scan_root, output))
     output.unlink(missing_ok=True)
     commit = os.environ['GITHUB_SHA']
@@ -668,6 +668,10 @@ def qualify_unpublished_pair(root, native, scan_root, output):
             subject = record['subject']
             target = dict(platform='linux/'+arch, oci_digest=subject['manifest_digest'])
             policy = observe_policy(root, folder, observed_at)
+            if not qualifies_unpublished_policy(policy, require_clean=require_clean):
+                raise ValueError(
+                    f"publisher-unpublished-pair-policy: {role} linux/{arch} "
+                    f"{target['oci_digest']} {policy['gate_state']}")
             association = read(folder/'sbom/association.json')
             spdx_digest = digest(read_bytes(folder/'sbom/syft.spdx.json'))
             smoke = read(own/'smoke.json')
@@ -677,7 +681,8 @@ def qualify_unpublished_pair(root, native, scan_root, output):
                     or subject['manifest_digest'] in manifest_digests
                     or read(folder/'evaluation.json')['subject'] != target
                     or association['subject'] != target or association['spdx_digest'] != spdx_digest
-                    or not qualifies_unpublished_policy(policy)
+                    or (require_clean and (association != read(own/'association.json')
+                                           or spdx_digest != digest(read_bytes(own/'syft.spdx.json'))))
                     or smoke['platform'] != target['platform'] or smoke['digest'] != target['oci_digest']
                     or smoke['runner_architecture'] != arch or smoke['test'] != 'tests/docker/smoke.sh'
                     or smoke['workflow_run_id'] != run_id or smoke['workflow_run_attempt'] != build_attempt
@@ -859,6 +864,7 @@ def main():
     c=sub.add_parser('qualify-unpublished-pair')
     for key in ('root','native','scan-root','output'):
         c.add_argument('--'+key,required=True)
+    c.add_argument('--require-clean',action='store_true')
     c=sub.add_parser('verify-changed-base-tags')
     c.add_argument('--root',required=True)
     c.add_argument('--scope',required=True)
@@ -877,7 +883,7 @@ def main():
     elif args.command=='complete-pair':
         complete_runtime_pair(args.root,args.prepared,args.scan_root,args.smoke_root,args.output)
     elif args.command=='qualify-unpublished-pair':
-        qualify_unpublished_pair(args.root,args.native,args.scan_root,args.output)
+        qualify_unpublished_pair(args.root,args.native,args.scan_root,args.output,require_clean=args.require_clean)
     elif args.command=='verify-changed-base-tags':
         scope = read(args.scope)
         if scope['mode'] != 'build' or scope['source']['merge'] != os.environ['GITHUB_SHA']:
