@@ -5,6 +5,9 @@
 name: Container Image
 "on":
   workflow_call:
+    outputs:
+      pre-registry-evidence-id:
+        value: ${{ jobs.qualify-pair.outputs.pre-registry-evidence-id }}
 permissions:
   contents: read
   actions: read
@@ -246,17 +249,29 @@ jobs:
 
   qualify-pair:
     name: Qualify unpublished PHP-FPM and Nginx OCI artifacts
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
     needs: [applicability, build-and-test]
     env:
       API_NATIVE_AMD64_ATTEMPT: ${{ needs.build-and-test.outputs.amd64-attempt }}
       API_NATIVE_ARM64_ATTEMPT: ${{ needs.build-and-test.outputs.arm64-attempt }}
     runs-on: ubuntu-24.04
     timeout-minutes: 40
+    outputs:
+      pre-registry-evidence-id: ${{ github.event_name == 'workflow_dispatch' && steps.qualification.outcome == 'success' && steps.evidence.outputs.artifact-id || '' }}
     permissions:
       contents: read
       actions: read
     steps:
+      - name: Verify signed protected publisher source
+        if: github.event_name == 'workflow_dispatch'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          test "$GITHUB_REF" = refs/heads/main
+          test "$GITHUB_REF_PROTECTED" = true
+          gh api "repos/SecPal/api/commits/$GITHUB_SHA" |
+            jq -e --arg sha "$GITHUB_SHA" '.sha == $sha and .commit.verification.verified == true'
       - name: Checkout exact API source
         # v7.0.1
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -325,11 +340,16 @@ jobs:
           fi
           scripts/scan-container-artifact.sh local
       - name: Verify complete same-source digest-bound runtime pair
+        id: qualification
         if: needs.applicability.outputs.mode == 'build'
         run: |
+          arguments=()
+          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then
+            arguments+=(--require-clean)
+          fi
           python3 scripts/container-publisher.py qualify-unpublished-pair \
             --root . --native .context/native --scan-root .context/scan \
-            --output .context/scan/unpublished-runtime-pair.json
+            --output .context/scan/unpublished-runtime-pair.json "${arguments[@]}"
       - name: Requalify existing images with fresh independent artifact scans
         if: needs.applicability.outputs.mode == 'reuse'
         env:
@@ -345,6 +365,7 @@ jobs:
           python3 -I .context/ci-scope/native-ci.py not-applicable \
             --proof .context/ci-scope/scope.json --output .context/scan
       - name: Retain all image security evidence
+        id: evidence
         if: always()
         # v7.0.2
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9

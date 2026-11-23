@@ -13,6 +13,13 @@ repository=ghcr.io/secpal/api
 prepared="$repo_root/.context/publisher"
 tools="${RUNNER_TEMP:?}/secpal-publisher-tools"
 governance="$repo_root/.context/publisher-governance"
+if [ "$stage" = prepare ]; then
+  test "${GITHUB_REF_PROTECTED:?}" = true
+  mkdir -p "$prepared"
+  python3 scripts/container-publisher.py qualify-unpublished-pair \
+    --root "$repo_root" --native .context/native --scan-root .context/unpublished-release \
+    --output "$prepared/unpublished-release-admission.json" --require-clean
+fi
 auth_root=$(mktemp -d "$RUNNER_TEMP/secpal-api-registry.XXXXXX")
 export DOCKER_CONFIG="$auth_root"
 export REGISTRY_AUTH_FILE="$auth_root/config.json"
@@ -69,7 +76,7 @@ prepare_component() {
       native="$repo_root/.context/native/api-native-$arch-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT/$component"
       manifest=$(jq -er .subject.manifest_digest "$native/record.json")
       "$tools/oras" cp --to-registry-config "$REGISTRY_AUTH_FILE" --from-oci-layout \
-        "$native/image:api" "$repository@$manifest"
+        "$native/image@$manifest" "$repository@$manifest"
       layout="$RUNNER_TEMP/sbom-$component-$arch"
       (
         cd "$native"
