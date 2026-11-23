@@ -21,7 +21,7 @@ RUN apk add --no-cache --virtual .php-build-deps \
         gettext-dev=1.0-r0 icu-dev=78.1-r0 libzip-dev=1.11.4-r2 postgresql18-dev=18.7-r0 py3-pip=26.1.2-r1 \
     && docker-php-ext-install -j2 bcmath gettext intl pcntl pdo_pgsql pgsql zip \
     && apk add --no-cache gettext-libs=1.0-r0 icu-libs=78.1-r0 icu-data-full=78.1-r0 libpq=18.7-r0 libzip=1.11.4-r2 \
-        python3=3.14.10-r1 libcurl=8.23.0-r0 brotli-libs=1.2.1-r0 libxml2=2.13.9-r3 \
+        python3=3.14.10-r2 libcurl=8.23.0-r0 brotli-libs=1.2.1-r0 libxml2=2.13.9-r3 \
     && pip3 install --break-system-packages --no-cache-dir --only-binary=:all: \
         --require-hashes -r /tmp/opentimestamps-requirements.txt \
     && python3 -m pip check \
