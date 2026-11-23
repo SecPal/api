@@ -27,6 +27,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Require healthy CLEAN results for all four unpublished API runtime
   subjects before registry writes (refs #3061).
+- Retain native PHP-FPM build resolution with Alpine's current signed
+  Python `3.14.10-r2` package on AMD64 and ARM64 (refs #3061).
 
 - Pin the fixed Alpine `libxml2` revision in the PHP-FPM/CLI runtime for
   CVE-2026-86144 on AMD64 and ARM64 (refs #3062).
