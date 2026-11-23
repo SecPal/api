@@ -325,3 +325,30 @@ test('repository workflows use version-documented immutable commit SHAs', functi
         expect(workflowActionPinningViolations($contents))->toBe([]);
     }
 });
+
+test('Dependabot isolates reviewed no-op helpers to their exact caller and first group', function (): void {
+    $root = dirname(__DIR__, 2);
+    $updates = Yaml::parseFile($root.'/.github/dependabot.yml')['updates'];
+    $actions = array_values(array_filter(
+        $updates,
+        static fn (array $update): bool => $update['package-ecosystem'] === 'github-actions',
+    ));
+
+    expect($actions)->toHaveCount(1);
+
+    $groups = $actions[0]['groups'];
+    expect(array_key_first($groups))->toBe('shared-no-op-workflow-pins')
+        ->and($groups['shared-no-op-workflow-pins'])->toBe([
+            'patterns' => [
+                'SecPal/.github/.github/workflows/reusable-check-conflict-markers.yml',
+                'SecPal/.github/.github/workflows/reusable-pr-size.yml',
+            ],
+        ]);
+
+    $workflow = Yaml::parseFile($root.'/.github/workflows/dependabot-auto-merge.yml');
+    $input = $workflow['jobs']['auto-merge']['with']['shared-sha-workflow-paths'];
+    expect(json_decode($input, true, flags: JSON_THROW_ON_ERROR))->toBe([
+        '.github/workflows/check-conflict-markers.yml',
+        '.github/workflows/pr-size.yml',
+    ]);
+});
