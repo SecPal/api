@@ -69,10 +69,13 @@ updates:
       interval: "daily"
       time: "04:00"
       timezone: "Europe/Berlin"
-    # Keep PHP 8.4 patch updates while excluding newer unsupported lines.
+    # Routine runtime proposals use PATCH versions. New lines are reported by
+    # SecPal/.github's Runtime Upgrade Opportunities workflow for review.
     ignore:
       - dependency-name: "library/php"
-        versions: [">= 8.5"]
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
+      - dependency-name: "library/nginx"
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
     commit-message:
       prefix: "chore"
       include: "scope"
