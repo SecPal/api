@@ -14,6 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Attest qualified API development candidates from protected main using the existing Actions artifacts independently of registry release admission.
+
 - Retain same-run API platform qualification evidence when security findings
   remain. Registry publication still requires a clean evaluation.
 

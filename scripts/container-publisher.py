@@ -656,6 +656,7 @@ def qualify_unpublished_pair(root, native, scan_root, output, *, require_clean=F
     commit = os.environ['GITHUB_SHA']
     run_id, attempt = os.environ['GITHUB_RUN_ID'], os.environ['GITHUB_RUN_ATTEMPT']
     observed_at = evidence_now()
+    trusted_candidate = os.environ.get('GITHUB_EVENT_NAME') in ('push', 'workflow_dispatch')
     images, companions, manifest_digests = {}, {}, set()
     for role in RUNTIME_COMPONENTS:
         expected = source(root, commit, role)
@@ -681,7 +682,7 @@ def qualify_unpublished_pair(root, native, scan_root, output, *, require_clean=F
                     or subject['manifest_digest'] in manifest_digests
                     or read(folder/'evaluation.json')['subject'] != target
                     or association['subject'] != target or association['spdx_digest'] != spdx_digest
-                    or (require_clean and (association != read(own/'association.json')
+                    or ((require_clean or trusted_candidate) and (association != read(own/'association.json')
                                            or spdx_digest != digest(read_bytes(own/'syft.spdx.json'))))
                     or smoke['platform'] != target['platform'] or smoke['digest'] != target['oci_digest']
                     or smoke['runner_architecture'] != arch or smoke['test'] != 'tests/docker/smoke.sh'

@@ -251,7 +251,9 @@ function secPalApiImageReferenceIsCanonical(string $reference): bool
 
 it('gates official publication on source security and native validation', function (): void {
     $w = containerPublishingWorkflow();
-    expect(array_keys($w['on']))->toBe(['workflow_dispatch'])
+    expect(array_keys($w['on']))->toBe(['workflow_dispatch', 'push'])
+        ->and($w['on']['push'])->toBe(['branches' => ['main']])
+        ->and($w['jobs']['prepare']['if'])->toBe("github.event_name == 'workflow_dispatch'")
         ->and($w['on']['workflow_dispatch'])->toBeNull()
         ->and($w['permissions'])->toBe([])
         ->and($w['jobs']['repository-security']['uses'])->toBe('./.github/workflows/reusable-repository-security.yml')
@@ -274,6 +276,24 @@ it('gates official publication on source security and native validation', functi
         $expected += ['packages' => 'write', 'attestations' => 'write', 'id-token' => 'write'];
         expect($w['jobs'][$job]['permissions'])->toBe($expected);
     }
+});
+
+it('attests exact candidate evidence without registry write authority', function (): void {
+    $candidate = containerPublishingWorkflow()['jobs']['candidate'];
+    expect($candidate['needs'])->toBe(['build', 'repository-security'])
+        ->and($candidate['if'])->toBe("github.repository == 'SecPal/api' && github.ref == 'refs/heads/main' && github.ref_protected")
+        ->and($candidate['permissions'])->toBe([
+            'contents' => 'read', 'actions' => 'read', 'attestations' => 'write', 'id-token' => 'write',
+        ]);
+    $sign = collect($candidate['steps'])->firstWhere('id', 'attestation');
+    expect($sign['uses'])->toStartWith('actions/attest@')
+        ->and($sign['with']['push-to-registry'])->toBeFalse()
+        ->and($sign['with']['create-storage-record'])->toBeFalse()
+        ->and($sign['with']['subject-path'])->toContain(
+            'unpublished-runtime-pair.json', 'source-security.json',
+            'php-fpm/amd64/evaluation.json', 'php-fpm/arm64/evaluation.json',
+            'nginx/amd64/evaluation.json', 'nginx/arm64/evaluation.json',
+        );
 });
 
 it('refreshes source evidence on the pristine checkout before materializing publisher inputs', function (): void {
@@ -399,7 +419,7 @@ it('requires read-only local pair evidence before starting the registry writer',
         ->and($ci['on']['workflow_call']['outputs']['pre-registry-evidence-id']['value'])
         ->toBe('${{ jobs.qualify-pair.outputs.pre-registry-evidence-id }}')
         ->and($qualification['outputs']['pre-registry-evidence-id'])
-        ->toContain("github.event_name == 'workflow_dispatch'", "steps.qualification.outcome == 'success'", 'steps.evidence.outputs.artifact-id')
+        ->toContain("github.event_name != 'pull_request'", "steps.qualification.outcome == 'success'", 'steps.evidence.outputs.artifact-id')
         ->and(containerPublishingRunScripts($qualification))->toContain('qualify-unpublished-pair')
         ->and($prepare['needs'])->toContain('build', 'repository-security')
         ->and(array_column(array_column($prepare['steps'], 'with'), 'artifact-ids'))->toContain($artifact);

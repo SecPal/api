@@ -250,7 +250,8 @@ jobs:
 
   qualify-pair:
     name: Qualify unpublished PHP-FPM and Nginx OCI artifacts
-    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    if: >-
+      github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' || github.event_name == 'push'
     needs: [applicability, build-and-test]
     env:
       API_NATIVE_AMD64_ATTEMPT: ${{ needs.build-and-test.outputs.amd64-attempt }}
@@ -258,13 +259,15 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     outputs:
-      pre-registry-evidence-id: ${{ github.event_name == 'workflow_dispatch' && steps.qualification.outcome == 'success' && steps.evidence.outputs.artifact-id || '' }}
+      pre-registry-evidence-id: >-
+        ${{ github.event_name != 'pull_request' && steps.qualification.outcome == 'success'
+        && steps.evidence.outputs.artifact-id || '' }}
     permissions:
       contents: read
       actions: read
     steps:
       - name: Verify signed protected publisher source
-        if: github.event_name == 'workflow_dispatch'
+        if: github.event_name != 'pull_request'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
