@@ -60,17 +60,39 @@ jobs:
         with:
           name: ${{ needs.repository-security.outputs.evidence-artifact }}
           path: source-evidence
+      - name: Checkout the exact source-security verifier
+        # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          path: publisher
+      - name: Checkout accepted source-security schema
+        # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: SecPal/.github
+          ref: 4892b3248faac245047fdb1dc93fc77fc3d08e02
+          path: publisher/.context/publisher-governance
+          persist-credentials: false
       - name: Bind exact source and qualification
+        env:
+          QUALIFICATION_ATTEMPT: ${{ needs.build.outputs.pre-registry-attempt }}
         run: |
-          jq -e --arg sha "$GITHUB_SHA" --arg run "$GITHUB_RUN_ID" --arg attempt "$GITHUB_RUN_ATTEMPT" '
+          [[ "$QUALIFICATION_ATTEMPT" =~ ^[1-9][0-9]*$ ]]
+          (( QUALIFICATION_ATTEMPT <= GITHUB_RUN_ATTEMPT ))
+          jq -e --arg sha "$GITHUB_SHA" --arg run "$GITHUB_RUN_ID" --arg attempt "$QUALIFICATION_ATTEMPT" '
             .source.commit == $sha and .workflow.run_id == $run and .workflow.run_attempt == $attempt
             and .published == false and .qualification == "SUCCEEDED"
           ' candidate/unpublished-runtime-pair.json >/dev/null
-          jq -e --arg sha "$GITHUB_SHA" '
-            .subject == {repository: "SecPal/api", commit: $sha}
-            and .operation == {name: "TRIVY_REPOSITORY_SCAN", status: "SUCCEEDED"}
-            and .gate_state == "CLEAN" and .database.status == "FRESH"
-          ' source-evidence/result.json >/dev/null
+          python3 -m venv "$RUNNER_TEMP/secpal-policy"
+          "$RUNNER_TEMP/secpal-policy/bin/pip" install \
+            --requirement publisher/.context/publisher-governance/requirements/vulnerability-policy.txt
+          (
+            cd publisher
+            "$RUNNER_TEMP/secpal-policy/bin/python" scripts/container-publisher.py source-security \
+              --input ../source-evidence/result.json --commit "$GITHUB_SHA"
+          )
           cp -- source-evidence/result.json candidate/source-security.json
       - name: Sign qualified subjects before registry admission
         id: attestation

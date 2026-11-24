@@ -285,6 +285,9 @@ it('attests exact candidate evidence without registry write authority', function
         ->and($candidate['permissions'])->toBe([
             'contents' => 'read', 'actions' => 'read', 'attestations' => 'write', 'id-token' => 'write',
         ]);
+    $bind = collect($candidate['steps'])->firstWhere('name', 'Bind exact source and qualification');
+    expect($bind['env']['QUALIFICATION_ATTEMPT'])->toBe('${{ needs.build.outputs.pre-registry-attempt }}')
+        ->and($bind['run'])->toContain('scripts/container-publisher.py source-security', '--arg attempt "$QUALIFICATION_ATTEMPT"');
     $sign = collect($candidate['steps'])->firstWhere('id', 'attestation');
     expect($sign['uses'])->toStartWith('actions/attest@')
         ->and($sign['with']['push-to-registry'])->toBeFalse()

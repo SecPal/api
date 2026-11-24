@@ -9,6 +9,9 @@ name: Container Image
       pre-registry-evidence-id:
         description: Exact same-run evidence for the unpublished runtime pair.
         value: ${{ jobs.qualify-pair.outputs.pre-registry-evidence-id }}
+      pre-registry-attempt:
+        description: Producing attempt of the retained pair qualification.
+        value: ${{ jobs.qualify-pair.outputs.pre-registry-attempt }}
 permissions:
   contents: read
   actions: read
@@ -262,6 +265,7 @@ jobs:
       pre-registry-evidence-id: >-
         ${{ github.event_name != 'pull_request' && steps.qualification.outcome == 'success'
         && steps.evidence.outputs.artifact-id || '' }}
+      pre-registry-attempt: ${{ github.run_attempt }}
     permissions:
       contents: read
       actions: read
