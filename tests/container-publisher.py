@@ -637,6 +637,15 @@ class PreRegistryAdmission(unittest.TestCase):
                 self.assertEqual(publisher.qualifies_unpublished_policy(policy),pr_allowed)
                 self.assertEqual(publisher.qualifies_unpublished_policy(policy,require_clean=True),release_allowed)
 
+    def test_read_only_workflow_does_not_require_clean_before_binding_evidence(self):
+        workflow=(ROOT/'.github/workflows/container-image.yml').read_text()
+        start=workflow.index('- name: Verify complete same-source digest-bound runtime pair')
+        end=workflow.index('- name: Requalify existing images',start)
+        step=workflow[start:end]
+        self.assertIn('qualify-unpublished-pair',step)
+        self.assertNotIn('--require-clean',step)
+        self.assertIn('--require-clean',(ROOT/'scripts/publish-container.sh').read_text())
+
     def test_prepare_rejects_missing_or_refused_local_evidence_before_registry_login(self):
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory)
