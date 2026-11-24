@@ -7,7 +7,7 @@ test "${GITHUB_REPOSITORY:?}" = SecPal/api
 mode=${1:?artifact scan mode}
 case "$mode:${GITHUB_EVENT_NAME:?}" in
   local:pull_request) ;;
-  local:workflow_dispatch)
+  local:push|local:workflow_dispatch)
     test "${GITHUB_REF:?}" = refs/heads/main
     test "${GITHUB_REF_PROTECTED:?}" = true ;;
   published:workflow_dispatch)
