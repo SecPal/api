@@ -646,6 +646,47 @@ class PreRegistryAdmission(unittest.TestCase):
         self.assertNotIn('--require-clean',step)
         self.assertIn('--require-clean',(ROOT/'scripts/publish-container.sh').read_text())
 
+    def test_protected_push_rejects_substituted_native_inventory(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            native, scan = root / 'native', root / 'scan'
+            own = native / 'api-native-amd64-42-1/php-fpm'
+            folder = scan / 'php-fpm/amd64'
+            own.mkdir(parents=True)
+            (folder / 'sbom').mkdir(parents=True)
+            target = {'platform': 'linux/amd64', 'oci_digest': 'sha256:' + 'a' * 64}
+            spdx = b'fixture immutable SPDX'
+            association = {'subject': target, 'spdx_digest': digest(spdx)}
+            publisher.write(folder / 'evaluation.json', {'subject': target})
+            publisher.write(folder / 'sbom/association.json', association)
+            (folder / 'sbom/syft.spdx.json').write_bytes(spdx)
+            publisher.write(own / 'association.json', dict(association, spdx_digest='sha256:' + 'b' * 64))
+            (own / 'syft.spdx.json').write_bytes(spdx)
+            publisher.write(own / 'smoke.json', {
+                'platform': target['platform'], 'digest': target['oci_digest'],
+                'runner_architecture': 'amd64', 'test': 'tests/docker/smoke.sh',
+                'workflow_run_id': '42', 'workflow_run_attempt': '1',
+                'result': 'SUCCEEDED', 'completed_at': NOW,
+            })
+            publisher.write(folder / 'scan-records.json', [
+                {'scanner': 'grype'}, {'scanner': 'trivy'},
+            ])
+            record = {'source': SOURCE, 'subject': {
+                'platform': target['platform'], 'manifest_digest': target['oci_digest'],
+                'labels': {'secpal.dev/runtime-component': 'php-fpm'},
+            }}
+            healthy = {'gate_state': 'REVIEW_REQUIRED', 'evidence_health': {'state': 'HEALTHY'}}
+            with (
+                patch.dict(os.environ, {'GITHUB_EVENT_NAME': 'push', 'GITHUB_SHA': SHA,
+                                        'GITHUB_RUN_ID': '42', 'GITHUB_RUN_ATTEMPT': '1'}),
+                patch.object(publisher, 'source', return_value=SOURCE),
+                patch.object(publisher, 'observe_native', return_value=(record, b'manifest', b'config')),
+                patch.object(publisher, 'observe_policy', return_value=healthy),
+                self.assertRaisesRegex(ValueError, 'publisher-unpublished-pair-binding'),
+            ):
+                publisher.qualify_unpublished_pair(root, native, scan, root / 'qualification.json')
+            self.assertFalse((root / 'qualification.json').exists())
+
     def test_prepare_rejects_missing_or_refused_local_evidence_before_registry_login(self):
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory)
