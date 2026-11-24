@@ -12,6 +12,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Retain same-run API platform qualification evidence when security findings
+  remain. Registry publication still requires a clean evaluation.
+
 ### Added
 
 - Add the qualified Alpine PHP-FPM/CLI and separate Nginx runtime pair with a

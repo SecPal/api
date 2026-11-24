@@ -7,7 +7,7 @@ name: Container Image
   workflow_call:
     outputs:
       pre-registry-evidence-id:
-        description: Exact same-run evidence for the CLEAN unpublished runtime pair.
+        description: Exact same-run evidence for the unpublished runtime pair.
         value: ${{ jobs.qualify-pair.outputs.pre-registry-evidence-id }}
 permissions:
   contents: read
@@ -344,13 +344,9 @@ jobs:
         id: qualification
         if: needs.applicability.outputs.mode == 'build'
         run: |
-          arguments=()
-          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then
-            arguments+=(--require-clean)
-          fi
           python3 scripts/container-publisher.py qualify-unpublished-pair \
             --root . --native .context/native --scan-root .context/scan \
-            --output .context/scan/unpublished-runtime-pair.json "${arguments[@]}"
+            --output .context/scan/unpublished-runtime-pair.json
       - name: Requalify existing images with fresh independent artifact scans
         if: needs.applicability.outputs.mode == 'reuse'
         env:

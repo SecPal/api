@@ -387,7 +387,7 @@ it('shares database-free native Buildah builds without PR publication or emulati
     expect($build)->not->toMatch('/\bdocker\s|\bpodman\s+build\b/');
 });
 
-it('requires read-only local pair admission before starting the registry writer', function (): void {
+it('requires read-only local pair evidence before starting the registry writer', function (): void {
     $root = dirname(__DIR__, 2);
     $ci = Yaml::parseFile($root.'/.github/workflows/container-image.yml');
     $publisher = containerPublishingWorkflow();
@@ -400,7 +400,7 @@ it('requires read-only local pair admission before starting the registry writer'
         ->toBe('${{ jobs.qualify-pair.outputs.pre-registry-evidence-id }}')
         ->and($qualification['outputs']['pre-registry-evidence-id'])
         ->toContain("github.event_name == 'workflow_dispatch'", "steps.qualification.outcome == 'success'", 'steps.evidence.outputs.artifact-id')
-        ->and(containerPublishingRunScripts($qualification))->toContain('--require-clean')
+        ->and(containerPublishingRunScripts($qualification))->toContain('qualify-unpublished-pair')
         ->and($prepare['needs'])->toContain('build', 'repository-security')
         ->and(array_column(array_column($prepare['steps'], 'with'), 'artifact-ids'))->toContain($artifact);
 });
