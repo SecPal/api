@@ -178,9 +178,10 @@ run-scoped `runtime-pair-COMMIT-RUN-ATTEMPT` discovery tag.
 
 Deployment verifies the attested pair artifact and uses both
 `ghcr.io/secpal/api@sha256:<index-digest>` references together. Discovery tags
-are mutable pointers. See the [API image consumption contract][consumption] for
-the accepted release and historical recovery identities, and
-[SecPal/deployment][deployment] for host, secret, edge and database setup.
+are mutable pointers. See the [API image consumption contract][consumption]
+for the accepted paired release, supported recovery procedure and historical
+publication evidence. See [SecPal/deployment][deployment] for host, secret,
+edge and database setup.
 
 [consumption]: https://github.com/SecPal/deployment/blob/main/docs/api-image-consumption.md
 [deployment]: https://github.com/SecPal/deployment
