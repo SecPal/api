@@ -45,7 +45,7 @@ function selectReleasedArtifact(array $workflow, array $request): array
     }
 }
 
-it('uses only the pinned shared scanners and isolated finding triage', function (): void {
+it('uses the pinned read-only scanner without issue delivery', function (): void {
     $workflow = releasedArtifactWorkflow();
     $subject = $workflow['jobs']['subject'];
     $scan = $workflow['jobs']['reevaluate'];
@@ -58,11 +58,11 @@ it('uses only the pinned shared scanners and isolated finding triage', function 
         ->and($subject['permissions'])->toBe([])
         ->and($scan['uses'])->toMatch('/^SecPal\/\.github\/\.github\/workflows\/reusable-vulnerability-reevaluation\.yml@[a-f0-9]{40}$/')
         ->and($scan['needs'])->toBe('subject')
-        ->and($scan['permissions'])->toBe(['attestations' => 'read', 'contents' => 'read', 'issues' => 'write', 'packages' => 'read'])
+        ->and($scan['permissions'])->toBe(['attestations' => 'read', 'contents' => 'read', 'packages' => 'read'])
         ->and($scan['with']['artifact-repository'])->toBe('ghcr.io/secpal/api')
         ->and($scan['with']['publisher-repository'])->toBe('SecPal/api')
         ->and($scan['with']['publisher-workflow'])->toBe('SecPal/api/.github/workflows/publish-container.yml')
-        ->and($scan['with']['triage'])->toBeTrue()
+        ->and($scan['with'])->not->toHaveKey('triage')
         ->and($scan)->not->toHaveKeys(['steps', 'secrets', 'continue-on-error', 'strategy', 'if'])
         ->and(array_keys($release['components']))->toBe(['php-fpm', 'nginx'])
         ->and($release['pair-artifact'])->toMatch('/^ghcr\.io\/secpal\/api@sha256:[a-f0-9]{64}$/')

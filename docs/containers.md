@@ -287,14 +287,9 @@ build evidence. Updating it requires a reviewed released subject; the workflow
 does not automatically enroll newer candidates or discover arbitrary registry
 tags. Publisher repository/workflow identities are fixed in the caller.
 
-The immutable shared workflow owns publisher-attestation and authoritative
-Syft association verification, fresh Grype/Trivy evidence, unchanged policy
-evaluation and deterministic finding-issue triage. Registry access is read-only;
-only its isolated validated triage job has issue-write permission. Raw and
-normalized evidence is retained for 14 days. Failed or stale evidence remains
-fail-closed.
-
-A successful monitoring execution can report ACTIONABLE or REVIEW_REQUIRED:
-operational monitoring success is not CLEAN or release permission. Original
-findings and historical acceptance are preserved. Monitoring observes only the
-reviewed released subjects.
+The immutable shared workflow verifies publisher attestations and authoritative
+Syft association, then applies the existing policy to fresh Grype and Trivy
+evidence. Monitoring uses read-only access. Raw and normalized evidence is
+retained for 14 days, and the Actions job summary reports the verdict. Only
+CLEAN succeeds. ACTIONABLE, REVIEW_REQUIRED, UNKNOWN_STALE and missing evidence
+fail monitoring. Existing issues track concrete remediation.
