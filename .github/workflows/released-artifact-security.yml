@@ -149,14 +149,12 @@ jobs:
   reevaluate:
     name: Re-evaluate the exact released platform
     needs: subject
-    # Only the callee's independently validated triage job receives issue writes.
     permissions:
       attestations: read
       contents: read
-      issues: write
       packages: read
     uses: >-
-      SecPal/.github/.github/workflows/reusable-vulnerability-reevaluation.yml@73e2972e8856c8c197152ec3b45a63e49ccb09fe
+      SecPal/.github/.github/workflows/reusable-vulnerability-reevaluation.yml@2d02204e03a7d93132fcbcba45cdff1161017e11
     with:
       artifact-repository: ghcr.io/secpal/api
       index-digest: ${{ needs.subject.outputs.index-digest }}
@@ -166,4 +164,3 @@ jobs:
       publisher-repository: SecPal/api
       publisher-workflow: SecPal/api/.github/workflows/publish-container.yml
       publisher-workflow-sha: ${{ needs.subject.outputs.publisher-workflow-sha }}
-      triage: true
