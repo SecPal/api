@@ -37,7 +37,7 @@ permissions:
 
 jobs:
   auto-merge:
-    uses: SecPal/.github/.github/workflows/reusable-dependabot-auto-merge.yml@73e2972e8856c8c197152ec3b45a63e49ccb09fe
+    uses: SecPal/.github/.github/workflows/reusable-dependabot-auto-merge.yml@2d02204e03a7d93132fcbcba45cdff1161017e11
     with:
       allowed-ecosystems: "github_actions,npm_and_yarn,composer,pip,pre_commit,docker"
       pip-manifest-path: "docker/python/opentimestamps-requirements.txt"
