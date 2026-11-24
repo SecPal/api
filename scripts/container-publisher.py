@@ -649,6 +649,13 @@ def verify_changed_base_tags(root, base, paths):
             raise ValueError('publisher-base-tag-digest')
 
 
+def observe_unpublished_runtime_scans(root, scan_root):
+    observed_at = evidence_now()
+    for role in RUNTIME_COMPONENTS:
+        for arch in ('amd64', 'arm64'):
+            observe_policy(root, scan_root / role / arch, observed_at)
+
+
 def qualify_unpublished_pair(root, native, scan_root, output, *, require_clean=False):
     """Re-observe all native artifacts before returning a pair qualification."""
     root, native, scan_root, output = map(Path, (root, native, scan_root, output))
@@ -866,6 +873,9 @@ def main():
     for key in ('root','native','scan-root','output'):
         c.add_argument('--'+key,required=True)
     c.add_argument('--require-clean',action='store_true')
+    c=sub.add_parser('observe-unpublished-runtime-scans')
+    c.add_argument('--root', type=Path, required=True)
+    c.add_argument('--scan-root', type=Path, required=True)
     c=sub.add_parser('verify-changed-base-tags')
     c.add_argument('--root',required=True)
     c.add_argument('--scope',required=True)
@@ -885,6 +895,8 @@ def main():
         complete_runtime_pair(args.root,args.prepared,args.scan_root,args.smoke_root,args.output)
     elif args.command=='qualify-unpublished-pair':
         qualify_unpublished_pair(args.root,args.native,args.scan_root,args.output,require_clean=args.require_clean)
+    elif args.command=='observe-unpublished-runtime-scans':
+        observe_unpublished_runtime_scans(args.root,args.scan_root)
     elif args.command=='verify-changed-base-tags':
         scope = read(args.scope)
         if scope['mode'] != 'build' or scope['source']['merge'] != os.environ['GITHUB_SHA']:

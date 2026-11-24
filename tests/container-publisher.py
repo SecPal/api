@@ -687,6 +687,21 @@ class PreRegistryAdmission(unittest.TestCase):
                 publisher.qualify_unpublished_pair(root, native, scan, root / 'qualification.json')
             self.assertFalse((root / 'qualification.json').exists())
 
+    def test_signing_reobserves_all_platforms_and_stops_on_stale_evidence(self):
+        root = Path('/fixture')
+        scans = root / 'scan'
+        expected = [((root, scans / role / arch, NOW), {}) for role in publisher.RUNTIME_COMPONENTS
+                    for arch in ('amd64', 'arm64')]
+        with (
+            patch.object(publisher, 'evidence_now', return_value=NOW),
+            patch.object(publisher, 'observe_policy', return_value={'gate_state': 'REVIEW_REQUIRED'}) as observe,
+        ):
+            publisher.observe_unpublished_runtime_scans(root, scans)
+            self.assertEqual(observe.call_args_list, expected)
+            observe.side_effect = ValueError('publisher-current-artifact-policy')
+            with self.assertRaisesRegex(ValueError, 'publisher-current-artifact-policy'):
+                publisher.observe_unpublished_runtime_scans(root, scans)
+
     def test_prepare_rejects_missing_or_refused_local_evidence_before_registry_login(self):
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory)

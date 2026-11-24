@@ -16,10 +16,14 @@ function repositorySecurityWorkflow(string $name): array
 }
 
 it('requires repository security acceptance before publication and provides PR feedback', function (): void {
-    $publisher = repositorySecurityWorkflow('publish-container')['jobs']['prepare'];
+    $jobs = repositorySecurityWorkflow('publish-container')['jobs'];
+    $publisher = $jobs['prepare'];
 
     expect($publisher['needs'])->toBe(['build', 'repository-security'])
-        ->and($publisher)->not->toHaveKeys(['if', 'continue-on-error']);
+        ->and($publisher['if'])->toBe("github.event_name == 'workflow_dispatch'")
+        ->and($publisher)->not->toHaveKey('continue-on-error')
+        ->and($jobs['candidate']['needs'])->toBe(['build', 'repository-security'])
+        ->and($jobs['candidate'])->not->toHaveKey('continue-on-error');
 
     foreach (['publish-container', 'quality'] as $name) {
         $workflow = repositorySecurityWorkflow($name);
@@ -35,7 +39,7 @@ it('requires repository security acceptance before publication and provides PR f
     $download = array_values(array_filter($publisher['steps'], static fn (array $step): bool => $step['name'] === 'Read exact source security evidence'))[0];
     expect($download['with']['name'])->toBe('${{ needs.repository-security.outputs.evidence-artifact }}')
         ->and($download['with'])->not->toHaveKey('pattern');
-    expect(array_keys(repositorySecurityWorkflow('publish-container')['on']))->toBe(['workflow_dispatch'])
+    expect(array_keys(repositorySecurityWorkflow('publish-container')['on']))->toBe(['workflow_dispatch', 'push'])
         ->and(repositorySecurityWorkflow('quality')['on'])->toBe([
             'push' => ['branches' => ['main']],
             'pull_request' => ['branches' => ['main']],

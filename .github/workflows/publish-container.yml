@@ -67,7 +67,7 @@ jobs:
           ref: ${{ github.sha }}
           persist-credentials: false
           path: publisher
-      - name: Checkout accepted source-security schema
+      - name: Checkout accepted security policy
         # v7.0.1
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -75,6 +75,15 @@ jobs:
           ref: 4892b3248faac245047fdb1dc93fc77fc3d08e02
           path: publisher/.context/publisher-governance
           persist-credentials: false
+      - name: Read current accepted VEX data for runtime replay
+        # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: SecPal/.github
+          ref: main
+          path: publisher/.context/reviewed-vex
+          persist-credentials: false
+          fetch-depth: 0
       - name: Bind exact source and qualification
         env:
           QUALIFICATION_ATTEMPT: ${{ needs.build.outputs.pre-registry-attempt }}
@@ -92,6 +101,8 @@ jobs:
             cd publisher
             "$RUNNER_TEMP/secpal-policy/bin/python" scripts/container-publisher.py source-security \
               --input ../source-evidence/result.json --commit "$GITHUB_SHA"
+            "$RUNNER_TEMP/secpal-policy/bin/python" scripts/container-publisher.py observe-unpublished-runtime-scans \
+              --root . --scan-root ../candidate
           )
           cp -- source-evidence/result.json candidate/source-security.json
       - name: Sign qualified subjects before registry admission
