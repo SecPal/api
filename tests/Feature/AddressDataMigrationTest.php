@@ -39,7 +39,7 @@ test('address data tables and indexes exist', function (): void {
 });
 
 test('address data tables survive even when gin_trgm_ops operator class is not on the search_path', function (): void {
-    // Reproduces the Polyscope preview-schema scenario where the pg_trgm extension
+    // Reproduces the isolated preview-schema scenario where the pg_trgm extension
     // lives in a schema outside the connection's search_path. Without the SAVEPOINT
     // around the optional gin_trgm_ops indexes, the failing CREATE INDEX would
     // abort the migration's outer transaction and silently roll back the freshly

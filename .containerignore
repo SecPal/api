@@ -6,7 +6,6 @@
 .context
 .env*
 .*
-polyscope*.json
 *.log
 *.key
 *.sqlite*
