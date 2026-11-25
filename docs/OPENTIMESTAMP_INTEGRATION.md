@@ -3,443 +3,93 @@ SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 SPDX-License-Identifier: CC0-1.0
 -->
 
-# OpenTimestamp Integration
+# OpenTimestamps integration
 
-SecPal integrates with [OpenTimestamps](https://opentimestamps.org/) to provide blockchain-anchored, cryptographically verifiable audit trail timestamps. This document describes the architecture, security considerations, and operational details of the integration.
+SecPal records a hash chain and Merkle inclusion data for supported activity
+logs. Calendar submission and proof upgrade can store a Bitcoin attestation
+for a batch digest. The application verifies that proof separately when it is
+checked. Internal integrity checks remain available whether or not the external
+proof can be verified. A verified
+external proof is evidence that the committed digest existed by the attested
+block. It does not establish who performed an action or guarantee legal
+admissibility.
 
-## Overview
+## From activity entry to external proof
 
-OpenTimestamps (OTS) creates tamper-proof timestamps by anchoring document digests to the Bitcoin blockchain. SecPal uses OTS to timestamp Level 3 audit logs, providing immutable proof that specific data existed at a particular point in time.
+1. [BuildMerkleTreeBatch](../app/Jobs/BuildMerkleTreeBatch.php) batches unprocessed
+   activity entries with event hashes, grouped by tenant. It includes configured
+   log names across retention categories and stores `merkle_batch_id`,
+   `merkle_root` and `merkle_proof` on each entry.
+2. [SubmitMerkleRootToOpenTimestamp](../app/Jobs/SubmitMerkleRootToOpenTimestamp.php)
+   submits only the SHA-256 Merkle root to public calendars. The helper uses the
+   OpenTimestamps core library's default calendar list and combines every
+   successful calendar response. One successful response is enough to record a
+   pending proof in `ots_proof` and set `ots_submitted_at`. When submission
+   fails, the job retries and the internal Merkle data remains available.
+3. [UpgradeOpenTimestampProofs](../app/Jobs/UpgradeOpenTimestampProofs.php)
+   processes pending entries oldest first. It records `ots_confirmed_at` when a
+   Bitcoin attestation is saved. The upgrade can remain pending or fail without
+   invalidating the internal integrity data.
+4. [Activity verification](../app/Models/Activity.php) treats internal chain
+   integrity, Merkle inclusion, and external timestamp verification as separate
+   results. A recorded confirmation means the proof was upgraded. A current
+   successful verification also requires the checks described below.
 
-### Key Features
+## Verification and failure handling
 
-- **Blockchain Anchoring**: Merkle roots are anchored to Bitcoin blocks
-- **Independent Verification**: Proofs are checked against a quorum of Bitcoin header APIs
-- **Privacy-Preserving**: Only SHA256 digests are submitted to public calendars
-- **Performance Optimized**: Bounded caching for verified proofs with periodic active-chain revalidation
-- **Fail-Closed**: Falls back to unverified state rather than false positives
+[OpenTimestampService](../app/Services/OpenTimestampService.php) delegates to
+the focused Python helpers for [submission](../scripts/ots-stamp-hash.py),
+[upgrade](../scripts/ots-upgrade.py) and [verification](../scripts/ots-verify.py).
+The PHP service accepts a 64-character hexadecimal SHA-256 digest and uses
+binary proof bytes. Proof storage uses Base64.
 
-## Architecture
+The upgrade helper limits its network requests to approved public HTTPS
+calendar destinations. Verification requires agreement from at least two
+distinct HTTPS Bitcoin header API origins on the attested height's block hash.
+It also validates the raw header hash and the attested commitment against the
+block's Merkle root. Insufficient or conflicting quorum, invalid proofs, and
+resource-limit failures cannot produce a verified result. The remaining origins
+can still verify a proof when a provider is unavailable and quorum is met.
 
-### Components
+The service caches successful verification for a bounded period. The cache
+binds the result to the exact digest, proof, provider configuration and TTL, and
+authenticates the verification time with the application key. Once the positive
+result expires, verification checks the active chain again. Pending or failed
+verification does not create a positive cache entry.
 
-1. **OpenTimestampService** (`app/Services/OpenTimestampService.php`)
+## Runtime and configuration
 
-   - Handles submission, upgrade, and verification of OTS proofs
-   - Uses focused Python helpers and the OpenTimestamps core library for submission, bounded upgrade, and verification
-   - Implements proof- and provider-bound caching for successful verification decisions
-   - Merges every successful calendar submission into one pending proof
+The [immutable PHP-FPM image](../docker/php-fpm/Containerfile) contains the
+[hash-pinned OpenTimestamps core](../docker/python/opentimestamps-requirements.txt).
+It does not bundle `opentimestamps-client`, GitPython, gitdb, or smmap. For
+image consumption and supervision of the scheduler and workers, see the
+[deployment image-consumption contract](https://github.com/SecPal/deployment/blob/main/docs/api-image-consumption.md).
 
-2. **ProcessExecutor** (`app/Contracts/ProcessExecutor.php`)
+| Setting or operation                 | Current behavior                                                                                                                                                                                |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `MERKLE_SCHEDULE_FREQUENCY`          | Schedules Merkle batching every minute in local development by default and hourly otherwise. Set `minute` for the every-minute schedule.                                                        |
+| `OTS_BITCOIN_HEADER_API_BASES`       | Comma-separated HTTPS, Esplora-compatible API bases. At least two distinct origins are required. Configure independently operated providers, with a third to tolerate one unavailable provider. |
+| `OTS_VERIFICATION_CACHE_TTL_SECONDS` | Positive verification expires after one hour by default, with a one-day maximum.                                                                                                                |
+| Proof submission and upgrade         | Use the `opentimestamp` queue. The scheduler dispatches upgrades hourly for entries pending for at least one hour, up to 100 per run.                                                           |
+| `php artisan ots:check`              | Checks the installed Python runtime and helper files, and submits a test digest to the public calendars. The scheduled `ots:monitor` runs this check every six hours and reports failures.      |
 
-   - Abstraction for executing external commands with explicit process environments
-   - Enables testable, mocked process interactions
+The batching and upgrade schedules are defined in [routes/console.php](../routes/console.php).
+Calendar or verifier failure affects the corresponding proof or monitoring
+result. Package-index availability is separate from API readiness. Production
+dependency updates use reviewed image builds; `ots:update` is an explicit
+non-production command and is never scheduled.
 
-3. **Jobs**
+## Local verification
 
-   - `SubmitMerkleRootToOpenTimestamp`: Submits batch merkle roots to calendars
-   - `UpgradeOpenTimestampProofs`: Polls for Bitcoin-anchored proofs
-
-4. **Runtime installation guidance**
-   - The production image contains the reviewed, hash-pinned `opentimestamps` core dependency
-   - The image does not contain `opentimestamps-client`, GitPython, gitdb, or smmap
-
-### Calendar Submission and Proof Merging
-
-`scripts/ots-stamp-hash.py` obtains `DEFAULT_AGGREGATORS` from the installed OpenTimestamps Python library and submits to each calendar **sequentially**. Each successful response is merged into the same in-memory timestamp before it is serialized, so the stored pending proof carries every available calendar attestation.
-
-The intended success threshold is **one successful calendar response**. This keeps submission available when some calendars are unavailable while retaining the redundancy contributed by any additional successful responses. Submission fails only when every calendar request fails.
-
-The library owns both the calendar list and the OTS merge operation; SecPal does not select a first response or expose a PHP `mergeProofs()` method.
-
-`scripts/ots-upgrade.py` follows pending attestations only when their HTTPS URI
-matches the core library's maintained calendar allowlist. It rejects redirects,
-non-public resolved addresses, unexpected request paths, and unapproved origins
-before contacting them. Requests, proof size, and total processing time are
-bounded. The helper replaces the temporary proof only after a genuinely new
-Bitcoin attestation has been merged and the changed proof has serialized
-successfully.
-
-### Data Flow
-
-```text
-1. Audit Logs Created
-   ↓
-2. BuildMerkleTreeBatch Job (Level 3 logs)
-   ↓
-3. SubmitMerkleRootToOpenTimestamp Job
-   ↓ (Pending Proof stored)
-4. UpgradeOpenTimestampProofs Job (runs periodically)
-   ↓ (Bitcoin-anchored proof stored)
-5. verify() method (with caching)
-   ↓
-6. Verified Proof (cached for a bounded TTL)
-```
-
-## Security Considerations
-
-### Why Bounded External Verification?
-
-**Context**: Issue #412 identified critical vulnerabilities in a previous hybrid verification approach that combined local PHP crypto with HTTP calendar endpoints. The vulnerabilities included:
-
-- Proof forgery through calendar stub manipulation
-- Timing-based attacks via upgrade endpoint control
-- Man-in-the-middle attacks on unverified calendar responses
-
-**Solution**: Verification uses the official OpenTimestamps Python library plus independent Bitcoin header APIs. The APIs must agree on the block hash for the attested height, the raw header must hash to that block, and the attested commitment must match the header's Merkle root:
-
-```php
-// Delegates proof parsing and Bitcoin-header verification to the bounded Python verifier.
-$result = $processExecutor->execute(
-    ['python3', base_path('scripts/ots-verify.py'), $proofFile, $digest],
-    null,
-    10,
-    ['OTS_BITCOIN_HEADER_API_BASES' => config('services.opentimestamps.bitcoin_header_api_bases')],
-);
-
-// ❌ INSECURE: Custom crypto + HTTP calendars (Issue #412 - REMOVED)
-// $response = Http::post($calendarUrl . '/verify', ['proof' => $proof]);
-```
-
-### Caching Strategy
-
-The proof bytes are immutable once Bitcoin-anchored, but the active-chain observation must be refreshed so a reorganization cannot leave a stale positive decision trusted forever. Therefore:
-
-- ✅ **Cache successful verifications temporarily**: The `v4` key binds the digest to hashes of the exact proof and configured provider set
-- ✅ **Authenticate cached decisions**: The application key authenticates the cache context and verification time, so database writes cannot forge or extend a positive result
-- ✅ **Version verifier decisions**: A verifier security change uses a new namespace so legacy positive results cannot bypass new checks
-- ✅ **Invalidate on context changes**: Replacing the proof, provider configuration, or cache TTL requires fresh verification
-- ✅ **Revalidate active-chain state**: Positive decisions expire after `OTS_VERIFICATION_CACHE_TTL_SECONDS` (maximum one day)
-- ❌ **Do NOT cache failures**: Pending proofs may upgrade to confirmed later
-
-### Threat Model
-
-| Threat                    | Mitigation                                                                                              |
-| ------------------------- | ------------------------------------------------------------------------------------------------------- |
-| Proof forgery             | The OTS commitment must match the fetched header's Merkle root                                          |
-| Header API compromise     | Exactly one hash may reach quorum; conflicting quorums fail closed, and the raw header hash is verified |
-| Man-in-the-middle attacks | HTTPS-only origins, pre-follow redirect checks, API consensus, and raw-header hashing fail closed       |
-| Timing attacks            | Fair attestation slices plus dynamic height/header phases preserve later verification work              |
-| Partial provider failure  | Truncated reads and other provider-local transport failures do not block healthy APIs                   |
-| Provider resource abuse   | Provider responses, proof files, and attestation traversal have strict bounds                           |
-| Cache poisoning           | Versioned keys and application-key authenticated timestamps reject forged or extended positive entries  |
-
-## Installation & Setup
-
-### Local Development
-
-Install the exact dependencies from the maintained lock in the same shell environment where you run `php artisan`:
+In a development shell that has the API's existing PHP dependencies, install
+the same locked core used by the image and run the relevant tests:
 
 ```bash
 python3 -m pip install --only-binary=:all: --require-hashes \
   -r docker/python/opentimestamps-requirements.txt
-python3 -c 'import opentimestamps; print(opentimestamps.__version__)'
-```
-
-If you use a containerized local environment, install the package into that container image and rebuild/restart the container using your normal runtime workflow.
-
-### Production
-
-The immutable production image contains the reviewed, hash-pinned OpenTimestamps
-core package. Change its dependency only through a reviewed source/image update and
-publish a new immutable image. Do not install, upgrade, or discover replacement
-packages from a running production container.
-
-`php artisan ots:update` refuses to run in production. It remains an explicit
-operator command for non-production maintenance only; it is not scheduled and
-must not be used as a production deployment mechanism.
-
-## Runtime Egress and Health
-
-The normal scheduler runs `ots:monitor` every six hours. It invokes `ots:check`,
-which verifies that the installed Python core and all three focused helpers are
-available and submits a bounded test digest through the core library's configured
-OpenTimestamp calendar providers. Calendar destinations are the installed core's
-`DEFAULT_AGGREGATORS`.
-Proof verification may also contact the configured HTTPS Bitcoin-header API bases.
-
-Calendar or provider failure is represented as a failed operational health check
-and is logged by the monitor; it does not cause package replacement or update
-discovery. Normal production runtime never queries Python package-index metadata,
-runs `pip list --outdated`, or installs packages. Package-index availability is
-not an application readiness authority. The retained explicit non-production
-maintenance command may query package metadata; failure of that discovery is
-reported as a maintenance-only command failure and never changes application
-readiness.
-
-## Configuration
-
-### Environment Variables
-
-```env
-# OpenTimestamp Configuration
-
-# Calendar submission uses the installed OpenTimestamps Python library's
-# DEFAULT_AGGREGATORS. SecPal does not read OTS_CALENDAR_URLS or
-# OTS_MIN_CALENDAR_RESPONSES. It submits sequentially, merges all successful
-# responses, and requires one successful response.
-
-# Bitcoin header API bases used during verification (comma-separated).
-# At least two canonical HTTPS origins are required so one configured provider cannot
-# substitute a self-consistent header that is not part of the Bitcoin chain.
-# DNS-equivalent trailing-dot hostnames are treated as the same origin.
-# Configure at least three independently operated, Esplora-compatible origins in
-# production so one unavailable provider does not prevent the remaining two from agreeing.
-OTS_BITCOIN_HEADER_API_BASES=https://blockstream.info/api,https://mempool.space/api
-
-# Positive verification cache TTL in seconds (default: 3600, maximum: 86400).
-# Expiry forces periodic revalidation against the active Bitcoin chain.
-OTS_VERIFICATION_CACHE_TTL_SECONDS=3600
-
-# Note: The Python verifier process timeout is hardcoded at 10 seconds in OpenTimestampService
-# and is not configurable via environment variable. Calendar submission has a hardcoded
-# 15-second process timeout in OpenTimestampService; the Python library owns individual
-# calendar requests.
-```
-
-### Queue Configuration
-
-OpenTimestamp jobs run on the `opentimestamp` queue:
-
-```bash
-# Run dedicated OpenTimestamp queue worker
-php artisan queue:work --queue=opentimestamp --tries=3 --timeout=60
-```
-
-## Usage
-
-### Programmatic API
-
-```php
-use App\Services\OpenTimestampService;
-
-$service = app(OpenTimestampService::class);
-
-// 1. Submit digest to calendars (returns pending proof)
-$digest = hash('sha256', 'audit log data');
-$pendingProof = $service->submit($digest);
-// Base64-encoded OTS proof (calendar attestations)
-
-// 2. Upgrade pending proof to Bitcoin-anchored (after ~1 hour)
-$confirmedProof = $service->upgrade($pendingProof);
-// Base64-encoded OTS proof with Bitcoin attestation, or null if pending
-
-// 3. Verify proof (checks Bitcoin blockchain)
-$isValid = $service->verify($confirmedProof, $digest);
-// true if proof is Bitcoin-anchored and digest matches, false otherwise
-```
-
-### Jobs
-
-**SubmitMerkleRootToOpenTimestamp** (automatic after Merkle tree build):
-
-- **Purpose**: Submit Merkle roots to OpenTimestamp calendar servers
-- **Trigger**: Dispatched by BuildMerkleTreeBatch job
-- **Queue**: `opentimestamp`
-- **Retry Logic**: 3 attempts with exponential backoff (1s, 2s, 4s)
-- **Timeout**: 30 seconds per attempt
-- **Failure Behavior**: Re-throws exception to trigger queue retry
-- **Result**: Stores pending proof (calendar attestations) in Activity logs
-
-**UpgradeOpenTimestampProofs** (scheduled hourly):
-
-- **Purpose**: Upgrade pending proofs to Bitcoin-confirmed proofs
-- **Trigger**: Scheduled via `routes/console.php` (hourly)
-- **Queue**: `opentimestamp`
-- **Batch Processing**:
-  - Processes maximum 100 proofs per run (prevents long-running jobs)
-  - Skips recently submitted proofs (<1 hour old) to reduce calendar load
-  - Processes oldest proofs first (FIFO fairness)
-- **Retry Logic**: 1 attempt (no retry - runs again hourly)
-- **Timeout**: 600 seconds (10 minutes for batch)
-- **Failure Behavior**: Logs warning, continues processing remaining proofs
-- **Result**: Updates confirmed proofs with Bitcoin attestation, sets ots_confirmed_at
-
-**Monitoring Metrics** (logged at completion):
-
-- `processed`: Number of proofs processed in this run
-- `upgraded`: Number successfully upgraded to Bitcoin-confirmed
-- `still_pending`: Number still pending (Bitcoin not confirmed yet)
-- `failed`: Number of upgrade errors
-- `success_rate`: Percentage of successful upgrades
-
-Example manual dispatch (normally automatic):
-
-```php
-use App\Jobs\SubmitMerkleRootToOpenTimestamp;
-use App\Jobs\UpgradeOpenTimestampProofs;
-
-// Submit merkle root (after BuildMerkleTreeBatch job)
-SubmitMerkleRootToOpenTimestamp::dispatch($tenantId, $batchId, $merkleRoot);
-
-// Upgrade pending proofs (normally scheduled hourly)
-UpgradeOpenTimestampProofs::dispatch();
-```
-
-### Caching
-
-Successful verifications use a bounded `v4` cache key that includes the digest plus hashes of the exact proof, configured provider set, and TTL policy. Its value contains an application-key authenticated verification timestamp, which is checked independently of the cache store's expiry. A proof, provider, or TTL change causes immediate fresh verification, forged or artificially extended entries are ignored, and TTL expiry rechecks the proof against the active Bitcoin chain. `OTS_VERIFICATION_CACHE_TTL_SECONDS` defaults to one hour and cannot exceed one day.
-
-```php
-// Clear all OTS verification cache
-Cache::flush(); // ⚠️ Clears ALL cache, use with caution
-```
-
-## Troubleshooting
-
-### Verification Runtime Not Found
-
-**Symptom**: `verify()` returns `false`, logs show that Python is unavailable or the OpenTimestamps module cannot be imported
-
-**Solution**:
-
-```bash
-# Local shell / container
-python3 -m pip install --only-binary=:all: --require-hashes \
-  -r docker/python/opentimestamps-requirements.txt
-# Ensure python3 can import the installed opentimestamps package.
-
-# Production: rebuild and publish the reviewed immutable image after updating
-# the pinned dependency source. Do not run pip in a production container.
-python3 -c 'import opentimestamps'
-```
-
-### Verification Always Returns False
-
-**Symptom**: `verify()` returns `false` for valid proofs
-
-**Possible Causes**:
-
-1. **Pending Proof (Most Common)**
-
-   - Proof not yet Bitcoin-anchored (~1 hour after submission)
-   - Wait and retry `upgrade()`, then `verify()`
-
-2. **Verifier Timeout**
-
-   - Network latency or insufficient quorum across Bitcoin header APIs
-   - Check all configured HTTPS providers; requests are capped at two seconds, and height lookups leave two request budgets for header retrieval and one fallback within the fixed shared deadline
-
-3. **Digest Mismatch**
-
-   - Ensure digest is SHA256 hex string (64 characters)
-   - Case-insensitive (normalized to lowercase)
-
-4. **Invalid Proof Format**
-   - `OpenTimestampService::verify()` expects decoded binary OTS proof bytes
-   - Proof must be a valid binary OpenTimestamps proof for the exact digest
-
-### Calendar Submission Fails
-
-**Symptom**: `submit()` throws `RuntimeException: Failed to submit timestamp`
-
-**Solution**:
-
-1. **Network Connectivity**
-
-   ```bash
-   # Test calendar reachability
-   curl -I https://alice.btc.calendar.opentimestamps.org
-   ```
-
-2. **Firewall Rules**
-
-   - Ensure outbound HTTPS (443) allowed to calendar servers
-
-3. **All Calendar Servers Unavailable**
-   - Check calendar server status: <https://opentimestamps.org/>
-   - The runtime accepts one successful response and automatically retains all
-     additional successful calendar attestations; no application threshold is configurable.
-
-### Performance Issues
-
-**Symptom**: `verify()` takes >5 seconds, p95 latency high
-
-**Solutions**:
-
-1. **Check Caching**
-
-   ```php
-   // Recently verified proofs should hit the bounded cache (<10ms)
-   Log::info('Cache hit', ['digest' => $digest]);
-   ```
-
-2. **Database Query Optimization**
-
-   - Index on `activity_log.opentimestamp_merkle_root`
-   - Index on `activity_log.opentimestamp_proof_confirmed`
-
-3. **Network Latency**
-   - Use geographically closer Bitcoin nodes
-   - Configure responsive, independent Bitcoin header API origins
-
-## Testing
-
-### Unit Tests
-
-```bash
-# All OpenTimestamp tests
 php artisan test --filter=OpenTimestamp
-
-# Specific test files
-php artisan test tests/Unit/Services/OpenTimestampServiceTest.php
-php artisan test tests/Feature/OpenTimestampServiceIntegrationTest.php
 ```
 
-### Integration Tests with the Real Python Runtime
-
-```bash
-# Requires python3 and the maintained hash-locked core dependencies
-php artisan test tests/Feature/OpenTimestampServiceIntegrationTest.php
-```
-
-### Manual Verification
-
-```bash
-# Submit an already-computed SHA-256 digest.
-python3 scripts/ots-stamp-hash.py <64-hex-digest> > test.ots
-
-# Later, upgrade the proof in place through approved calendars.
-python3 scripts/ots-upgrade.py test.ots
-
-# Verify the exact digest using the configured Bitcoin-header-provider quorum.
-OTS_BITCOIN_HEADER_API_BASES=<comma-separated-https-origins> \
-  python3 scripts/ots-verify.py test.ots <64-hex-digest>
-```
-
-## Monitoring & Observability
-
-### Key Metrics
-
-- **Submission Success Rate**: `SubmitMerkleRootToOpenTimestamp` job success ratio
-- **Upgrade Success Rate**: `UpgradeOpenTimestampProofs` job success ratio
-- **Verification Latency**: P50, P95, P99 for `verify()` calls
-- **Cache Hit Rate**: Ratio of cached vs. Python-process verifications
-
-### Logs
-
-```php
-// Enable debug logging for OTS operations
-Log::debug('OpenTimestamp: Submitting digest', ['digest' => $digest]);
-Log::debug('OpenTimestamp: Cache hit for verified proof', ['digest' => $digest]);
-Log::warning('OpenTimestamp: python3 not installed', ['digest_hint' => substr($digest, 0, 12)]);
-```
-
-Search logs for `OpenTimestamp:` prefix.
-
-## References
-
-- **OpenTimestamps Website**: <https://opentimestamps.org/>
-- **OpenTimestamps Core**: <https://github.com/opentimestamps/python-opentimestamps>
-- **SecPal Issue #412**: Hybrid verification vulnerabilities (removed)
-- **SecPal Issue #415**: Secure external verification (implemented)
-- **SecPal Issue #385**: Level 3 Audit Trail (parent epic)
-- **Bitcoin Whitepaper**: <https://bitcoin.org/bitcoin.pdf>
-
-## License
-
-This documentation is licensed under CC0-1.0.
-
-The OpenTimestamp core package is licensed under LGPL-3.0.
-
-SecPal integration code is licensed under AGPL-3.0-or-later.
+The [administrator](ACTIVITY_LOGGING_ADMIN_GUIDE.md),
+[user](ACTIVITY_LOGGING_USER_GUIDE.md) and [legal](ACTIVITY_LOGGING_LEGAL_GUIDE.md)
+guides describe how to interpret audit evidence for their respective audiences.
