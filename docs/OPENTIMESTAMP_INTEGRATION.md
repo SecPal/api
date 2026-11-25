@@ -6,9 +6,10 @@ SPDX-License-Identifier: CC0-1.0
 # OpenTimestamps integration
 
 SecPal records a hash chain and Merkle inclusion data for supported activity
-logs. OpenTimestamps adds an external Bitcoin timestamp for a batch digest when
-calendar submission, proof upgrade, and verification succeed. Internal integrity
-checks can still be performed when no external proof is available. A verified
+logs. Calendar submission and proof upgrade can store a Bitcoin attestation
+for a batch digest. The application verifies that proof separately when it is
+checked. Internal integrity checks remain available whether or not the external
+proof can be verified. A verified
 external proof is evidence that the committed digest existed by the attested
 block. It does not establish who performed an action or guarantee legal
 admissibility.
@@ -46,8 +47,9 @@ The upgrade helper limits its network requests to approved public HTTPS
 calendar destinations. Verification requires agreement from at least two
 distinct HTTPS Bitcoin header API origins on the attested height's block hash.
 It also validates the raw header hash and the attested commitment against the
-block's Merkle root. Conflicting quorums, invalid proofs, unavailable providers
-and resource limits cannot produce a verified result.
+block's Merkle root. Insufficient or conflicting quorum, invalid proofs, and
+resource-limit failures cannot produce a verified result. The remaining origins
+can still verify a proof when a provider is unavailable and quorum is met.
 
 The service caches successful verification for a bounded period. The cache
 binds the result to the exact digest, proof, provider configuration and TTL, and
@@ -61,7 +63,7 @@ The [immutable PHP-FPM image](../docker/php-fpm/Containerfile) contains the
 [hash-pinned OpenTimestamps core](../docker/python/opentimestamps-requirements.txt).
 It does not bundle `opentimestamps-client`, GitPython, gitdb, or smmap. For
 image consumption and supervision of the scheduler and workers, see the
-[deployment boundary](deployment.md).
+[deployment image-consumption contract](https://github.com/SecPal/deployment/blob/main/docs/api-image-consumption.md).
 
 | Setting or operation                 | Current behavior                                                                                                                                                                                |
 | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
