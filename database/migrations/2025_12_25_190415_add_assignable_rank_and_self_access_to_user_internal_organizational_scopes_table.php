@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\Schema;
 /**
  * Add assignable rank filters and self-access control to user_internal_organizational_scopes table.
  *
- * This migration completes the Leadership Levels implementation (ADR-009) by adding:
+ * This migration completes the Leadership Levels implementation by adding:
  * 1. min/max_assignable_rank: Control which leadership levels user can assign/remove
  * 2. allow_self_access: Prevent users from viewing/editing own HR data
  *
@@ -21,7 +21,6 @@ use Illuminate\Support\Facades\Schema;
  * - Permission Escalation Prevention: User must have permission to ASSIGN a rank to REMOVE it
  * - Self-Manipulation Prevention: Users cannot edit own salary, leadership level by default
  *
- * @see https://github.com/SecPal/.github/blob/main/docs/adr/20251221-inheritance-blocking-and-leadership-access-control.md
  * @see https://github.com/SecPal/api/issues/399 Epic: Leadership Levels System
  * @see https://github.com/SecPal/api/issues/423 Sub-Issue: Database Foundation
  * @see https://github.com/SecPal/api/issues/425 Sub-Issue: Employee Policy Integration

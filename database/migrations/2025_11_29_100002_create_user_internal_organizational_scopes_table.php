@@ -26,7 +26,6 @@ use Illuminate\Support\Facades\Schema;
  * - write: Can modify data within the unit
  * - manage: Can manage the unit structure
  *
- * @see https://github.com/SecPal/.github/blob/main/docs/adr/20251126-organizational-structure-hierarchy.md
  */
 return new class extends Migration
 {

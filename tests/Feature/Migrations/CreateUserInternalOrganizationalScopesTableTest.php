@@ -38,7 +38,7 @@ describe('CreateUserInternalOrganizationalScopesTable Migration', function () {
     });
 
     test('allows multiple scopes per user-unit combination', function (): void {
-        // Per ADR-009: The unique constraint was removed to support "all employees" access
+        // The unique constraint was removed to support "all employees" access
         // (non-leadership + leadership scopes for the same user/unit)
         $indexes = Schema::getIndexes('user_internal_organizational_scopes');
 
@@ -48,7 +48,7 @@ describe('CreateUserInternalOrganizationalScopesTable Migration', function () {
                 && in_array('organizational_unit_id', $index['columns']);
         });
 
-        expect($hasUniqueConstraint)->toBeFalse('Unique constraint should NOT exist per ADR-009');
+        expect($hasUniqueConstraint)->toBeFalse('Unique constraint would prevent multiple rank scopes per user and unit');
     });
 
     test('has indexes for efficient queries', function (): void {
@@ -286,7 +286,7 @@ describe('CreateUserInternalOrganizationalScopesTable Migration', function () {
     });
 
     test('allows multiple scopes for same user-unit with different rank filters', function (): void {
-        // Per ADR-009: Multiple scopes per user/unit are needed for "all employees" access
+        // Multiple scopes per user/unit are needed for "all employees" access
         // Example: One scope for non-leadership + one scope for leadership employees
         $keys = TenantKey::generateEnvelopeKeys();
         $tenant = TenantKey::create($keys);

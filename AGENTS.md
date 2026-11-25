@@ -28,9 +28,13 @@ aligned when their scoped rules change.
 
 ## Workspace And Change Safety
 
-- Run `git status --short --branch` before writing. Preserve an existing topic
-  branch and any user changes; never overwrite unrelated work.
-- Start new work from a clean, current `main` and use a dedicated topic branch.
+- Inspect `git status --short --branch` before writing. Use the repository tab
+  and topic branch assigned to the Herdr task. The
+  [workspace workflow](https://github.com/SecPal/.github/blob/main/WORKSPACE_SETUP.md)
+  provisions new assignments from the current protected GitHub baseline.
+- When the operator declares the task complete, verify protected GitHub
+  delivery, then use `secpal-order finish NAME` for workspace cleanup. Keep
+  dirty files, unpublished commits and open PR work in the assigned workspace.
 - Never bypass hooks, force-push, or push directly from a protected branch.
 - Keep GitHub-facing communication in English and reference files and lines
   instead of pasting large code blocks.
@@ -144,11 +148,6 @@ on the first failed item:
 
 Use a body file for multiline `gh pr create` or `gh pr edit` content. Use
 GitHub pull-request and issue references for the actual change.
-
-After a merge, return the repository to a ready state: switch to `main`, pull
-with fast-forward only, delete the merged topic branch, prune remotes, refresh
-Composer dependencies where applicable, run the smallest readiness command, and
-confirm a clean working tree.
 
 ## Domain And Scope Notes
 

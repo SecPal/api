@@ -16,7 +16,6 @@ use Illuminate\Support\Facades\Schema;
  * This table represents the security service company's internal hierarchy
  * (Holding → Company → Region → Branch → Division).
  *
- * @see https://github.com/SecPal/.github/blob/main/docs/adr/20251126-organizational-structure-hierarchy.md
  */
 return new class extends Migration
 {

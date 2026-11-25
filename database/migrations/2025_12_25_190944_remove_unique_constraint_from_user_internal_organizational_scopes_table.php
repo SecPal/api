@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\Schema;
  * Remove unique constraint from user_internal_organizational_scopes table.
  *
  * The original unique constraint (user_id, organizational_unit_id) was too restrictive
- * for Leadership Levels implementation (ADR-009).
+ * for Leadership Levels implementation.
  *
  * Why this change is needed:
  * - To see ALL employees (leadership + non-leadership), user needs TWO scopes:
@@ -30,7 +30,6 @@ use Illuminate\Support\Facades\Schema;
  *
  * @see https://github.com/SecPal/api/issues/399 Epic: Leadership Levels System
  * @see https://github.com/SecPal/api/issues/425 Sub-Issue: Employee Policy Integration
- * @see https://github.com/SecPal/.github/blob/main/docs/adr/20251221-inheritance-blocking-and-leadership-access-control.md
  */
 return new class extends Migration
 {

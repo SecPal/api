@@ -29,7 +29,6 @@ use Illuminate\Support\Facades\Schema;
  * relationships. Queries traversing hierarchies must join with
  * whereNull('organizational_units.deleted_at') to exclude soft-deleted units.
  *
- * @see https://github.com/SecPal/.github/blob/main/docs/adr/20251126-organizational-structure-hierarchy.md
  */
 return new class extends Migration
 {

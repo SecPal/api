@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\Schema;
  * Add leadership rank filters to user_internal_organizational_scopes table.
  *
  * This migration adds min_viewable_rank and max_viewable_rank columns to enable
- * rank-based filtering for hierarchical access control (ADR-009).
+ * rank-based filtering for hierarchical access control.
  *
  * Use cases:
  * - Area Manager (rank 5) can view employees with rank >= 6 (subordinates only)
@@ -27,7 +27,6 @@ use Illuminate\Support\Facades\Schema;
  * - Both NULL = no filtering
  * - Filters work WITH organizational scopes (AND condition)
  *
- * @see https://github.com/SecPal/.github/blob/main/docs/adr/20251221-inheritance-blocking-and-leadership-access-control.md
  * @see https://github.com/SecPal/api/issues/399 Epic: Leadership Levels System
  * @see https://github.com/SecPal/api/issues/423 Sub-Issue: Database Migrations
  */

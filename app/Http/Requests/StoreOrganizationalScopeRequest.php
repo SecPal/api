@@ -60,7 +60,7 @@ class StoreOrganizationalScopeRequest extends FormRequest
                 Rule::in(self::VALID_ACCESS_LEVELS),
             ],
             'include_descendants' => ['boolean'],
-            // Leadership-based access control fields (ADR-009)
+            // Leadership-based access control fields
             'min_viewable_rank' => [
                 'nullable',
                 'integer',

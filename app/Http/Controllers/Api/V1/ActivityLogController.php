@@ -73,7 +73,7 @@ class ActivityLogController extends Controller
             ->where('tenant_id', $tenantId)
             ->with(['causer', 'subject', 'organizationalUnit']);
 
-        // Apply scoped filtering (ADR-010 + ADR-009)
+        // Apply scoped filtering (ADR-010)
         $query = $this->applyScopedFiltering($query, $user);
 
         // Apply user-provided filters
@@ -152,7 +152,7 @@ class ActivityLogController extends Controller
     /**
      * Apply scoped filtering based on organizational scopes and leadership levels.
      *
-     * CRITICAL AUTHORIZATION LOGIC (ADR-010 + ADR-009):
+     * CRITICAL AUTHORIZATION LOGIC (ADR-010):
      * 1. Users without organizational scopes: see all tenant activities, including global ones (no organizational_unit_id).
      * 2. Users with organizational scopes: see only activities within their scoped organizational units (global activities are excluded).
      * 3. Apply leadership level filtering on the scoped result (only subordinates' activities).

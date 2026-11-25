@@ -751,7 +751,7 @@ After provisioning:
 
 - [Production boundary](../deployment.md) - Application inputs and deployment ownership
 - [RBAC Architecture](/docs/rbac-architecture.md) - Tenant-scoped permissions
-- [ADR-008: User-Based Tenant Resolution](/.github/docs/adr/20251219-user-based-tenant-resolution.md) - Architecture decision
+- [ADR-014: Tenant, Identity, Employee, and Access Model](https://github.com/SecPal/.github/blob/main/docs/adr/20260720-tenant-identity-access-model-adr014.md) defines the accepted membership-based redesign.
 
 ---
 

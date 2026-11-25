@@ -590,7 +590,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
 ## Leadership Levels & Hierarchical Access Control
 
-> **Added:** 2025-12-26 (Issue #425, Epic #399 - ADR-009)
+> **Added:** 2025-12-26 (Issue #425, Epic #399)
 
 SecPal implements hierarchical access control through **Leadership Levels** (Führungsebenen) to restrict which employees users can view and manage based on their organizational responsibilities.
 
@@ -881,7 +881,7 @@ Comprehensive tests in `tests/Feature/Policies/EmployeePolicyLeadershipLevelTest
 
 ### Related Issues
 
-- **Epic #399**: Leadership Levels System (ADR-009)
+- **Epic #399**: Leadership Levels System
 - **Issue #423**: Database Foundation
 - **Issue #424**: Backend API & Policies
 - **Issue #425**: Employee Policy Integration **(CURRENT)**

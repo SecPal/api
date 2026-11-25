@@ -33,7 +33,6 @@ use App\Models\User;
  * @see https://github.com/SecPal/api/issues/385 Epic #385: Activity Logging & Audit Trail
  * @see https://github.com/SecPal/api/issues/399 Epic #399: Leadership Levels System
  * @see https://github.com/SecPal/.github/blob/main/docs/adr/20251221-activity-logging-audit-trail-strategy.md ADR-010: Activity Logging Strategy
- * @see https://github.com/SecPal/.github/blob/main/docs/adr/20251221-inheritance-blocking-and-leadership-access-control.md ADR-009: Leadership-Based Access Control
  */
 class ActivityPolicy
 {
@@ -51,7 +50,7 @@ class ActivityPolicy
     /**
      * Determine if user can view a specific activity log.
      *
-     * AUTHORIZATION LOGIC (ADR-010 + ADR-009):
+     * AUTHORIZATION LOGIC (ADR-010):
      * 1. Tenant isolation check (always first)
      * 2. Permission check: Requires activity_log.read permission
      * 3. Global activities (no org unit): Allowed if permission granted
@@ -183,7 +182,7 @@ class ActivityPolicy
     /**
      * Check if causer's management level is within user's viewable range.
      *
-     * CRITICAL SEMANTICS (ADR-009):
+     * CRITICAL SEMANTICS:
      * - Non-management employees have management_level = 0
      * - Management levels: 1-255 (1=CEO/highest, 255=lowest)
      *
