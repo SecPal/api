@@ -25,26 +25,9 @@ final readonly class FileGlobalIdentityRootProvider
     public function load(GlobalIdentityKeyReference $root): string
     {
         $this->verifyDirectory();
-        $path = $this->path($root);
-        clearstatcache(true, $path);
-        $entry = @lstat($path);
-        // Inspect the directory entry before opening so special files never reach fopen.
-        if ($entry === false || ! $this->isSafeFile($entry, self::KEY_BYTES)) {
-            throw new GlobalIdentityKeyException(self::UNAVAILABLE);
-        }
-
-        $stream = @fopen($path, 'rb');
-        if ($stream === false) {
-            throw new GlobalIdentityKeyException(self::UNAVAILABLE);
-        }
+        $stream = $this->openVerifiedFile($this->path($root), 'rb', self::KEY_BYTES, self::UNAVAILABLE);
 
         try {
-            $opened = @fstat($stream);
-            if ($opened === false || ! $this->isSafeFile($opened, self::KEY_BYTES)
-                || $entry['dev'] !== $opened['dev'] || $entry['ino'] !== $opened['ino']) {
-                throw new GlobalIdentityKeyException(self::UNAVAILABLE);
-            }
-
             $key = @stream_get_contents($stream, self::KEY_BYTES + 1);
             if ($key === false) {
                 throw new GlobalIdentityKeyException(self::UNAVAILABLE);
@@ -117,6 +100,40 @@ final readonly class FileGlobalIdentityRootProvider
             && $entry['size'] === $size;
     }
 
+    /** @return resource */
+    private function openVerifiedFile(
+        #[SensitiveParameter] string $path,
+        string $mode,
+        int $size,
+        string $failure,
+    ): mixed {
+        clearstatcache(true, $path);
+        $before = @lstat($path);
+        if ($before === false || ! $this->isSafeFile($before, $size)) {
+            throw new GlobalIdentityKeyException($failure);
+        }
+
+        // A named pipe substituted during lookup must not block the open.
+        $stream = @fopen($path, $mode.'n');
+        if ($stream === false) {
+            throw new GlobalIdentityKeyException($failure);
+        }
+
+        $opened = @fstat($stream);
+        clearstatcache(true, $path);
+        $after = @lstat($path);
+        if ($opened === false || ! $this->isSafeFile($opened, $size)
+            || $after === false || ! $this->isSafeFile($after, $size)
+            || $before['dev'] !== $opened['dev'] || $before['ino'] !== $opened['ino']
+            || $after['dev'] !== $opened['dev'] || $after['ino'] !== $opened['ino']) {
+            @fclose($stream);
+
+            throw new GlobalIdentityKeyException($failure);
+        }
+
+        return $stream;
+    }
+
     private function path(GlobalIdentityKeyReference $root): string
     {
         return $this->directory.'/'.$root->id.'.'.$root->version.'.key';
@@ -124,17 +141,9 @@ final readonly class FileGlobalIdentityRootProvider
 
     private function writeTemporaryRoot(#[SensitiveParameter] string $path): void
     {
-        $stream = @fopen($path, 'r+b');
-        if ($stream === false) {
-            throw new GlobalIdentityKeyException(self::PUBLICATION_FAILED);
-        }
+        $stream = $this->openVerifiedFile($path, 'r+b', 0, self::PUBLICATION_FAILED);
 
         try {
-            $entry = @fstat($stream);
-            if ($entry === false || ! $this->isSafeFile($entry, 0)) {
-                throw new GlobalIdentityKeyException(self::PUBLICATION_FAILED);
-            }
-
             $key = random_bytes(self::KEY_BYTES);
             try {
                 if (@fwrite($stream, $key) !== self::KEY_BYTES || ! @fflush($stream) || ! @fsync($stream)) {

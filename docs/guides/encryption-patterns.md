@@ -104,6 +104,8 @@ envelope carries the format version, algorithm, root reference, a fresh 24-byte
 nonce and the combined ciphertext and tag. The wrapper passes binary values.
 Production uses PHP's OS-backed secure random engine. Tests can supply a
 deterministic engine to exercise wrapping and retries.
+Custody providers with non-exportable roots can implement the wrapping
+contract directly.
 
 V1 authenticates the wrapping format version, algorithm, working key purpose,
 working key ID, working key version, root ID and root version in that order. Each
@@ -121,6 +123,9 @@ synthetic vector in `GlobalIdentityKeyTest.php` pins the encoding and ciphertext
   letters, digits, underscores or hyphens and start with a letter or digit.
   Versions are positive integers. The file contains exactly 32 binary bytes,
   belongs to the operating account and has mode `0600` or `0400`.
+  The provider opens the path in nonblocking mode and checks that the
+  directory entry and opened descriptor identify the same regular file
+  before reading bytes.
 - An authorized provisioning process calls `provision` with the exact root
   reference. It generates the key with the OS CSPRNG, flushes a protected
   temporary file, publishes it with a same-directory hard link and syncs the

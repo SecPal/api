@@ -177,6 +177,9 @@ it('rejects unsafe paths, file types, permissions, and lengths', function (): vo
     unlink($path);
     mkdir($path, 0700);
     expect(fn () => $this->provider->load($this->root))->toThrow(GlobalIdentityKeyException::class);
+    rmdir($path);
+    expect(posix_mkfifo($path, 0600))->toBeTrue();
+    expect(fn () => $this->provider->load($this->root))->toThrow(GlobalIdentityKeyException::class);
 
     symlink('.', $this->rootDirectory.'/alias');
     $symlinkedDirectory = new FileGlobalIdentityRootProvider($this->rootDirectory.'/alias');
