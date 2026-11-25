@@ -360,5 +360,5 @@ test('Dependabot forwards only the dedicated publisher credential and opts in by
 
     expect($caller['secrets'])->toBe([
         'dependabot-merger-private-key' => '${{ secrets.DEPENDABOT_MERGER_PRIVATE_KEY }}',
-    ])->and($caller['with']['publisher-events'])->toBe("${{ vars.DEPENDABOT_MERGER_APP_ID != '' }}");
+    ])->and($caller['with']['publisher-events'])->toBe("\${{ vars.DEPENDABOT_MERGER_APP_ID != '' }}");
 });
