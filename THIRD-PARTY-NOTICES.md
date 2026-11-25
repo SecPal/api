@@ -5,10 +5,9 @@ SPDX-License-Identifier: CC0-1.0
 
 # Third-party notices
 
-This record covers third-party material committed to this repository. It does
-not relicense that material. The versioned Composer dependency inventory is in
-`composer.lock` and the reproducible audit procedure is documented in
-[`docs/THIRD_PARTY_LICENSE_AUDIT.md`](docs/THIRD_PARTY_LICENSE_AUDIT.md).
+This record covers third-party material committed to this repository and
+notice obligations for distributed dependencies. Repository-file licensing is
+recorded in [REUSE.toml](REUSE.toml) and [LICENSES/](LICENSES/).
 
 ## Laravel configuration templates
 
@@ -40,12 +39,18 @@ The complete MIT text is available at [LICENSES/MIT.txt](LICENSES/MIT.txt).
 
 ## Package-managed dependencies
 
-Composer dependencies are not copied source. Release artifacts that bundle a
-`vendor/` tree must preserve each dependency's license and notice files. See
-the release checklist in
-[`docs/THIRD_PARTY_LICENSE_AUDIT.md`](docs/THIRD_PARTY_LICENSE_AUDIT.md).
+Use the build's [composer.lock](composer.lock) and
+`composer licenses --format=json` to review the installed Composer dependency
+licenses. Artifacts that bundle a `vendor/` tree must preserve the packages'
+license and notice files, including upstream Apache `NOTICE` files where
+supplied. Run `reuse lint` for tracked material.
 
-The API container installs `opentimestamps` 0.4.5 and its required Python dependencies from their package distributions. Their package metadata, including the upstream LGPL-3.0 license files, remains installed in the image. The core source is available from <https://github.com/opentimestamps/python-opentimestamps>.
+The API container installs the OpenTimestamps core and the Python dependencies
+from the [hash-locked requirements](docker/python/opentimestamps-requirements.txt).
+Keep their upstream license and notice files in distributed images and satisfy
+the LGPL-3.0 obligations for the core, including corresponding source. The
+[upstream core repository](https://github.com/opentimestamps/python-opentimestamps)
+is the package's source location.
 
 ## OpenPLZ address reference data
 
