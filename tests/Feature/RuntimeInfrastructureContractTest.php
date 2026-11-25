@@ -35,11 +35,14 @@ test('active runtime configuration exposes only the supported adapters and bound
 });
 
 test('maintained production entry points match the database runtime contract', function (): void {
-    foreach (['docs/deployment.md', 'docs/deployment-uberspace.md', 'docs/deployment-checklist.md'] as $path) {
-        $guide = (string) file_get_contents(base_path($path));
+    $guide = (string) file_get_contents(base_path('docs/deployment.md'));
 
-        expect($guide)->toContain('DB_SSLMODE=verify-full', 'DB_SSLROOTCERT=');
-    }
+    expect($guide)->toContain(
+        'https://github.com/SecPal/deployment',
+        'PostgreSQL 18',
+        'DB_SSLMODE=verify-full',
+        'DB_SSLROOTCERT=',
+    );
 
     $sanctumGuide = (string) file_get_contents(base_path('docs/guides/sanctum-spa-auth.md'));
 
