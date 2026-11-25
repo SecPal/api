@@ -457,7 +457,7 @@ test('view allows activity caused by guard when scope has no rank restrictions (
     ]);
 
     // Guards require explicit min_viewable_rank=0, so this should be FALSE
-    // NULL min does NOT grant guard access (by design in ADR-009)
+    // NULL min does NOT grant guard access
     expect($this->policy->view($user, $activity))->toBeFalse();
 });
 

@@ -1,7 +1,7 @@
 <?php
 
 /*
- * SPDX-FileCopyrightText: 2025 SecPal Contributors
+ * SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
  *
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
@@ -28,8 +28,6 @@ use Illuminate\Support\Facades\Schema;
  * units retain their closure table entries, allowing restoration with intact
  * relationships. Queries traversing hierarchies must join with
  * whereNull('organizational_units.deleted_at') to exclude soft-deleted units.
- *
- * @see https://github.com/SecPal/.github/blob/main/docs/adr/20251126-organizational-structure-hierarchy.md
  */
 return new class extends Migration
 {

@@ -45,7 +45,7 @@ class EmployeePolicy
     /**
      * Determine if user can view a specific employee.
      *
-     * AUTHORIZATION LOGIC (ADR-009):
+     * AUTHORIZATION LOGIC:
      * 1. Tenant isolation check (always first)
      * 2. Self-access: User can view own profile IF allow_self_access=true in scope
      * 3. Permission check: Requires employee.read permission

@@ -1,7 +1,7 @@
 <?php
 
 /*
- * SPDX-FileCopyrightText: 2025 SecPal Contributors
+ * SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
  *
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
@@ -25,8 +25,6 @@ use Illuminate\Support\Facades\Schema;
  * - read: Can view the unit and its data
  * - write: Can modify data within the unit
  * - manage: Can manage the unit structure
- *
- * @see https://github.com/SecPal/.github/blob/main/docs/adr/20251126-organizational-structure-hierarchy.md
  */
 return new class extends Migration
 {

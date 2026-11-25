@@ -52,7 +52,7 @@ class OrganizationalScopeController extends Controller
             'organizational_unit_id' => $scope->organizational_unit_id,
             'access_level' => $scope->access_level,
             'include_descendants' => $scope->include_descendants,
-            // Leadership-based access control fields (ADR-009)
+            // Leadership-based access control fields
             'min_viewable_rank' => $scope->min_viewable_rank,
             'max_viewable_rank' => $scope->max_viewable_rank,
             'min_assignable_rank' => $scope->min_assignable_rank,
@@ -217,7 +217,7 @@ class OrganizationalScopeController extends Controller
             $scopeModel->include_descendants = $validated['include_descendants'];
         }
 
-        // Leadership-based access control fields (ADR-009)
+        // Leadership-based access control fields
         if (array_key_exists('min_viewable_rank', $validated)) {
             $scopeModel->min_viewable_rank = $validated['min_viewable_rank'];
         }

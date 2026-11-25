@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -60,7 +60,7 @@ class StoreOrganizationalScopeRequest extends FormRequest
                 Rule::in(self::VALID_ACCESS_LEVELS),
             ],
             'include_descendants' => ['boolean'],
-            // Leadership-based access control fields (ADR-009)
+            // Leadership-based access control fields
             'min_viewable_rank' => [
                 'nullable',
                 'integer',

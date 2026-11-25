@@ -76,7 +76,7 @@ test('unscoped users with employee permissions have tenant-wide employee access'
 });
 
 test('OU-scoped employee self access fails closed without a domain entitlement', function (): void {
-    // NOTE: Self-access control (ADR-009) requires allow_self_access = true in scope
+    // NOTE: Self-access control requires allow_self_access = true in scope
     // This test was updated to reflect the new architecture where self-access is DISABLED by default
     $user = User::factory()->create(['tenant_id' => $this->tenant->id]);
     givePermissionWithTenant($user, $this->tenant->id, 'employee.read');
@@ -114,7 +114,7 @@ test('OU-scoped users fail closed when viewing employees', function (): void {
     $user = User::factory()->create();
     givePermissionWithTenant($user, $this->tenant->id, 'employee.read');
 
-    // Need TWO scopes: 0-0 for Guards + 1-255 for Leadership (ADR-009)
+    // Need TWO scopes: 0-0 for Guards + 1-255 for Leadership
     $user->organizationalScopes()->create([
         'organizational_unit_id' => $orgUnit->id,
         'access_level' => 'manage',
@@ -198,7 +198,7 @@ test('only users with employee.write or employee.create permission can create em
 });
 
 test('OU-scoped employee self update fails closed without a domain entitlement', function (): void {
-    // NOTE: Self-access control (ADR-009) requires allow_self_access = true in scope
+    // NOTE: Self-access control requires allow_self_access = true in scope
     // This test was updated to reflect the new architecture where self-access is DISABLED by default
     $user = User::factory()->create(['tenant_id' => $this->tenant->id]);
     givePermissionWithTenant($user, $this->tenant->id, 'employee.update');

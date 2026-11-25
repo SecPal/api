@@ -1354,7 +1354,7 @@ class Employee extends Model
      * Scope: Employees within management level range.
      *
      * Filters employees based on minLevel/maxLevel from organizational scope.
-     * Implements ADR-009 hierarchical access control.
+     * Applies the current organizational scope and rank filters.
      *
      * CRITICAL SEMANTICS (null/0):
      * - maxLevel = NULL or 0 → ONLY employees with management_level = 0 (non-management/Guards)
