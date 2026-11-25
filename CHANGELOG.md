@@ -31,6 +31,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Add the versioned Global Identity root file provider and authenticated
+  working-key wrapping boundary (refs #3097).
+
 - Add the qualified Alpine PHP-FPM/CLI and separate Nginx runtime pair with a
   private Unix socket, non-root execution and digest-bound dual-artifact
   Buildah evidence (refs #2639).

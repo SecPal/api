@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: 2025 SecPal Contributors
+SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 SPDX-License-Identifier: CC0-1.0
 -->
 
@@ -11,6 +11,7 @@ This document defines the encryption patterns used in SecPal for protecting sens
 
 - [Overview](#overview)
 - [Encryption Architecture](#encryption-architecture)
+- [Global Identity Key Wrapping](#global-identity-key-wrapping)
 - [Pattern 1: Field-Level Encryption with Blind Indexes](#pattern-1-field-level-encryption-with-blind-indexes)
 - [Pattern 2: JSON Encryption](#pattern-2-json-encryption)
 - [When NOT to Encrypt](#when-not-to-encrypt)
@@ -90,6 +91,61 @@ Search term → HMAC-SHA256(IDX, lowercase(term)) → Compare with *_idx column
 - Suitable for dynamic structures without search requirements
 
 ---
+
+## Global Identity Key Wrapping
+
+[ADR-015](https://github.com/SecPal/.github/blob/main/docs/adr/20260720-global-identity-key-security-adr015.md)
+defines the global identity hierarchy. The API foundation uses
+`GlobalIdentityKeyWrapper` to wrap 32-byte working keys with native libsodium
+XChaCha20-Poly1305-IETF. The caller supplies the working key's expected purpose,
+stable ID and version on both wrap and unwrap. Wrap also takes an explicit root
+reference, and unwrap opens only the root ID and version in the envelope. The
+envelope carries the format version, algorithm, root reference, a fresh 24-byte
+nonce and the combined ciphertext and tag. The wrapper passes binary values.
+Production uses PHP's OS-backed secure random engine. Tests can supply a
+deterministic engine to exercise wrapping and retries.
+Custody providers with non-exportable roots can implement the wrapping
+contract directly.
+
+V1 authenticates the wrapping format version, algorithm, working key purpose,
+working key ID, working key version, root ID and root version in that order. Each
+UTF-8 field is prefixed by its byte length as an unsigned 32-bit big-endian
+integer. Numeric versions use canonical unsigned decimal text. The fixed
+synthetic vector in `GlobalIdentityKeyTest.php` pins the encoding and ciphertext.
+
+### File custody
+
+- Pass the provider a canonical, absolute, symlink-free path to a dedicated
+  directory outside the repository, web root, deployment and database. Keep its
+  parent path under trusted OS administration. The directory belongs to the
+  operating account and has mode `0700` or read-only access via mode `0500`.
+- Each file is named `<root-id>.<version>.key`. IDs use 1–64 lower-case ASCII
+  letters, digits, underscores or hyphens and start with a letter or digit.
+  Versions are positive integers. The file contains exactly 32 binary bytes,
+  belongs to the operating account and has mode `0600` or `0400`.
+  The provider opens the path in nonblocking mode and checks that the
+  directory entry and opened descriptor identify the same regular file
+  before reading bytes.
+- An authorized provisioning process calls `provision` with the exact root
+  reference. It generates the key with the OS CSPRNG, flushes a protected
+  temporary file, publishes it with a same-directory hard link and syncs the
+  directory. The custody filesystem must support POSIX permissions, atomic
+  hard-link creation and directory synchronization.
+  A competing publisher receives a failure for the same reference. Provision
+  through a writeable custody mount and give application processes a read-only
+  mount where practical. Keep published versions immutable and retain the
+  versions required by active data and backups.
+- An interrupted provision may leave an owner-only `.root-*` file. After
+  confirming that no provisioner is using it, the custody operator can remove
+  the temporary entry. If cleanup or synchronization fails after publication,
+  the name may already exist. Check the exact version and establish durable
+  custody before activating it.
+
+Provider errors identify the failed operation without including paths, key
+material or underlying exception text. An unavailable exact root or an
+unauthenticated envelope aborts the operation. Provisioning is explicit and
+independent of application boot. The key registry, authentication integration
+and deployment qualification have their own delivery issues.
 
 ## Pattern 1: Field-Level Encryption with Blind Indexes
 
