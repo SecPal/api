@@ -102,6 +102,8 @@ stable ID and version on both wrap and unwrap. Wrap also takes an explicit root
 reference, and unwrap opens only the root ID and version in the envelope. The
 envelope carries the format version, algorithm, root reference, a fresh 24-byte
 nonce and the combined ciphertext and tag. The wrapper passes binary values.
+Production uses PHP's OS-backed secure random engine. Tests can supply a
+deterministic engine to exercise wrapping and retries.
 
 V1 authenticates the wrapping format version, algorithm, working key purpose,
 working key ID, working key version, root ID and root version in that order. Each

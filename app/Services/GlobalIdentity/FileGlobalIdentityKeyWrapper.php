@@ -9,7 +9,9 @@ namespace App\Services\GlobalIdentity;
 
 use App\Contracts\GlobalIdentityKeyWrapper;
 use App\Exceptions\GlobalIdentityKeyException;
+use Random\Engine\Secure;
 use Random\RandomException;
+use Random\Randomizer;
 use SensitiveParameter;
 use SodiumException;
 
@@ -23,7 +25,10 @@ final readonly class FileGlobalIdentityKeyWrapper implements GlobalIdentityKeyWr
 
     private const AUTHENTICATION_FAILED = 'Global identity key authentication failed.';
 
-    public function __construct(private FileGlobalIdentityRootProvider $provider) {}
+    public function __construct(
+        private FileGlobalIdentityRootProvider $provider,
+        private Randomizer $nonceSource = new Randomizer(new Secure),
+    ) {}
 
     public function wrap(
         #[SensitiveParameter] string $key,
@@ -36,7 +41,7 @@ final readonly class FileGlobalIdentityKeyWrapper implements GlobalIdentityKeyWr
 
         $rootKey = $this->provider->load($root);
         try {
-            $nonce = random_bytes(SODIUM_CRYPTO_AEAD_XCHACHA20POLY1305_IETF_NPUBBYTES);
+            $nonce = $this->nonceSource->getBytes(SODIUM_CRYPTO_AEAD_XCHACHA20POLY1305_IETF_NPUBBYTES);
             $ciphertext = sodium_crypto_aead_xchacha20poly1305_ietf_encrypt(
                 $key,
                 $this->associatedData($workingKey, $root),

@@ -11,6 +11,9 @@ use App\Services\GlobalIdentity\GlobalIdentityWorkingKeyContext;
 use App\Services\GlobalIdentity\GlobalIdentityWorkingKeyPurpose;
 use App\Services\GlobalIdentity\WrappedGlobalIdentityKey;
 use Illuminate\Filesystem\Filesystem;
+use Random\Engine;
+use Random\RandomException;
+use Random\Randomizer;
 use Symfony\Component\Process\Process;
 
 beforeEach(function (): void {
@@ -71,6 +74,29 @@ it('opens the V1 length-delimited wrapping vector', function (): void {
 
     expect(bin2hex($this->wrapper->unwrap($envelope, $this->workingKey)))
         ->toBe('202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f');
+
+    $nonceSource = new Randomizer(new class($envelope->nonce) implements Engine
+    {
+        private int $calls = 0;
+
+        public function __construct(private readonly string $firstNonce) {}
+
+        public function generate(): string
+        {
+            return match ($call = $this->calls++) {
+                0, 1, 2 => substr($this->firstNonce, $call * 8, 8),
+                3 => throw new RandomException('Synthetic entropy failure detail'),
+                default => str_repeat("\xff", 8),
+            };
+        }
+    });
+    $wrapper = new FileGlobalIdentityKeyWrapper($this->provider, $nonceSource);
+    $key = hex2bin('202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f');
+
+    expect($wrapper->wrap($key, $this->workingKey, $this->root))->toEqual($envelope);
+    expect(fn () => $wrapper->wrap($key, $this->workingKey, $this->root))
+        ->toThrow(GlobalIdentityKeyException::class, 'Global identity key wrapping failed.');
+    expect($wrapper->wrap($key, $this->workingKey, $this->root)->nonce)->toBe(str_repeat("\xff", 24));
 });
 
 it('authenticates every part of the working-key and root context', function (): void {
