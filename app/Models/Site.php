@@ -346,7 +346,7 @@ class Site extends Model
     /**
      * Get the full formatted address as a string.
      *
-     * Combines street, postal_code, and city from the address array
+     * Combines the street line, postal code, and city from the address array
      * into a single comma-separated string.
      *
      * @return Attribute<string, never>
@@ -359,9 +359,15 @@ class Site extends Model
                     return '';
                 }
 
+                $street = $this->address['street'] ?? null;
+                $houseNumber = $this->address['house_number'] ?? null;
+                $streetLine = trim(
+                    (is_string($street) ? $street : '').' '.(is_string($houseNumber) ? $houseNumber : '')
+                );
+
                 /** @var array<int, string> $parts */
                 $parts = array_values(array_filter([
-                    $this->address['street'] ?? null,
+                    $streetLine,
                     $this->address['postal_code'] ?? null,
                     $this->address['city'] ?? null,
                 ], static fn (mixed $part): bool => is_string($part) && $part !== ''));

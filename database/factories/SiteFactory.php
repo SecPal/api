@@ -140,7 +140,8 @@ class SiteFactory extends Factory
             'name' => $siteType.' '.fake()->numberBetween(1, 5),
             'type' => 'permanent',
             'address' => [
-                'street' => fake()->streetAddress(),
+                'street' => fake()->streetName(),
+                'house_number' => fake()->buildingNumber(),
                 'city' => $city['name'],
                 'postal_code' => (string) fake()->postcode(),
                 'country' => 'DE',

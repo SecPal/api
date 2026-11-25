@@ -649,7 +649,8 @@ describe('POST /v1/sites', function () {
                 'establishment_id' => $this->establishment->id,
                 'type' => 'permanent',
                 'address' => [
-                    'street' => 'Airport Ring 1',
+                    'street' => 'Airport Ring',
+                    'house_number' => '1a',
                     'city' => 'Berlin',
                     'postal_code' => '12529',
                     'country' => 'DE',
@@ -688,6 +689,9 @@ describe('POST /v1/sites', function () {
         expect($response->json('data.name'))->toBe('Airport Terminal 1');
         expect($response->json('data.type'))->toBe('permanent');
         expect($response->json('data.is_active'))->toBeTrue();
+        $response->assertJsonPath('data.address.street', 'Airport Ring')
+            ->assertJsonPath('data.address.house_number', '1a')
+            ->assertJsonPath('data.full_address', 'Airport Ring 1a, 12529, Berlin');
     });
 
     test('creates site with custom site_number', function (): void {
@@ -1218,9 +1222,16 @@ describe('PATCH /v1/sites/{site}', function () {
 
         $response = $this->withToken($this->token)->patchJson("/v1/sites/{$site->id}", [
             'name' => 'Updated Terminal',
+            'address' => [
+                'street' => 'Airport Ring',
+                'house_number' => '5b',
+                'city' => 'Berlin',
+                'postal_code' => '12529',
+                'country' => 'DE',
+            ],
         ]);
 
-        $response->assertOk();
+        $response->assertOk()->assertJsonPath('data.address.house_number', '5b');
         expect($response->json('data.name'))->toBe('Updated Terminal');
 
         $site->refresh();

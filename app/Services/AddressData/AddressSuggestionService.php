@@ -137,7 +137,7 @@ final class AddressSuggestionService
             $this->applySearchPrefixConstraint($query, 'locality', $locality);
         }
 
-        $this->orderStreetResults($query, $name, $postalCodePrefix, $locality);
+        $this->orderStreetResults($query, $name, $locality);
 
         return $query->limit($limit)->get();
     }
@@ -191,16 +191,8 @@ final class AddressSuggestionService
     private function orderStreetResults(
         Builder $query,
         ?string $name,
-        ?string $postalCodePrefix,
         ?string $locality,
     ): void {
-        if ($postalCodePrefix !== null && $postalCodePrefix !== '') {
-            $query->orderByRaw(
-                'CASE WHEN postal_code = ? THEN 0 ELSE 1 END',
-                [$postalCodePrefix]
-            );
-        }
-
         if ($locality !== null && $locality !== '') {
             $nl = AddressSearchNormalizer::normalize($locality);
             $nlAscii = AddressSearchNormalizer::normalizeAsciiFallback($locality);
@@ -252,6 +244,22 @@ final class AddressSuggestionService
      */
     private function applyPostalCodePrefixConstraint(Builder $query, string $postalCodePrefix): void
     {
-        $query->where('postal_code', 'like', LikePattern::escape($postalCodePrefix).'%');
+        if (! preg_match('/\A[0-9]{1,5}\z/', $postalCodePrefix)) {
+            $query->whereRaw('0 = 1');
+
+            return;
+        }
+
+        if (strlen($postalCodePrefix) === 5) {
+            $query->where('postal_code', $postalCodePrefix);
+
+            return;
+        }
+
+        // Five-digit bounds preserve leading zeros and let PostgreSQL use the postal code index.
+        $query->whereBetween('postal_code', [
+            str_pad($postalCodePrefix, 5, '0'),
+            str_pad($postalCodePrefix, 5, '9'),
+        ]);
     }
 }

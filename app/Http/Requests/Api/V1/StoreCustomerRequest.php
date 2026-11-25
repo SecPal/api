@@ -59,6 +59,7 @@ class StoreCustomerRequest extends FormRequest
             ],
             'billing_address' => ['required', 'array'],
             'billing_address.street' => ['required', 'string', 'max:255'],
+            'billing_address.house_number' => ['nullable', 'string', 'max:10'],
             'billing_address.city' => ['required', 'string', 'max:255'],
             'billing_address.postal_code' => ['required', 'string', 'max:20'],
             'billing_address.country' => ['required', 'string', 'size:2'], // ISO 3166-1 alpha-2

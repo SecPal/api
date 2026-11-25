@@ -111,6 +111,31 @@ test('customer uniqueness is scoped to tenant and legal entity and ignores empty
     )->assertCreated();
 });
 
+test('customer billing addresses preserve the house number and distinguish different houses', function (): void {
+    $payload = domainCustomerPayload($this->legalEntity, [
+        'vat_id' => null,
+        'billing_address' => ['street' => 'Hauptstraße', 'house_number' => '12a'],
+    ]);
+    $created = $this->withToken($this->token)->postJson('/v1/customers', $payload)
+        ->assertCreated()
+        ->assertJsonPath('data.billing_address.street', 'Hauptstraße')
+        ->assertJsonPath('data.billing_address.house_number', '12a');
+
+    $payload['billing_address']['house_number'] = '14';
+    $this->withToken($this->token)->postJson('/v1/customers', $payload)
+        ->assertCreated();
+
+    $payload['billing_address']['house_number'] = ' 12 A ';
+    $this->withToken($this->token)->postJson('/v1/customers', $payload)
+        ->assertConflict();
+
+    $customerId = $created->json('data.id');
+    $payload['billing_address']['house_number'] = '12b';
+    $this->withToken($this->token)->patchJson("/v1/customers/{$customerId}", [
+        'billing_address' => $payload['billing_address'],
+    ])->assertOk()->assertJsonPath('data.billing_address.house_number', '12b');
+});
+
 test('customer update cannot collide by either normalized identity', function (): void {
     Customer::factory()->create([
         'tenant_id' => $this->tenant->id,
