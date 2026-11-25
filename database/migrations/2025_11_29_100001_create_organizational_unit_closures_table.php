@@ -28,7 +28,6 @@ use Illuminate\Support\Facades\Schema;
  * units retain their closure table entries, allowing restoration with intact
  * relationships. Queries traversing hierarchies must join with
  * whereNull('organizational_units.deleted_at') to exclude soft-deleted units.
- *
  */
 return new class extends Migration
 {

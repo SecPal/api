@@ -5,7 +5,11 @@ SPDX-License-Identifier: CC0-1.0
 
 # Tenant Provisioning Guide
 
-Step-by-step guide for provisioning new tenants (customers) in SecPal's multi-tenant environment.
+Examples for the shipped tenant-key-based data model, where users have a direct
+tenant association. Use the automatic seed example only in a disposable
+development database. [ADR-014: Tenant, Identity, Employee, and Access Model](https://github.com/SecPal/.github/blob/main/docs/adr/20260720-tenant-identity-access-model-adr014.md)
+defines the accepted membership-based redesign and audited tenant bootstrap.
+The [production boundary](../deployment.md) owns deployment guidance.
 
 ## Overview
 
@@ -38,9 +42,10 @@ The `OrganizationalUnitSeeder` handles:
 
 ---
 
-## Manual Provisioning (Production)
+## Manual provisioning example
 
-This section is relevant when onboarding **additional customer organizations** in production.
+The following example illustrates the shipped model. Live provisioning requires
+the applicable deployment and authorization procedures.
 
 ### Prerequisites
 
@@ -751,10 +756,8 @@ After provisioning:
 
 - [Production boundary](../deployment.md) - Application inputs and deployment ownership
 - [RBAC Architecture](/docs/rbac-architecture.md) - Tenant-scoped permissions
-- [ADR-014: Tenant, Identity, Employee, and Access Model](https://github.com/SecPal/.github/blob/main/docs/adr/20260720-tenant-identity-access-model-adr014.md) defines the accepted membership-based redesign.
 
 ---
 
 **Last Updated:** 2025-12-19
 **Epic:** #357 (Production-Ready Multi-Tenant Architecture)
-**Status:** ✅ Production Ready

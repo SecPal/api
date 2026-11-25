@@ -25,7 +25,6 @@ use Illuminate\Support\Facades\Schema;
  * - read: Can view the unit and its data
  * - write: Can modify data within the unit
  * - manage: Can manage the unit structure
- *
  */
 return new class extends Migration
 {

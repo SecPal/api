@@ -14,7 +14,10 @@ SecPal implements a comprehensive **Role-Based Access Control (RBAC)** system th
 - **Security:** Principle of least privilege with automatic expiration
 - **Auditability:** Complete audit trail for all permission changes
 
-This document serves as the **single source of truth** for understanding SecPal's RBAC architecture and guides implementation decisions across all phases.
+This document describes the shipped user-to-tenant relationship, the tenant key
+records and Spatie's tenant-scoped team context. [ADR-014: Tenant, Identity, Employee, and Access Model](https://github.com/SecPal/.github/blob/main/docs/adr/20260720-tenant-identity-access-model-adr014.md)
+is the authority for the accepted redesign, which separates global users,
+memberships, tenants and their encryption keys.
 
 ## System Architecture
 
@@ -192,10 +195,7 @@ $this->authorize('view', $employee); // Throws NotFoundHttpException (404)
 ✅ **Role assignments are tenant-isolated:** Spatie Permission team feature
 ✅ **Database-enforced isolation:** Foreign key constraints prevent invalid tenant_id
 
-For detailed multi-tenant architecture documentation, see:
-
-- [ADR-014: Tenant, Identity, Employee, and Access Model](https://github.com/SecPal/.github/blob/main/docs/adr/20260720-tenant-identity-access-model-adr014.md) defines the accepted membership-based redesign.
-- [Tenant provisioning](guides/tenant-provisioning.md)
+See [tenant provisioning](guides/tenant-provisioning.md) for the scope of the shipped setup examples.
 
 ---
 

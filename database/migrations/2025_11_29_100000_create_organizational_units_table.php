@@ -15,7 +15,6 @@ use Illuminate\Support\Facades\Schema;
  *
  * This table represents the security service company's internal hierarchy
  * (Holding → Company → Region → Branch → Division).
- *
  */
 return new class extends Migration
 {
