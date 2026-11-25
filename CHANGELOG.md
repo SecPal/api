@@ -1281,7 +1281,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - 45+ comprehensive tenant isolation tests validating security boundaries
   - Zero-downtime migration path for existing deployments (3-step migration process)
   - **Documentation:**
-    - [ADR-008: User-Based Tenant Resolution](https://github.com/SecPal/.github/blob/main/docs/adr/20251219-user-based-tenant-resolution.md)
+    - [ADR-008: User-Based Tenant Resolution](https://github.com/SecPal/.github/blob/6683d8f67967f351f08d5c34e5039096617369a1/docs/adr/20251219-user-based-tenant-resolution.md)
     - [Multi-Tenant Deployment Guide](https://github.com/SecPal/api/blob/e4ea1c73089b3218bec8c36bb33ce18897559004/docs/guides/multi-tenant-deployment.md)
     - [Tenant Provisioning Guide](/docs/guides/tenant-provisioning.md)
     - [Migration Guide: Single → Multi-Tenant](https://github.com/SecPal/api/blob/e4ea1c73089b3218bec8c36bb33ce18897559004/docs/migration-guides/single-to-multi-tenant.md)
