@@ -94,7 +94,7 @@ validation, and pull-request requirements.
 | Application security-event output                        | [Security-event contract](docs/security-events.md)                                                  |
 | BewachV and BWR domain implementation                    | [BewachV compliance documentation](docs/BEWACHV_COMPLIANCE.md)                                      |
 | Local development and contribution                       | [Contributing](CONTRIBUTING.md)                                                                     |
-| API image and application runtime contract               | [API container](docs/containers.md)                                                                 |
+| API image and application runtime contract               | [API container](docs/containers.md) and [production boundary](docs/deployment.md)                   |
 | Self-hosting, host, edge, database, backup, and recovery | [SecPal/deployment](https://github.com/SecPal/deployment)                                           |
 
 ## Related repositories
