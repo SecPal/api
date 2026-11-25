@@ -56,6 +56,7 @@ class UpdateCustomerRequest extends FormRequest
             ],
             'billing_address' => ['sometimes', 'array'],
             'billing_address.street' => ['required_with:billing_address', 'string', 'max:255'],
+            'billing_address.house_number' => ['nullable', 'string', 'max:10'],
             'billing_address.city' => ['required_with:billing_address', 'string', 'max:255'],
             'billing_address.postal_code' => ['required_with:billing_address', 'string', 'max:20'],
             'billing_address.country' => ['required_with:billing_address', 'string', 'size:2'],

@@ -80,7 +80,8 @@ class CustomerFactory extends Factory
             'name' => fake()->company().' '.$companyType,
             'vat_id' => null,
             'billing_address' => [
-                'street' => fake()->streetAddress(),
+                'street' => fake()->streetName(),
+                'house_number' => fake()->buildingNumber(),
                 'city' => fake()->city(),
                 'postal_code' => (string) fake()->postcode(),
                 'country' => 'DE',

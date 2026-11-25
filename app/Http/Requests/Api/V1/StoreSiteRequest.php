@@ -87,6 +87,7 @@ class StoreSiteRequest extends FormRequest
             'type' => ['required', 'in:permanent,temporary'],
             'address' => ['required', 'array'],
             'address.street' => ['required', 'string', 'max:255'],
+            'address.house_number' => ['nullable', 'string', 'max:10'],
             'address.city' => ['required', 'string', 'max:255'],
             'address.postal_code' => ['required', 'string', 'max:20'],
             'address.country' => ['required', 'string', 'size:2'], // ISO 3166-1 alpha-2

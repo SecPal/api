@@ -120,7 +120,16 @@ test('transactionally updates customer and replaces establishment membership wit
         ->withHeader('If-Match', customerEtag($this, $this->customer))
         ->putJson("/v1/customers/{$this->customer->id}/transactional-edit", transactionalCustomerPayload(
             $this->customer,
-            ['name' => 'Updated Customer'],
+            [
+                'name' => 'Updated Customer',
+                'billing_address' => [
+                    'street' => 'Hauptstraße',
+                    'house_number' => '12a',
+                    'city' => 'Berlin',
+                    'postal_code' => '10115',
+                    'country' => 'DE',
+                ],
+            ],
             [
                 [
                     'customer_id' => $this->customer->id,
@@ -138,6 +147,8 @@ test('transactionally updates customer and replaces establishment membership wit
     $response->assertOk()
         ->assertHeaderMissing('ETag')
         ->assertJsonPath('data.name', 'Updated Customer')
+        ->assertJsonPath('data.billing_address.street', 'Hauptstraße')
+        ->assertJsonPath('data.billing_address.house_number', '12a')
         ->assertJsonPath('data.customer_establishments.0.contact_name', 'Preserved')
         ->assertJsonPath('data.customer_establishments.0.phone', null)
         ->assertJsonMissingPath('data.sites')
@@ -237,7 +248,8 @@ test('rejects structural, unknown-property, duplicate, and path-identity failure
         ->putJson($url, [
             'customer' => [
                 'billing_address' => [
-                    'street' => 'Hauptstrasse 1',
+                    'street' => 'Hauptstrasse',
+                    'house_number' => '1',
                     'city' => 'Berlin',
                     'postal_code' => '10115',
                     'country' => 'DE',
@@ -915,7 +927,8 @@ test('customer write failure rolls back relationship reconciliation', function (
         'legal_entity_id' => $this->legalEntity->id,
         'name' => 'Duplicate GmbH',
         'billing_address' => [
-            'street' => 'Same 1',
+            'street' => 'Same',
+            'house_number' => '1',
             'city' => 'Berlin',
             'postal_code' => '10115',
             'country' => 'DE',

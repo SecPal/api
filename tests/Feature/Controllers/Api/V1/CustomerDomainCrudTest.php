@@ -52,7 +52,8 @@ function domainCustomerPayload(LegalEntity $legalEntity, array $overrides = []):
         'name' => 'Muster Kunde GmbH',
         'vat_id' => 'DE 123-456-789',
         'billing_address' => [
-            'street' => 'Hauptstraße 1',
+            'street' => 'Hauptstraße',
+            'house_number' => '1',
             'city' => 'Berlin',
             'postal_code' => '10115',
             'country' => 'DE',
@@ -72,7 +73,7 @@ test('customer duplicates return one neutral conflict response after normalizati
         domainCustomerPayload($this->legalEntity, [
             'name' => 'Andere Firma',
             'vat_id' => 'de123456789',
-            'billing_address' => ['street' => 'Nebenweg 8'],
+            'billing_address' => ['street' => 'Nebenweg', 'house_number' => '8'],
         ]),
     );
     $masterDataDuplicate = $this->withToken($this->token)->postJson(
@@ -81,7 +82,8 @@ test('customer duplicates return one neutral conflict response after normalizati
             'vat_id' => null,
             'name' => '  muster   kunde gmbh ',
             'billing_address' => [
-                'street' => ' hauptstraße   1 ',
+                'street' => ' hauptstraße ',
+                'house_number' => '1',
                 'city' => ' BERLIN ',
                 'postal_code' => ' 10115 ',
                 'country' => 'de',
@@ -111,6 +113,31 @@ test('customer uniqueness is scoped to tenant and legal entity and ignores empty
     )->assertCreated();
 });
 
+test('customer billing addresses preserve the house number and distinguish different houses', function (): void {
+    $payload = domainCustomerPayload($this->legalEntity, [
+        'vat_id' => null,
+        'billing_address' => ['street' => 'Hauptstraße', 'house_number' => '12a'],
+    ]);
+    $created = $this->withToken($this->token)->postJson('/v1/customers', $payload)
+        ->assertCreated()
+        ->assertJsonPath('data.billing_address.street', 'Hauptstraße')
+        ->assertJsonPath('data.billing_address.house_number', '12a');
+
+    $payload['billing_address']['house_number'] = '14';
+    $this->withToken($this->token)->postJson('/v1/customers', $payload)
+        ->assertCreated();
+
+    $payload['billing_address']['house_number'] = ' 12 A ';
+    $this->withToken($this->token)->postJson('/v1/customers', $payload)
+        ->assertConflict();
+
+    $customerId = $created->json('data.id');
+    $payload['billing_address']['house_number'] = '12b';
+    $this->withToken($this->token)->patchJson("/v1/customers/{$customerId}", [
+        'billing_address' => $payload['billing_address'],
+    ])->assertOk()->assertJsonPath('data.billing_address.house_number', '12b');
+});
+
 test('customer update cannot collide by either normalized identity', function (): void {
     Customer::factory()->create([
         'tenant_id' => $this->tenant->id,
@@ -118,7 +145,8 @@ test('customer update cannot collide by either normalized identity', function ()
         'name' => 'Bestandskunde GmbH',
         'vat_id' => 'DE999888777',
         'billing_address' => [
-            'street' => 'Bestandsweg 4',
+            'street' => 'Bestandsweg',
+            'house_number' => '4',
             'city' => 'Hamburg',
             'postal_code' => '20095',
             'country' => 'DE',
@@ -135,7 +163,8 @@ test('customer update cannot collide by either normalized identity', function ()
     $nameAddressResponse = $this->withToken($this->token)->patchJson("/v1/customers/{$customer->id}", [
         'name' => ' bestandskunde   gmbh ',
         'billing_address' => [
-            'street' => 'bestandsweg 4',
+            'street' => 'bestandsweg',
+            'house_number' => '4',
             'city' => 'hamburg',
             'postal_code' => '20095',
             'country' => 'de',
@@ -377,7 +406,8 @@ test('a deleted customer establishment can be recreated but cannot authorize a s
         'establishment_id' => $this->establishment->id,
         'type' => 'permanent',
         'address' => [
-            'street' => 'Main Street 1',
+            'street' => 'Main Street',
+            'house_number' => '1',
             'city' => 'Berlin',
             'postal_code' => '10115',
             'country' => 'DE',

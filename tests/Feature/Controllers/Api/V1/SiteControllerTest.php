@@ -494,7 +494,8 @@ describe('POST /v1/sites', function () {
             'establishment_id' => $this->establishment->id,
             'type' => 'permanent',
             'address' => [
-                'street' => 'Main St 1',
+                'street' => 'Main St',
+                'house_number' => '1',
                 'city' => 'Berlin',
                 'postal_code' => '10115',
                 'country' => 'DE',
@@ -512,7 +513,8 @@ describe('POST /v1/sites', function () {
             'establishment_id' => $this->establishment->id,
             'type' => 'permanent',
             'address' => [
-                'street' => 'Main St 1',
+                'street' => 'Main St',
+                'house_number' => '1',
                 'city' => 'Berlin',
                 'postal_code' => '10115',
                 'country' => 'DE',
@@ -549,7 +551,8 @@ describe('POST /v1/sites', function () {
             'establishment_id' => $this->establishment->id,
             'type' => 'permanent',
             'address' => [
-                'street' => 'Main St 1',
+                'street' => 'Main St',
+                'house_number' => '1',
                 'city' => 'Berlin',
                 'postal_code' => '10115',
                 'country' => 'DE',
@@ -594,7 +597,8 @@ describe('POST /v1/sites', function () {
             'organizational_unit_id' => $this->orgUnit->id,
             'type' => 'permanent',
             'address' => [
-                'street' => 'Main St 1',
+                'street' => 'Main St',
+                'house_number' => '1',
                 'city' => 'Berlin',
                 'postal_code' => '10115',
                 'country' => 'DE',
@@ -625,7 +629,8 @@ describe('POST /v1/sites', function () {
                 'establishment_id' => $this->establishment->id,
                 'type' => 'permanent',
                 'address' => [
-                    'street' => 'Main St 1',
+                    'street' => 'Main St',
+                    'house_number' => '1',
                     // Missing city, postal_code, country
                 ],
             ]);
@@ -649,7 +654,8 @@ describe('POST /v1/sites', function () {
                 'establishment_id' => $this->establishment->id,
                 'type' => 'permanent',
                 'address' => [
-                    'street' => 'Airport Ring 1',
+                    'street' => 'Airport Ring',
+                    'house_number' => '1a',
                     'city' => 'Berlin',
                     'postal_code' => '12529',
                     'country' => 'DE',
@@ -688,6 +694,9 @@ describe('POST /v1/sites', function () {
         expect($response->json('data.name'))->toBe('Airport Terminal 1');
         expect($response->json('data.type'))->toBe('permanent');
         expect($response->json('data.is_active'))->toBeTrue();
+        $response->assertJsonPath('data.address.street', 'Airport Ring')
+            ->assertJsonPath('data.address.house_number', '1a')
+            ->assertJsonPath('data.full_address', 'Airport Ring 1a, 12529, Berlin');
     });
 
     test('creates site with custom site_number', function (): void {
@@ -702,7 +711,8 @@ describe('POST /v1/sites', function () {
                 'establishment_id' => $this->establishment->id,
                 'type' => 'temporary',
                 'address' => [
-                    'street' => 'Event Str 42',
+                    'street' => 'Event Str',
+                    'house_number' => '42',
                     'city' => 'Munich',
                     'postal_code' => '80331',
                     'country' => 'DE',
@@ -724,7 +734,8 @@ describe('POST /v1/sites', function () {
                 'establishment_id' => $this->establishment->id,
                 'type' => 'permanent',
                 'address' => [
-                    'street' => 'Street 1',
+                    'street' => 'Street',
+                    'house_number' => '1',
                     'city' => 'Berlin',
                     'postal_code' => '10115',
                     'country' => 'DE',
@@ -739,7 +750,8 @@ describe('POST /v1/sites', function () {
                 'establishment_id' => $this->establishment->id,
                 'type' => 'permanent',
                 'address' => [
-                    'street' => 'Street 2',
+                    'street' => 'Street',
+                    'house_number' => '2',
                     'city' => 'Hamburg',
                     'postal_code' => '20095',
                     'country' => 'DE',
@@ -768,7 +780,8 @@ describe('POST /v1/sites', function () {
                 'establishment_id' => $this->establishment->id,
                 'type' => 'invalid-type',
                 'address' => [
-                    'street' => 'Street 1',
+                    'street' => 'Street',
+                    'house_number' => '1',
                     'city' => 'Berlin',
                     'postal_code' => '10115',
                     'country' => 'DE',
@@ -792,7 +805,8 @@ describe('POST /v1/sites', function () {
                 'valid_from' => '2025-06-01',
                 'valid_until' => '2025-05-01', // Before valid_from
                 'address' => [
-                    'street' => 'Event Str 1',
+                    'street' => 'Event Str',
+                    'house_number' => '1',
                     'city' => 'Berlin',
                     'postal_code' => '10115',
                     'country' => 'DE',
@@ -814,7 +828,8 @@ describe('POST /v1/sites', function () {
                 'establishment_id' => $this->establishment->id,
                 'type' => 'permanent',
                 'address' => [
-                    'street' => 'Street 1',
+                    'street' => 'Street',
+                    'house_number' => '1',
                     'city' => 'Berlin',
                     'postal_code' => '10115',
                     'country' => 'DE',
@@ -836,7 +851,8 @@ describe('POST /v1/sites', function () {
                 'establishment_id' => '550e8400-e29b-41d4-a716-446655440000', // Non-existent UUID
                 'type' => 'permanent',
                 'address' => [
-                    'street' => 'Street 1',
+                    'street' => 'Street',
+                    'house_number' => '1',
                     'city' => 'Berlin',
                     'postal_code' => '10115',
                     'country' => 'DE',
@@ -858,7 +874,8 @@ describe('POST /v1/sites', function () {
                 'establishment_id' => $this->establishment->id,
                 'type' => 'permanent',
                 'address' => [
-                    'street' => 'Street 1',
+                    'street' => 'Street',
+                    'house_number' => '1',
                     'city' => 'Berlin',
                     'postal_code' => '10115',
                     'country' => 'DE',
@@ -881,7 +898,8 @@ describe('POST /v1/sites', function () {
                 'establishment_id' => $this->establishment->id,
                 'type' => 'permanent',
                 'address' => [
-                    'street' => 'Street 1',
+                    'street' => 'Street',
+                    'house_number' => '1',
                     'city' => 'Berlin',
                     'postal_code' => '10115',
                     'country' => 'DE',
@@ -1218,9 +1236,16 @@ describe('PATCH /v1/sites/{site}', function () {
 
         $response = $this->withToken($this->token)->patchJson("/v1/sites/{$site->id}", [
             'name' => 'Updated Terminal',
+            'address' => [
+                'street' => 'Airport Ring',
+                'house_number' => '5b',
+                'city' => 'Berlin',
+                'postal_code' => '12529',
+                'country' => 'DE',
+            ],
         ]);
 
-        $response->assertOk();
+        $response->assertOk()->assertJsonPath('data.address.house_number', '5b');
         expect($response->json('data.name'))->toBe('Updated Terminal');
 
         $site->refresh();

@@ -92,6 +92,7 @@ class UpdateSiteRequest extends FormRequest
             'type' => ['sometimes', 'in:permanent,temporary'],
             'address' => ['sometimes', 'array'],
             'address.street' => ['required_with:address', 'string', 'max:255'],
+            'address.house_number' => ['nullable', 'string', 'max:10'],
             'address.city' => ['required_with:address', 'string', 'max:255'],
             'address.postal_code' => ['required_with:address', 'string', 'max:20'],
             'address.country' => ['required_with:address', 'string', 'size:2'], // ISO 3166-1 alpha-2

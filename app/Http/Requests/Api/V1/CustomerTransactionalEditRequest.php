@@ -15,7 +15,7 @@ use stdClass;
 
 final class CustomerTransactionalEditRequest
 {
-    public const AUTHORITATIVE_CONTRACTS_SHA = 'f8771b74d887b84b84dcc94e2405df7b47222466';
+    public const AUTHORITATIVE_CONTRACTS_SHA = 'c2386802511826a04bd9daa163f188b798adad80';
 
     // Match the existing Nginx/PHP request envelope without capping membership.
     private const MAX_CONTENT_BYTES = 12 * 1024 * 1024;
@@ -42,6 +42,7 @@ final class CustomerTransactionalEditRequest
     /** @var list<string> */
     private const ADDRESS_FIELDS = [
         'street',
+        'house_number',
         'city',
         'postal_code',
         'country',
@@ -132,9 +133,10 @@ final class CustomerTransactionalEditRequest
             'customer.name' => ['sometimes', 'string', 'max:255'],
             'customer.billing_address' => [
                 'sometimes',
-                'array:street,city,postal_code,country,latitude,longitude',
+                'array:'.implode(',', self::ADDRESS_FIELDS),
             ],
             'customer.billing_address.street' => [$requiredAddressMember, 'string', 'max:255'],
+            'customer.billing_address.house_number' => ['sometimes', 'nullable', 'string', 'max:10'],
             'customer.billing_address.city' => [$requiredAddressMember, 'string', 'max:100'],
             'customer.billing_address.postal_code' => [$requiredAddressMember, 'string', 'max:20'],
             'customer.billing_address.country' => [$requiredAddressMember, 'string', 'size:2'],

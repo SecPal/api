@@ -250,7 +250,7 @@ test('address streets match ascii fallback input for umlauted street names', fun
     $user = User::factory()->create();
     Sanctum::actingAs($user, [User::API_ACCESS_ABILITY]);
 
-    $this->getJson('/v1/addresses/de/streets?name=Muller')
+    $this->getJson('/v1/addresses/de/streets?name=Muller&postal_code=01')
         ->assertOk()
         ->assertJsonPath('data.0.name', 'Müllerweg');
 });

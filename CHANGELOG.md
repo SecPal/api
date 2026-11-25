@@ -12,7 +12,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Store customer and site house numbers in `house_number` separately from the
+  street name. Site address display and customer duplicate detection include
+  the house number. Clients that included the house number in `street` must
+  send it in `house_number`.
+
 ### Fixed
+
+- Use the postal code index for German address suggestions, including exact
+  five-digit searches and shorter prefixes.
 
 - Attest qualified API development candidates from protected main using the existing Actions artifacts independently of registry release admission.
 
