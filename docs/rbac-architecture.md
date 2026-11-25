@@ -196,7 +196,6 @@ For detailed multi-tenant architecture documentation, see:
 
 - [ADR-008: User-Based Tenant Resolution](https://github.com/SecPal/.github/blob/main/docs/adr/20251219-user-based-tenant-resolution.md)
 - [Tenant provisioning](guides/tenant-provisioning.md)
-- [Tenant Provisioning Guide](/docs/guides/tenant-provisioning.md)
 
 ---
 

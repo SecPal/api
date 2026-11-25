@@ -37,7 +37,7 @@ behind the deployment-owned public edge.
   [Firebase bootstrap audit](guides/firebase-push-bootstrap-audit.md) describes
   the Android boundary and the separate Web Push public key.
 
-### Public passkey challenge contract
+### Passkey configuration
 
 Public browser and native passkey challenges are discoverable-only. Send no
 email or other account selector. Set the relying-party ID and allowed origins
