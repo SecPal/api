@@ -53,7 +53,8 @@ function customerLegalEntityPayload(LegalEntity $legalEntity, array $overrides =
         'name' => 'Acme Corporation',
         'legal_entity_id' => $legalEntity->id,
         'billing_address' => [
-            'street' => 'Main Street 123',
+            'street' => 'Main Street',
+            'house_number' => '123',
             'city' => 'Berlin',
             'postal_code' => '10115',
             'country' => 'DE',
@@ -461,7 +462,8 @@ describe('POST /v1/customers', function () {
         $response = $this->postJson('/v1/customers', [
             'name' => 'New Customer',
             'billing_address' => [
-                'street' => 'Main St 1',
+                'street' => 'Main St',
+                'house_number' => '1',
                 'city' => 'Berlin',
                 'postal_code' => '10115',
                 'country' => 'DE',
@@ -502,7 +504,8 @@ describe('POST /v1/customers', function () {
             ->postJson('/v1/customers', [
                 'name' => 'New Customer',
                 'billing_address' => [
-                    'street' => 'Main St 1',
+                    'street' => 'Main St',
+                    'house_number' => '1',
                     // Missing city, postal_code, country
                 ],
             ]);
@@ -629,7 +632,8 @@ describe('POST /v1/customers', function () {
             ->postJson('/v1/customers', [
                 'name' => 'Missing Legal Entity',
                 'billing_address' => [
-                    'street' => 'Street 1',
+                    'street' => 'Street',
+                    'house_number' => '1',
                     'city' => 'Berlin',
                     'postal_code' => '10115',
                     'country' => 'DE',
@@ -648,7 +652,8 @@ describe('POST /v1/customers', function () {
                 'name' => 'Unknown Legal Entity Customer',
                 'legal_entity_id' => '00000000-0000-4000-8000-000000000000',
                 'billing_address' => [
-                    'street' => 'Street 1',
+                    'street' => 'Street',
+                    'house_number' => '1',
                     'city' => 'Berlin',
                     'postal_code' => '10115',
                     'country' => 'DE',

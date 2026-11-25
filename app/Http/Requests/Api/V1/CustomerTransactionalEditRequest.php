@@ -15,7 +15,7 @@ use stdClass;
 
 final class CustomerTransactionalEditRequest
 {
-    public const AUTHORITATIVE_CONTRACTS_SHA = 'f8771b74d887b84b84dcc94e2405df7b47222466';
+    public const AUTHORITATIVE_CONTRACTS_SHA = 'c2386802511826a04bd9daa163f188b798adad80';
 
     // Match the existing Nginx/PHP request envelope without capping membership.
     private const MAX_CONTENT_BYTES = 12 * 1024 * 1024;

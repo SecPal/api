@@ -248,7 +248,8 @@ test('rejects structural, unknown-property, duplicate, and path-identity failure
         ->putJson($url, [
             'customer' => [
                 'billing_address' => [
-                    'street' => 'Hauptstrasse 1',
+                    'street' => 'Hauptstrasse',
+                    'house_number' => '1',
                     'city' => 'Berlin',
                     'postal_code' => '10115',
                     'country' => 'DE',
@@ -926,7 +927,8 @@ test('customer write failure rolls back relationship reconciliation', function (
         'legal_entity_id' => $this->legalEntity->id,
         'name' => 'Duplicate GmbH',
         'billing_address' => [
-            'street' => 'Same 1',
+            'street' => 'Same',
+            'house_number' => '1',
             'city' => 'Berlin',
             'postal_code' => '10115',
             'country' => 'DE',
