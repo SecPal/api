@@ -352,3 +352,13 @@ test('Dependabot isolates reviewed no-op helpers to their exact caller and first
         '.github/workflows/pr-size.yml',
     ]);
 });
+
+test('Dependabot forwards only the dedicated publisher credential and opts in by App ID', function (): void {
+    $root = dirname(__DIR__, 2);
+    $workflow = Yaml::parseFile($root.'/.github/workflows/dependabot-auto-merge.yml');
+    $caller = $workflow['jobs']['auto-merge'];
+
+    expect($caller['secrets'])->toBe([
+        'dependabot-merger-private-key' => '${{ secrets.DEPENDABOT_MERGER_PRIVATE_KEY }}',
+    ])->and($caller['with']['publisher-events'])->toBe("\${{ vars.DEPENDABOT_MERGER_APP_ID != '' }}");
+});
