@@ -73,6 +73,7 @@ it('serializes competing bootstraps and delays activation until the active write
             $worker->stop();
         }
         (new Filesystem)->deleteDirectory($directory);
+        DB::table('global_identity_working_keys')->delete();
     }
 });
 

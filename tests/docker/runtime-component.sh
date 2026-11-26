@@ -79,7 +79,8 @@ PY
         done
         apk info --installed libcurl=8.23.0-r0
         apk info --installed brotli-libs=1.2.1-r0
-        apk info --installed libxml2=2.13.9-r3
+        apk info --installed libxml2=2.13.9-r5
+        ldd "$(command -v php)" | grep -Fq "libxml2.so.2 => /usr/lib/libxml2.so.2"
         test ! -d /app/vendor/pestphp
         test ! -d /app/vendor/phpunit
         test ! -e /usr/local/bin/composer
