@@ -119,7 +119,7 @@ jobs:
 
   phpstan:
     name: PHPStan
-    uses: SecPal/.github/.github/workflows/reusable-php-stan.yml@2d02204e03a7d93132fcbcba45cdff1161017e11 # v1.1.0
+    uses: SecPal/.github/.github/workflows/reusable-php-stan.yml@d3044d801cacb5aebf87d42744e918128c115207
     with:
       php-version: "8.4"
 
