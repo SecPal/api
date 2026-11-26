@@ -290,7 +290,7 @@ test('the policy requires the version comment immediately before the action refe
 
     expect($actionReferences)
         ->toHaveCount(1)
-        ->and(workflowActionHasAdjacentVersionComment($contents, $actionReferences[0]))->toBeFalse()
+        ->and(workflowActionHasVersionComment($contents, $actionReferences[0], false))->toBeFalse()
         ->and(workflowActionPinningViolations($contents))->toHaveCount(1);
 });
 
@@ -308,7 +308,7 @@ test('the policy accepts an immediately preceding version comment', function ():
 
     expect($actionReferences)
         ->toHaveCount(1)
-        ->and(workflowActionHasAdjacentVersionComment($contents, $actionReferences[0]))->toBeTrue()
+        ->and(workflowActionHasVersionComment($contents, $actionReferences[0], false))->toBeTrue()
         ->and(workflowActionPinningViolations($contents))->toBe([]);
 });
 
