@@ -102,7 +102,7 @@ jobs:
 
   markdown-lint:
     name: Markdown Lint
-    uses: SecPal/.github/.github/workflows/reusable-markdown-lint.yml@2d02204e03a7d93132fcbcba45cdff1161017e11
+    uses: SecPal/.github/.github/workflows/reusable-markdown-lint.yml@d3044d801cacb5aebf87d42744e918128c115207
     with:
       governance-ref: "6f8e13a7a62cee356811a7f58d6b92119941652f"
 
