@@ -37,7 +37,7 @@ permissions:
 
 jobs:
   auto-merge:
-    uses: SecPal/.github/.github/workflows/reusable-dependabot-auto-merge.yml@76c2a50b4a8232ae3fbbfa81d48c0ee0e0a7d01d
+    uses: SecPal/.github/.github/workflows/reusable-dependabot-auto-merge.yml@5d04c4c2f3593238040943ca5e57e7b05ba94487
     secrets:
       dependabot-merger-private-key: ${{ secrets.DEPENDABOT_MERGER_PRIVATE_KEY }}
     with:
@@ -45,8 +45,6 @@ jobs:
       allowed-ecosystems: "github_actions,npm_and_yarn,composer,pip,pre_commit,docker"
       pip-manifest-path: "docker/python/opentimestamps-requirements.txt"
       pre-commit-path: ".pre-commit-config.yaml"
-      shared-sha-workflow-paths: >-
-        [".github/workflows/check-conflict-markers.yml",".github/workflows/pr-size.yml"]
       docker-rules: >-
         [{"image":"library/composer","paths":["docker/php-fpm/Containerfile"],"line":"2","suffix":""},
          {"image":"library/php","paths":["docker/php-fpm/Containerfile"],"line":"8.4","suffix":"-fpm-alpine3.24","enforceLine":true},

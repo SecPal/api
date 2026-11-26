@@ -338,12 +338,6 @@ test('Dependabot proposes shared components independently', function (): void {
 
     expect($actions[0])->not->toHaveKey('groups');
 
-    $workflow = Yaml::parseFile($root.'/.github/workflows/dependabot-auto-merge.yml');
-    $input = $workflow['jobs']['auto-merge']['with']['shared-sha-workflow-paths'];
-    expect(json_decode($input, true, flags: JSON_THROW_ON_ERROR))->toBe([
-        '.github/workflows/check-conflict-markers.yml',
-        '.github/workflows/pr-size.yml',
-    ]);
 });
 
 test('Dependabot forwards only the dedicated publisher credential and opts in by App ID', function (): void {
