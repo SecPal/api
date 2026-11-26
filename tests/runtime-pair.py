@@ -32,6 +32,24 @@ def digest(value):
 class RuntimePairTests(unittest.TestCase):
     """Atomic pairing of outputs already qualified by the existing per-image path."""
 
+    def test_smoke_completes_scheduled_work_before_seeding_activity(self):
+        source = (Path(__file__).resolve().parent / 'docker/smoke.sh').read_text()
+        self.assertIn('settle_scheduled_work() {\n', source)
+        body = source.split('settle_scheduled_work() {\n', 1)[1].split('\n}\n', 1)[0]
+        script = '''set -eu
+general_worker_queues=fixture-forensics,fixture-default
+run_api() { printf '%s\\n' "$*" >&2; }
+settle_scheduled_work() {
+''' + body + '\n}\nsettle_scheduled_work\n'
+        result = subprocess.run(['sh', '-c', script], capture_output=True, text=True, check=True)
+        self.assertEqual(result.stderr.splitlines(), [
+            'php artisan schedule:run',
+            'php artisan queue:work --queue=fixture-forensics,fixture-default --stop-when-empty --tries=1 --timeout=60 --max-time=60',
+        ])
+        launch = source.index('\nsettle_scheduled_work\n')
+        self.assertLess(source.index('run_api php artisan tenant:setup'), launch)
+        self.assertLess(launch, source.index('smoke_token='))
+
     def test_startup_wait_requires_readiness_and_rejects_persistent_503(self):
         source = (Path(__file__).resolve().parent / 'docker/smoke.sh').read_text()
         body = source.split('wait_for_http() {\n', 1)[1].split('\n}\n', 1)[0]
@@ -48,6 +66,7 @@ assert_http() {
 }
 sleep() { :; }
 podman() { :; }
+report_heartbeat_state() { printf '%s\\n' 'queue_forensics_worker=missing' >&2; }
 api=fixture
 wait_for_http() {
 ''' + body + '\n}\n'
@@ -61,6 +80,22 @@ wait_for_http() {
             outcome, calls = result.stdout.split(':')
             self.assertEqual(outcome, '0' if ready_after == 3 else '1')
             self.assertGreaterEqual(int(calls), 3 if ready_after == 3 else 30)
+            self.assertEqual(result.stderr.strip(), '' if ready_after == 3 else 'queue_forensics_worker=missing')
+
+    def test_heartbeat_diagnostics_emit_only_named_readiness_outcomes(self):
+        source = (Path(__file__).resolve().parent / 'docker/smoke.sh').read_text()
+        body = source.split('report_heartbeat_state() {\n', 1)[1].split('\n}\n', 1)[0]
+        script = '''set -eu
+run_api() {
+    printf '%s\\n' 'scheduler=ok' 'queue_default_worker=idle' 'queue_forensics_worker=missing' 'private=arbitrary-runtime-output'
+}
+report_heartbeat_state() {
+''' + body + '\n}\nreport_heartbeat_state\n'
+        result = subprocess.run(['sh', '-c', script], capture_output=True, text=True, check=True)
+        self.assertEqual(result.stderr.splitlines(), [
+            'scheduler=ok', 'queue_default_worker=idle', 'queue_forensics_worker=missing',
+        ])
+        self.assertEqual(result.stdout, '')
 
     def documents(self):
         docs = {}
@@ -208,6 +243,9 @@ wait_for_http() {
             tools = root/'bin'; tools.mkdir()
             contracts = root/'.context/runtime-contracts/scripts'; contracts.mkdir(parents=True)
             (contracts/'production-secret-bootstrap.php').write_text('fixture')
+            worker = contracts.parent/'config/production/quadlet/secpal-worker-general.container'
+            worker.parent.mkdir(parents=True)
+            worker.write_text('Exec=php artisan queue:work --queue=merkle,opentimestamp,default --sleep=1\n')
             commands = {
                 'git': 'echo bf2282e3e112ac003360ecb3dff390eafe282dbd',
                 'php': 'echo postgres.internal',
@@ -227,7 +265,7 @@ wait_for_http() {
                        EXPECTED_ARCH='amd64', GITHUB_WORKSPACE=str(root))
             script = Path(__file__).resolve().parents[1]/'tests/docker/smoke.sh'
             result = subprocess.run(['sh', str(script)], env=env, cwd=root, capture_output=True, text=True)
-            self.assertEqual(result.returncode, 78)
+            self.assertEqual(result.returncode, 78, result.stderr)
             self.assertNotIn('app_podman', result.stderr)
 
     def test_read_only_php_cli_supplies_its_writable_runtime_directories(self):

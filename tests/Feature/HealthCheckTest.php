@@ -256,18 +256,18 @@ describe('Health Check Endpoints', function () {
             assertPublicReadinessResponse($response, 503, 'not_ready');
         });
 
-        it('returns 503 when the default queue worker heartbeat is stale with pending jobs', function () {
+        it('returns 503 when the worker heartbeat is stale with pending jobs', function (string $queue) {
             seedHealthReadinessPrerequisites();
 
             $runtimeHeartbeatService = app(RuntimeHeartbeatService::class);
             $runtimeHeartbeatService->recordSchedulerHeartbeat();
-            $runtimeHeartbeatService->recordQueueHeartbeat('default', now()->subHours(2));
-            seedPendingJob('default');
+            $runtimeHeartbeatService->recordQueueHeartbeat($queue, now()->subHours(2));
+            seedPendingJob($queue);
 
             $response = $this->getJson('/health/ready');
 
             assertPublicReadinessResponse($response, 503, 'not_ready');
-        });
+        })->with(['default', 'opentimestamp']);
     });
 
     describe('CORS for health endpoints', function () {
