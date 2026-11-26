@@ -144,8 +144,35 @@ synthetic vector in `GlobalIdentityKeyTest.php` pins the encoding and ciphertext
 Provider errors identify the failed operation without including paths, key
 material or underlying exception text. An unavailable exact root or an
 unauthenticated envelope aborts the operation. Provisioning is explicit and
-independent of application boot. The key registry, authentication integration
-and deployment qualification have their own delivery issues.
+independent of application boot. Set `GLOBAL_IDENTITY_ROOT_DIRECTORY` to the
+authorized custody directory when using the Laravel working-key registry.
+
+### Working-key registry
+
+`GlobalIdentityWorkingKeyRegistry::initialize` takes an already provisioned
+root reference. It commits all required purposes in one PostgreSQL transaction.
+The registry stores the purpose, stable key ID and version, lifecycle and
+timestamps, exact root reference, wrapping metadata, and the binary nonce and
+wrapped key. A retry authenticates the existing active entries against the
+supplied root.
+
+Use `withActiveKey` for bounded cryptography and associated database writes in
+the callback. The registry holds a shared transaction-scoped lock through
+commit. Keep network calls and other external I/O out of the callback. Store the
+supplied working-key reference with the result. For an existing encrypted
+record, use `withKey` with the expected purpose and stored key reference. It
+resolves only the exact version and its recorded root. Both methods provide key
+bytes only for the callback and clear the registry's local copy afterward.
+Mark the callback's key parameter with `#[SensitiveParameter]`.
+
+`stage` verifies and stores one candidate for the next working-key version.
+Retries authenticate and return the same candidate. `activate` verifies it before atomically moving the current key to
+`decrypt-only` and the candidate to `write-active`. Candidate and retired
+versions are unavailable to consumers. These registry primitives have no
+command or HTTP entry point. Operational rotation and retirement are tracked
+in [#3116](https://github.com/SecPal/api/issues/3116), and custody and restore
+qualification are tracked in
+[SecPal/deployment#527](https://github.com/SecPal/deployment/issues/527).
 
 ## Pattern 1: Field-Level Encryption with Blind Indexes
 

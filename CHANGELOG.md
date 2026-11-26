@@ -42,6 +42,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Persist purpose-separated Global Identity working keys with exact-version
+  resolution and transactional initialization and activation (refs #3099).
+
 - Add the versioned Global Identity root file provider and authenticated
   working-key wrapping boundary (refs #3097).
 
