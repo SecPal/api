@@ -12,6 +12,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- Update Symfony HttpKernel, HttpFoundation, Mailer, Routing, and Serializer
+  to 8.1.12 to fix the API dependency advisories (refs #3139).
+
 ### Changed
 
 - Store customer and site house numbers in `house_number` separately from the
