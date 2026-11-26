@@ -584,24 +584,17 @@ test('middle_name is encrypted at rest', function () {
 ### How to Rotate DEK
 
 ```bash
-# Rotate DEK for all tenants
-php artisan keys:rotate-dek --all
-
-# Rotate DEK for specific tenant
-php artisan keys:rotate-dek --tenant=123
+php artisan keys:rotate-dek 123
 ```
 
-**What happens:**
+Run the command in a maintenance window with tenant writes and other key
+operations paused. It supports tenants with legacy Person ciphertext only. It
+refuses rotation if the tenant has employee, employee address, customer
+establishment or push device records.
 
-1. Generate new DEK
-2. For each encrypted field:
-   - Decrypt with old DEK
-   - Encrypt with new DEK
-   - Update `{ciphertext, nonce}` in database
-3. Regenerate all blind indexes with new IDX key
-4. Update `tenant_keys.dek_wrapped` with new DEK
-
-**Downtime:** None (done row-by-row with transactions)
+The command authenticates the current tenant DEK and each Person ciphertext. It
+commits the new ciphertexts and wrapped DEK in a single database transaction. A
+failure rolls back both. The IDX key and existing blind indexes remain valid.
 
 ---
 

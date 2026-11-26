@@ -67,6 +67,7 @@ it('rejects a missing key and keys moved between tenant or purpose contexts', fu
     $otherKey = $other->key;
 
     expect($person->fresh()->email_enc)->toBe('tenant-fixture@secpal.dev')
+        ->and($person->tenant()->sole()->is($tenant))->toBeTrue()
         ->and($key->generateBlindIndex('shared'))
         ->not->toBe($otherKey->generateBlindIndex('shared'));
 

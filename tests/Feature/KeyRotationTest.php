@@ -6,9 +6,11 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
+use App\Models\Employee;
 use App\Models\Person;
 use App\Models\TenantKey;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 
 uses(RefreshDatabase::class);
 
@@ -168,6 +170,28 @@ describe('keys:rotate-kek Command', function () {
 });
 
 describe('keys:rotate-dek Command', function () {
+    test('malformed ciphertext rolls back all person rewrites and the DEK change', function (): void {
+        $bad = Person::factory()->create(['tenant_id' => $this->tenant->tenant_id]);
+        DB::table('person')->where('id', $bad->id)->update(['email_enc' => '{"ciphertext":"!","nonce":"!"}']);
+        $originalNote = $this->person->getRawOriginal('note_enc');
+
+        $this->artisan('keys:rotate-dek', ['tenant' => $this->tenant->tenant_id])->assertFailed();
+
+        expect($this->tenant->fresh()->dek_wrapped)->toBe($this->originalDekWrapped)
+            ->and($this->person->fresh()->getRawOriginal('note_enc'))->toBe($originalNote)
+            ->and($this->person->fresh()->note_enc)->toBe('Test note');
+    });
+
+    test('refuses rotation when employee data also uses the tenant DEK', function (): void {
+        $employee = Employee::factory()->create(['tenant_id' => $this->tenant->tenant_id]);
+        $firstName = $employee->first_name;
+
+        $this->artisan('keys:rotate-dek', ['tenant' => $this->tenant->tenant_id])->assertFailed();
+
+        expect($this->tenant->fresh()->dek_wrapped)->toBe($this->originalDekWrapped)
+            ->and($employee->fresh()->first_name)->toBe($firstName);
+    });
+
     test('rotates DEK for specific tenant', function (): void {
         $this->artisan('keys:rotate-dek', ['tenant' => $this->tenant->tenant_id])
             ->expectsOutput("Starting DEK rotation for tenant {$this->tenant->tenant_id}...")

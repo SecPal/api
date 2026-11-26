@@ -11,6 +11,7 @@ namespace App\Models;
 use App\Models\Concerns\EnforcesTenantRouteBinding;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
  * Person model with field-level encryption and blind indexes.
@@ -170,12 +171,8 @@ class Person extends Model
         return $this->notePlain;
     }
 
-    /**
-     * Relation to Tenant.
-     *
-     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<Tenant, self>
-     */
-    public function tenantKey(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    /** @return BelongsTo<Tenant, $this> */
+    public function tenant(): BelongsTo
     {
         return $this->belongsTo(Tenant::class, 'tenant_id');
     }
