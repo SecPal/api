@@ -104,7 +104,7 @@ function workflowActionSourceLines(string $contents, string $uses): array
 /**
  * @param  array{action: string, reference: string, uses: string, occurrence: int}  $actionReference
  */
-function workflowActionHasAdjacentVersionComment(string $contents, array $actionReference): bool
+function workflowActionHasVersionComment(string $contents, array $actionReference, bool $onSameLine): bool
 {
     $lines = preg_split('/\\R/', $contents);
 
@@ -115,7 +115,15 @@ function workflowActionHasAdjacentVersionComment(string $contents, array $action
     $sourceLines = workflowActionSourceLines($contents, $actionReference['uses']);
     $sourceLine = $sourceLines[$actionReference['occurrence']] ?? null;
 
-    if ($sourceLine === null || $sourceLine['line'] === 0) {
+    if ($sourceLine === null) {
+        return false;
+    }
+
+    if ($onSameLine) {
+        return preg_match('/[ \t]+# v(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)[ \t]*\z/', $lines[$sourceLine['line']]) === 1;
+    }
+
+    if ($sourceLine['line'] === 0) {
         return false;
     }
 
@@ -147,10 +155,6 @@ function workflowActionPinningViolations(string $contents): array
             continue;
         }
 
-        if (str_starts_with($action, 'SecPal/.github/')) {
-            continue;
-        }
-
         $sourceLines = workflowActionSourceLines($contents, $actionReference['uses']);
 
         if (count($sourceLines) !== $referenceCounts[$actionReference['uses']]) {
@@ -159,8 +163,11 @@ function workflowActionPinningViolations(string $contents): array
             continue;
         }
 
-        if (! workflowActionHasAdjacentVersionComment($contents, $actionReference)) {
-            $violations[] = "{$actionReference['uses']} does not have an immediately preceding version comment.";
+        $shared = str_starts_with($action, 'SecPal/.github/');
+        if (! workflowActionHasVersionComment($contents, $actionReference, $shared)) {
+            $violations[] = $shared
+                ? "{$actionReference['uses']} does not have an exact inline release annotation."
+                : "{$actionReference['uses']} does not have an immediately preceding version comment.";
         }
     }
 

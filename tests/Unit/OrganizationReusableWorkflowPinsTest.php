@@ -8,7 +8,7 @@ declare(strict_types=1);
 function organizationReusableWorkflowReferencePattern(string $workflowName): string
 {
     return sprintf(
-        '/^\\s*uses:\\s*SecPal\\/\\.github\\/\\.github\\/workflows\\/%s@[0-9a-f]{40}(?:\\h+# v[0-9]+\\.[0-9]+\\.[0-9]+)?\\h*$/m',
+        '/^\\s*uses:\\s*SecPal\\/\\.github\\/\\.github\\/workflows\\/%s@[0-9a-f]{40}\\h+# v[0-9]+\\.[0-9]+\\.[0-9]+\\h*$/m',
         preg_quote($workflowName, '/'),
     );
 }
