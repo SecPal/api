@@ -11,6 +11,7 @@ use App\Models\Customer;
 use App\Models\CustomerAssignment;
 use App\Models\Permission;
 use App\Models\ServiceBooking;
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use App\Models\User;
 use App\Services\ContractAuditRecorder;
@@ -28,7 +29,7 @@ beforeEach(function (): void {
     incrementTestKekCounter();
     TenantKey::setKekPath(getTestKekPath());
     TenantKey::generateKek();
-    $this->tenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+    $this->tenant = Tenant::factory()->create();
     $this->actor = User::factory()->create(['tenant_id' => $this->tenant->id]);
     $this->token = $this->actor->createToken('contract-api')->plainTextToken;
     Artisan::call('db:seed', ['--class' => 'RolesAndPermissionsSeeder']);
@@ -111,7 +112,7 @@ test('each Contract operation requires its exact capability', function (string $
 
 test('list is tenant isolated, includes both lifecycle states, and uses deterministic pagination', function (): void {
     grantContractApiPermissions($this, 'contracts.read');
-    $foreignTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+    $foreignTenant = Tenant::factory()->create();
     Contract::factory()->create(['tenant_id' => $foreignTenant->id]);
     $createdAt = now()->subHour()->startOfSecond();
     Contract::factory()->count(16)->sequence(
@@ -197,7 +198,7 @@ test('create conceals unavailable Customers', function (string $kind): void {
     $customerId = (string) Str::uuid();
 
     if ($kind === 'foreign') {
-        $foreignTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+        $foreignTenant = Tenant::factory()->create();
         $customerId = Customer::factory()->create(['tenant_id' => $foreignTenant->id])->id;
     } elseif ($kind === 'inaccessible') {
         $customerId = Customer::factory()->create(['tenant_id' => $this->tenant->id])->id;
@@ -293,7 +294,7 @@ test('inspect is tenant safe and distinguishes malformed UUID input', function (
     if ($kind === 'local') {
         $id = Contract::factory()->create(['tenant_id' => $this->tenant->id])->id;
     } elseif ($kind === 'foreign') {
-        $foreignTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+        $foreignTenant = Tenant::factory()->create();
         $id = Contract::factory()->create(['tenant_id' => $foreignTenant->id])->id;
     } elseif ($kind === 'missing') {
         $id = (string) Str::uuid();

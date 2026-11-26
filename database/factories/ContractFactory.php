@@ -12,7 +12,7 @@ use App\Enums\ContractStatus;
 use App\Enums\ContractType;
 use App\Models\Contract;
 use App\Models\Customer;
-use App\Models\TenantKey;
+use App\Models\Tenant;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /** @extends Factory<Contract> */
@@ -24,7 +24,7 @@ class ContractFactory extends Factory
     public function definition(): array
     {
         return [
-            'tenant_id' => TenantKey::factory(),
+            'tenant_id' => Tenant::factory(),
             'customer_id' => function (array $attributes): string {
                 $tenantId = $attributes['tenant_id'] ?? null;
                 if (! is_int($tenantId) && ! is_string($tenantId)) {

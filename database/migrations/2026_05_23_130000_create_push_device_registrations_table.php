@@ -15,7 +15,7 @@ return new class extends Migration
     {
         Schema::create('push_device_registrations', function (Blueprint $table) {
             $table->uuid('id')->primary();
-            $table->foreignId('tenant_id')->constrained('tenant_keys')->cascadeOnDelete();
+            $table->foreignId('tenant_id')->constrained('tenants')->restrictOnDelete();
             $table->foreignUuid('user_id')->constrained('users')->cascadeOnDelete();
             $table->uuid('installation_id');
             $table->string('platform', 32);

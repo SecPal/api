@@ -6,7 +6,7 @@
 namespace Database\Factories;
 
 use App\Models\OrganizationalUnit;
-use App\Models\TenantKey;
+use App\Models\Tenant;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -30,12 +30,7 @@ class OrganizationalUnitFactory extends Factory
     {
         // Get the most recently created tenant from the current test context.
         // Don't cache between tests (RefreshDatabase clears everything)
-        $tenant = TenantKey::query()->latest('id')->first();
-        if (! $tenant) {
-            TenantKey::ensureKekExists();
-            $keys = TenantKey::generateEnvelopeKeys();
-            $tenant = TenantKey::create($keys);
-        }
+        $tenant = Tenant::query()->latest('id')->first() ?? Tenant::factory()->create();
 
         return [
             'tenant_id' => $tenant->id,

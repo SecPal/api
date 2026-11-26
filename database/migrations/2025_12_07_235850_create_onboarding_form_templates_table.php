@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use Illuminate\Database\Migrations\Migration;
@@ -16,7 +16,7 @@ return new class extends Migration
     {
         Schema::create('onboarding_form_templates', function (Blueprint $table) {
             $table->uuid('id')->primary();
-            $table->foreignId('tenant_id')->nullable()->constrained('tenant_keys')->cascadeOnDelete();
+            $table->foreignId('tenant_id')->nullable()->constrained('tenants')->restrictOnDelete();
             // NULL tenant_id = system-wide templates
             // Non-null tenant_id = custom tenant forms
 

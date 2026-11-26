@@ -4,7 +4,9 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use App\Models\Tenant;
 use App\Models\TenantKey;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -77,8 +79,8 @@ describe('CreateOrganizationalUnitsTable Migration', function () {
     });
 
     test('status flag migration assigns false to existing organizational units', function (): void {
-        $keys = TenantKey::generateEnvelopeKeys();
-        $tenant = TenantKey::create($keys);
+
+        $tenant = Tenant::factory()->create();
         $unitId = Str::uuid()->toString();
 
         Schema::table('organizational_units', function ($table): void {
@@ -104,8 +106,8 @@ describe('CreateOrganizationalUnitsTable Migration', function () {
     });
 
     test('operational status flag migration assigns true to existing organizational units', function (): void {
-        $keys = TenantKey::generateEnvelopeKeys();
-        $tenant = TenantKey::create($keys);
+
+        $tenant = Tenant::factory()->create();
         $unitId = Str::uuid()->toString();
 
         Schema::table('organizational_units', function ($table): void {
@@ -133,8 +135,8 @@ describe('CreateOrganizationalUnitsTable Migration', function () {
     });
 
     test('type column accepts valid enum values', function (): void {
-        $keys = TenantKey::generateEnvelopeKeys();
-        $tenant = TenantKey::create($keys);
+
+        $tenant = Tenant::factory()->create();
 
         $validTypes = [
             'holding',
@@ -163,8 +165,8 @@ describe('CreateOrganizationalUnitsTable Migration', function () {
     });
 
     test('type column rejects invalid enum values', function (): void {
-        $keys = TenantKey::generateEnvelopeKeys();
-        $tenant = TenantKey::create($keys);
+
+        $tenant = Tenant::factory()->create();
 
         DB::table('organizational_units')->insert([
             'id' => Str::uuid()->toString(),
@@ -176,20 +178,20 @@ describe('CreateOrganizationalUnitsTable Migration', function () {
         ]);
     })->throws(PDOException::class);
 
-    test('foreign key constraint on tenant_id references tenant_keys', function (): void {
+    test('foreign key constraint on tenant_id references tenants', function (): void {
         $foreignKeys = Schema::getForeignKeys('organizational_units');
 
         $hasTenantForeignKey = collect($foreignKeys)->contains(function ($fk) {
             return in_array('tenant_id', $fk['columns'])
-                && $fk['foreign_table'] === 'tenant_keys';
+                && $fk['foreign_table'] === 'tenants';
         });
 
         expect($hasTenantForeignKey)->toBeTrue();
     });
 
-    test('cascade delete removes organizational units when tenant is deleted', function (): void {
-        $keys = TenantKey::generateEnvelopeKeys();
-        $tenant = TenantKey::create($keys);
+    test('restricts tenant deletion and preserves organizational units', function (): void {
+
+        $tenant = Tenant::factory()->create();
         $unitId = Str::uuid()->toString();
 
         DB::table('organizational_units')->insert([
@@ -203,14 +205,14 @@ describe('CreateOrganizationalUnitsTable Migration', function () {
 
         expect(DB::table('organizational_units')->where('id', $unitId)->exists())->toBeTrue();
 
-        $tenant->delete();
+        expect(fn () => DB::transaction(fn () => $tenant->delete()))->toThrow(QueryException::class, '23001');
 
-        expect(DB::table('organizational_units')->where('id', $unitId)->exists())->toBeFalse();
+        expect(DB::table('organizational_units')->where('id', $unitId)->exists())->toBeTrue();
     });
 
     test('metadata column accepts valid JSON', function (): void {
-        $keys = TenantKey::generateEnvelopeKeys();
-        $tenant = TenantKey::create($keys);
+
+        $tenant = Tenant::factory()->create();
         $unitId = Str::uuid()->toString();
 
         $metadata = [
@@ -237,8 +239,8 @@ describe('CreateOrganizationalUnitsTable Migration', function () {
     });
 
     test('soft delete sets deleted_at timestamp', function (): void {
-        $keys = TenantKey::generateEnvelopeKeys();
-        $tenant = TenantKey::create($keys);
+
+        $tenant = Tenant::factory()->create();
         $unitId = Str::uuid()->toString();
 
         DB::table('organizational_units')->insert([
@@ -260,8 +262,8 @@ describe('CreateOrganizationalUnitsTable Migration', function () {
     });
 
     test('custom type uses custom_type_name field', function (): void {
-        $keys = TenantKey::generateEnvelopeKeys();
-        $tenant = TenantKey::create($keys);
+
+        $tenant = Tenant::factory()->create();
         $unitId = Str::uuid()->toString();
 
         DB::table('organizational_units')->insert([

@@ -1,7 +1,7 @@
 <?php
 
 /*
- * SPDX-FileCopyrightText: 2025 SecPal Contributors
+ * SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
  *
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
@@ -26,13 +26,13 @@ beforeEach(function (): void {
     TenantKey::generateKek();
 
     // Create a tenant with envelope keys
-    $keys = TenantKey::generateEnvelopeKeys();
-    $this->tenant = TenantKey::create($keys);
+
+    $this->tenant = TenantKey::factory()->create();
     $this->originalDekWrapped = $this->tenant->dek_wrapped; // Store for rotation tests
 
     // Create a person with encrypted data for rotation testing
     $this->person = new Person;
-    $this->person->tenant_id = $this->tenant->id;
+    $this->person->tenant_id = $this->tenant->tenant_id;
     $this->person->email_plain = 'test@example.com';
     $this->person->phone_plain = '+49 123 456789';
     $this->person->note_enc = 'Test note'; // Uses DEK encryption via cast
@@ -77,6 +77,23 @@ describe('keys:generate-tenant Command', function () {
 });
 
 describe('keys:rotate-kek Command', function () {
+    test('a key from another tenant prevents replacement of the active KEK', function (): void {
+        $otherKey = TenantKey::factory()->create();
+        $otherKey->update([
+            'dek_wrapped' => $this->tenant->dek_wrapped,
+            'dek_nonce' => $this->tenant->dek_nonce,
+        ]);
+        $oldKek = TenantKey::loadKek();
+
+        try {
+            $this->artisan('keys:rotate-kek')->assertExitCode(1);
+            expect(hash_equals($oldKek, TenantKey::loadKek()))->toBeTrue();
+            expect($this->person->fresh()->note_enc)->toBe('Test note');
+        } finally {
+            sodium_memzero($oldKek);
+        }
+    });
+
     test('rotates KEK and re-wraps all tenant keys', function (): void {
         // Store old wrapped keys and nonces for comparison
         $oldDekWrapped = $this->tenant->dek_wrapped;
@@ -130,7 +147,7 @@ describe('keys:rotate-kek Command', function () {
         $indexBinary = $this->tenant->generateBlindIndex(strtolower('test@example.com'));
         $indexBase64 = base64_encode($indexBinary);
 
-        $found = Person::where('tenant_id', $this->tenant->id)
+        $found = Person::where('tenant_id', $this->tenant->tenant_id)
             ->where('email_idx', $indexBase64)
             ->first();
 
@@ -152,8 +169,8 @@ describe('keys:rotate-kek Command', function () {
 
 describe('keys:rotate-dek Command', function () {
     test('rotates DEK for specific tenant', function (): void {
-        $this->artisan('keys:rotate-dek', ['tenant' => $this->tenant->id])
-            ->expectsOutput("Starting DEK rotation for tenant {$this->tenant->id}...")
+        $this->artisan('keys:rotate-dek', ['tenant' => $this->tenant->tenant_id])
+            ->expectsOutput("Starting DEK rotation for tenant {$this->tenant->tenant_id}...")
             ->expectsOutputToContain('Generated new DEK')
             ->expectsOutputToContain('Re-encrypted 1 record(s)')
             ->assertExitCode(0);
@@ -171,7 +188,7 @@ describe('keys:rotate-dek Command', function () {
     test('re-encrypts all person records after DEK rotation', function (): void {
         // Create a second person
         $person2 = new Person;
-        $person2->tenant_id = $this->tenant->id;
+        $person2->tenant_id = $this->tenant->tenant_id;
         $person2->email_plain = 'second@example.com';
         $person2->note_enc = 'Second note';
         $person2->save();
@@ -180,7 +197,7 @@ describe('keys:rotate-dek Command', function () {
         $originalNote1 = $this->person->getAttributes()['note_enc'];
         $originalNote2 = $person2->getAttributes()['note_enc'];
 
-        $this->artisan('keys:rotate-dek', ['tenant' => $this->tenant->id])
+        $this->artisan('keys:rotate-dek', ['tenant' => $this->tenant->tenant_id])
             ->assertExitCode(0);
 
         // Refresh persons
@@ -208,8 +225,8 @@ describe('idx:rebuild Command', function () {
         // Manually corrupt the index to simulate need for rebuild
         $this->person->update(['email_idx' => 'corrupted_index']);
 
-        $this->artisan('idx:rebuild', ['tenant' => $this->tenant->id])
-            ->expectsOutput("Rebuilding blind indexes for tenant {$this->tenant->id}...")
+        $this->artisan('idx:rebuild', ['tenant' => $this->tenant->tenant_id])
+            ->expectsOutput("Rebuilding blind indexes for tenant {$this->tenant->tenant_id}...")
             ->expectsOutputToContain('Rebuilt indexes for 1 record(s)')
             ->assertExitCode(0);
 
@@ -232,17 +249,17 @@ describe('idx:rebuild Command', function () {
         $indexBinary = $this->tenant->generateBlindIndex(strtolower('test@example.com'));
         $indexBase64 = base64_encode($indexBinary);
 
-        $found = Person::where('tenant_id', $this->tenant->id)
+        $found = Person::where('tenant_id', $this->tenant->tenant_id)
             ->where('email_idx', $indexBase64)
             ->first();
         expect($found)->toBeNull();
 
         // Rebuild indexes
-        $this->artisan('idx:rebuild', ['tenant' => $this->tenant->id])
+        $this->artisan('idx:rebuild', ['tenant' => $this->tenant->tenant_id])
             ->assertExitCode(0);
 
         // Search should work again
-        $found = Person::where('tenant_id', $this->tenant->id)
+        $found = Person::where('tenant_id', $this->tenant->tenant_id)
             ->where('email_idx', $indexBase64)
             ->first();
 

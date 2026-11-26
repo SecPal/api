@@ -1,7 +1,7 @@
 <?php
 
 /**
- * SPDX-FileCopyrightText: 2025 SecPal Contributors
+ * SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
@@ -37,8 +37,8 @@ return new class extends Migration
 
             // 🔐 Tenant Isolation (required for scoped access)
             $table->foreignId('tenant_id')
-                ->constrained('tenant_keys')
-                ->cascadeOnDelete();
+                ->constrained('tenants')
+                ->restrictOnDelete();
 
             // 📝 Minimal Metadata (log type only)
             $table->string('log_name')->nullable();

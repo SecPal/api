@@ -6,6 +6,7 @@
 use App\Models\Employee;
 use App\Models\OnboardingFormSubmission;
 use App\Models\OnboardingFormTemplate;
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
@@ -187,7 +188,7 @@ test('migration preserves an existing completed residential address history step
 });
 
 test('migration only reorders global templates and rollback preserves tenant residential templates and submissions', function (): void {
-    $tenant = TenantKey::factory()->create();
+    $tenant = Tenant::factory()->create();
 
     $globalLegacyTemplate = OnboardingFormTemplate::factory()->systemTemplate()->create([
         'name' => 'Legacy Global Template',

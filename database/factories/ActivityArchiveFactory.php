@@ -1,7 +1,7 @@
 <?php
 
 /**
- * SPDX-FileCopyrightText: 2025 SecPal Contributors
+ * SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
@@ -10,7 +10,7 @@ declare(strict_types=1);
 namespace Database\Factories;
 
 use App\Models\ActivityArchive;
-use App\Models\TenantKey;
+use App\Models\Tenant;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -36,7 +36,7 @@ class ActivityArchiveFactory extends Factory
     {
         return [
             // ID omitted - will be set explicitly or auto-incremented
-            'tenant_id' => TenantKey::factory(),
+            'tenant_id' => Tenant::factory(),
             'log_name' => fake()->randomElement(['security', 'authentication', 'rbac_changes']),
             'created_at' => fake()->dateTimeBetween('-5 years', '-3 years'),
             'event_hash' => hash('sha256', fake()->uuid()),

@@ -1,7 +1,7 @@
 <?php
 
 /*
- * SPDX-FileCopyrightText: 2025 SecPal Contributors
+ * SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
  *
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
@@ -52,7 +52,7 @@ class PersonObserver
      */
     private function updateBlindIndexes(Person $person): void
     {
-        $tenantKey = TenantKey::findOrFail($person->tenant_id);
+        $tenantKey = TenantKey::forTenant($person->tenant_id);
 
         // Compute email_idx if email_plain is set
         if ($person->email_plain !== null) {

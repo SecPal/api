@@ -6,6 +6,7 @@
 declare(strict_types=1);
 
 use App\Models\ServiceBooking;
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -19,8 +20,8 @@ beforeEach(function (): void {
     incrementTestKekCounter();
     TenantKey::setKekPath(getTestKekPath());
     TenantKey::generateKek();
-    $this->tenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
-    $this->foreignTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+    $this->tenant = Tenant::factory()->create();
+    $this->foreignTenant = Tenant::factory()->create();
     $this->actor = User::factory()->create(['tenant_id' => $this->tenant->id]);
     Artisan::call('db:seed', ['--class' => 'RolesAndPermissionsSeeder']);
 });

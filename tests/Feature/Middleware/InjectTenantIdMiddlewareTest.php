@@ -1,10 +1,11 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use App\Http\Middleware\InjectTenantId;
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -14,7 +15,7 @@ use Illuminate\Support\Facades\Route;
 use function Pest\Laravel\actingAs;
 
 /**
- * @property TenantKey $tenant
+ * @property Tenant $tenant
  * @property User $user
  */
 uses(RefreshDatabase::class);
@@ -26,8 +27,8 @@ beforeEach(function (): void {
     TenantKey::generateKek();
 
     // Create tenant
-    $keys = TenantKey::generateEnvelopeKeys();
-    $this->tenant = TenantKey::create($keys);
+
+    $this->tenant = Tenant::factory()->create();
 
     // Create authenticated user in this tenant
     $this->user = User::factory()->create(['tenant_id' => $this->tenant->id]);
@@ -93,8 +94,8 @@ describe('InjectTenantId Middleware', function () {
 
     test('multiple users from different tenants get their own tenant_id', function () {
         // Create second tenant
-        $keys2 = TenantKey::generateEnvelopeKeys();
-        $tenant2 = TenantKey::create($keys2);
+
+        $tenant2 = Tenant::factory()->create();
 
         // Create user in second tenant
         $user2 = User::factory()->create(['tenant_id' => $tenant2->id]);

@@ -33,7 +33,7 @@ use Spatie\Activitylog\Support\LogOptions;
  * - Legal-entity-wide billing and master data
  *
  * @property string $id UUID primary key
- * @property int $tenant_id Foreign key to tenant_keys
+ * @property int $tenant_id Foreign key to tenants
  * @property string $legal_entity_id Foreign key to legal_entities
  * @property string $customer_number Auto-generated unique identifier (e.g., KD-2025-0001)
  * @property string $name Company/Organization name
@@ -43,7 +43,7 @@ use Spatie\Activitylog\Support\LogOptions;
  * @property \Illuminate\Support\Carbon $created_at
  * @property \Illuminate\Support\Carbon $updated_at
  * @property \Illuminate\Support\Carbon|null $deleted_at
- * @property-read TenantKey $tenant The tenant this customer belongs to
+ * @property-read Tenant $tenant The tenant this customer belongs to
  * @property-read LegalEntity $legalEntity The legal entity this customer is assigned to
  * @property-read \Illuminate\Database\Eloquent\Collection<int, CustomerEstablishment> $customerEstablishments Local establishment assignments
  * @property-read \Illuminate\Database\Eloquent\Collection<int, Site> $sites Sites belonging to this customer
@@ -142,11 +142,11 @@ class Customer extends Model
     /**
      * Get the tenant that owns this customer.
      *
-     * @return BelongsTo<TenantKey, $this>
+     * @return BelongsTo<Tenant, $this>
      */
     public function tenant(): BelongsTo
     {
-        return $this->belongsTo(TenantKey::class, 'tenant_id');
+        return $this->belongsTo(Tenant::class, 'tenant_id');
     }
 
     /**

@@ -7,6 +7,7 @@ use App\Exceptions\EmployeeDocumentFileNotFoundException;
 use App\Models\Employee;
 use App\Models\EmployeeDocument;
 use App\Models\OrganizationalUnit;
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use App\Services\EmployeeDocumentStorageService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -16,7 +17,7 @@ use Illuminate\Support\Facades\Storage;
 uses(RefreshDatabase::class);
 
 /**
- * @property TenantKey $tenant
+ * @property Tenant $tenant
  * @property Employee $employee
  * @property EmployeeDocumentStorageService $service
  */
@@ -27,8 +28,7 @@ beforeEach(function (): void {
     TenantKey::setKekPath(getTestKekPath());
     TenantKey::generateKek();
 
-    $keys = TenantKey::generateEnvelopeKeys();
-    $this->tenant = TenantKey::create($keys);
+    $this->tenant = Tenant::factory()->create();
 
     $orgUnit = OrganizationalUnit::factory()->create([
         'tenant_id' => $this->tenant->id,

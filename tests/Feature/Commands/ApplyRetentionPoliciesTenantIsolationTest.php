@@ -1,7 +1,7 @@
 <?php
 
 /**
- * SPDX-FileCopyrightText: 2025 SecPal Contributors
+ * SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
@@ -9,7 +9,7 @@ declare(strict_types=1);
 
 use App\Models\Activity;
 use App\Models\Customer;
-use App\Models\TenantKey;
+use App\Models\Tenant;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Foundation\Testing\Wormhole;
 use Illuminate\Support\Facades\Artisan;
@@ -31,11 +31,18 @@ uses(RefreshDatabase::class);
 describe('ApplyRetentionPolicies → Tenant Isolation', function () {
     beforeEach(function () {
         // Tenant 1 - customer will be created in tests as needed
-        $this->tenant1 = TenantKey::factory()->create();
+        $this->tenant1 = Tenant::factory()->create();
 
         // Tenant 2 - normal customer
-        $this->tenant2 = TenantKey::factory()->create();
+        $this->tenant2 = Tenant::factory()->create();
         $this->customer2 = Customer::factory()->for($this->tenant2, 'tenant')->create();
+    });
+
+    test('rejects a key identifier as a tenant filter', function (): void {
+        $key = $this->tenant2->key()->firstOrFail();
+
+        $this->artisan('activity:apply-retention', ['--tenant' => $key->id])
+            ->assertFailed();
     });
 
     test('processes all tenants independently', function () {

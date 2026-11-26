@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 use App\Models\CostCenterAllocation;
 use App\Models\InternalCostCenter;
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -20,7 +21,7 @@ beforeEach(function (): void {
     incrementTestKekCounter();
     TenantKey::setKekPath(getTestKekPath());
     TenantKey::generateKek();
-    $this->tenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+    $this->tenant = Tenant::factory()->create();
     $this->user = User::factory()->create(['tenant_id' => $this->tenant->id]);
     Artisan::call('db:seed', ['--class' => 'RolesAndPermissionsSeeder']);
 });
@@ -49,7 +50,7 @@ test('Internal Cost Center policy maps exactly the accepted capabilities', funct
 test('Internal Cost Center policy rejects foreign tenant models and legacy permission aliases', function (): void {
     givePermissionWithTenant($this->user, $this->tenant->id, 'internal_cost_centers.update');
     givePermissionWithTenant($this->user, $this->tenant->id, 'cost-centers.update');
-    $foreignTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+    $foreignTenant = Tenant::factory()->create();
     $foreign = InternalCostCenter::factory()->forTenant($foreignTenant->id)->create();
     app(PermissionRegistrar::class)->setPermissionsTeamId($this->tenant->id);
 

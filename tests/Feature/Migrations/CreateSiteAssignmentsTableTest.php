@@ -4,7 +4,9 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use App\Models\Tenant;
 use App\Models\TenantKey;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -33,8 +35,8 @@ function createSiteTestUser(string $email, ?int $tenantId = null): string
     if ($tenantId === null) {
         // Use first available tenant or create one
         // Each parallel process has its own database instance
-        $tenant = TenantKey::first();
-        $tenantId = $tenant !== null ? $tenant->id : TenantKey::factory()->create()->id;
+        $tenant = Tenant::first();
+        $tenantId = $tenant !== null ? $tenant->id : Tenant::factory()->create()->id;
     }
 
     $userId = Str::uuid()->toString();
@@ -210,12 +212,12 @@ describe('CreateSiteAssignmentsTable Migration', function () {
         expect($hasUniqueConstraint)->toBeTrue();
     });
 
-    test('foreign key constraint on tenant_id references tenant_keys', function (): void {
+    test('foreign key constraint on tenant_id references tenants', function (): void {
         $foreignKeys = Schema::getForeignKeys('site_assignments');
 
         $hasTenantForeignKey = collect($foreignKeys)->contains(function ($fk) {
             return in_array('tenant_id', $fk['columns'])
-                && $fk['foreign_table'] === 'tenant_keys';
+                && $fk['foreign_table'] === 'tenants';
         });
 
         expect($hasTenantForeignKey)->toBeTrue();
@@ -243,9 +245,9 @@ describe('CreateSiteAssignmentsTable Migration', function () {
         expect($hasUserForeignKey)->toBeTrue();
     });
 
-    test('cascade delete removes assignments when tenant is deleted', function (): void {
-        $keys = TenantKey::generateEnvelopeKeys();
-        $tenant = TenantKey::create($keys);
+    test('restricts tenant deletion and preserves site assignments', function (): void {
+
+        $tenant = Tenant::factory()->create();
         $userId = createSiteTestUser('user@example.com');
         $customerId = createSiteTestCustomer($tenant->id, 'KD-2025-001');
         $orgUnitId = createSiteTestOrgUnit($tenant->id, 'Test Org Unit');
@@ -254,14 +256,14 @@ describe('CreateSiteAssignmentsTable Migration', function () {
 
         expect(DB::table('site_assignments')->where('id', $assignmentId)->exists())->toBeTrue();
 
-        $tenant->delete();
+        expect(fn () => DB::transaction(fn () => $tenant->delete()))->toThrow(QueryException::class, '23001');
 
-        expect(DB::table('site_assignments')->where('id', $assignmentId)->exists())->toBeFalse();
+        expect(DB::table('site_assignments')->where('id', $assignmentId)->exists())->toBeTrue();
     });
 
     test('cascade delete removes assignments when site is deleted', function (): void {
-        $keys = TenantKey::generateEnvelopeKeys();
-        $tenant = TenantKey::create($keys);
+
+        $tenant = Tenant::factory()->create();
         $userId = createSiteTestUser('user@example.com');
         $customerId = createSiteTestCustomer($tenant->id, 'KD-2025-002');
         $orgUnitId = createSiteTestOrgUnit($tenant->id, 'Test Org Unit');
@@ -276,8 +278,8 @@ describe('CreateSiteAssignmentsTable Migration', function () {
     });
 
     test('user delete preserves assignment history and clears the user reference', function (): void {
-        $keys = TenantKey::generateEnvelopeKeys();
-        $tenant = TenantKey::create($keys);
+
+        $tenant = Tenant::factory()->create();
         $userId = createSiteTestUser('user@example.com');
         $customerId = createSiteTestCustomer($tenant->id, 'KD-2025-003');
         $orgUnitId = createSiteTestOrgUnit($tenant->id, 'Test Org Unit');
@@ -293,8 +295,8 @@ describe('CreateSiteAssignmentsTable Migration', function () {
     });
 
     test('role column accepts flexible tenant-specific terminology', function (): void {
-        $keys = TenantKey::generateEnvelopeKeys();
-        $tenant = TenantKey::create($keys);
+
+        $tenant = Tenant::factory()->create();
         $userId = createSiteTestUser('user@example.com');
         $customerId = createSiteTestCustomer($tenant->id, 'KD-2025-004');
         $orgUnitId = createSiteTestOrgUnit($tenant->id, 'Test Org Unit');
@@ -326,8 +328,8 @@ describe('CreateSiteAssignmentsTable Migration', function () {
     });
 
     test('valid_from and valid_until allow temporal assignments', function (): void {
-        $keys = TenantKey::generateEnvelopeKeys();
-        $tenant = TenantKey::create($keys);
+
+        $tenant = Tenant::factory()->create();
         $userId = createSiteTestUser('user@example.com');
         $customerId = createSiteTestCustomer($tenant->id, 'KD-2025-005');
         $orgUnitId = createSiteTestOrgUnit($tenant->id, 'Test Org Unit');
@@ -355,8 +357,8 @@ describe('CreateSiteAssignmentsTable Migration', function () {
     });
 
     test('valid_until nullable allows indefinite assignments', function (): void {
-        $keys = TenantKey::generateEnvelopeKeys();
-        $tenant = TenantKey::create($keys);
+
+        $tenant = Tenant::factory()->create();
         $userId = createSiteTestUser('user@example.com');
         $customerId = createSiteTestCustomer($tenant->id, 'KD-2025-006');
         $orgUnitId = createSiteTestOrgUnit($tenant->id, 'Test Org Unit');
@@ -380,8 +382,8 @@ describe('CreateSiteAssignmentsTable Migration', function () {
     });
 
     test('unique constraint prevents duplicate user and role per site', function (): void {
-        $keys = TenantKey::generateEnvelopeKeys();
-        $tenant = TenantKey::create($keys);
+
+        $tenant = Tenant::factory()->create();
         $userId = createSiteTestUser('user@example.com');
         $customerId = createSiteTestCustomer($tenant->id, 'KD-2025-007');
         $orgUnitId = createSiteTestOrgUnit($tenant->id, 'Test Org Unit');
@@ -392,8 +394,8 @@ describe('CreateSiteAssignmentsTable Migration', function () {
     })->throws(PDOException::class);
 
     test('same user can have different roles for same site', function (): void {
-        $keys = TenantKey::generateEnvelopeKeys();
-        $tenant = TenantKey::create($keys);
+
+        $tenant = Tenant::factory()->create();
         $userId = createSiteTestUser('user@example.com');
         $customerId = createSiteTestCustomer($tenant->id, 'KD-2025-008');
         $orgUnitId = createSiteTestOrgUnit($tenant->id, 'Test Org Unit');
@@ -411,8 +413,8 @@ describe('CreateSiteAssignmentsTable Migration', function () {
     });
 
     test('notes column is nullable', function (): void {
-        $keys = TenantKey::generateEnvelopeKeys();
-        $tenant = TenantKey::create($keys);
+
+        $tenant = Tenant::factory()->create();
         $userId = createSiteTestUser('user@example.com');
         $customerId = createSiteTestCustomer($tenant->id, 'KD-2025-009');
         $orgUnitId = createSiteTestOrgUnit($tenant->id, 'Test Org Unit');

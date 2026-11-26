@@ -9,7 +9,7 @@ use App\Models\Employee;
 use App\Models\EmployeeAddress;
 use App\Models\Establishment;
 use App\Models\LegalEntity;
-use App\Models\TenantKey;
+use App\Models\Tenant;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -60,12 +60,7 @@ class EmployeeFactory extends Factory
     {
         // Get the most recently created tenant from the current test context.
         // Don't cache between tests (RefreshDatabase clears everything)
-        $tenant = TenantKey::query()->latest('id')->first();
-        if (! $tenant) {
-            TenantKey::ensureKekExists();
-            $keys = TenantKey::generateEnvelopeKeys();
-            $tenant = TenantKey::create($keys);
-        }
+        $tenant = Tenant::query()->latest('id')->first() ?? Tenant::factory()->create();
 
         $firstName = fake()->firstName();
         $lastName = fake()->lastName();

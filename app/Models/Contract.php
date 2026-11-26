@@ -32,7 +32,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property \Illuminate\Support\Carbon|null $retired_at
  * @property \Illuminate\Support\Carbon $created_at
  * @property \Illuminate\Support\Carbon $updated_at
- * @property-read TenantKey $tenant
+ * @property-read Tenant $tenant
  * @property-read Customer $customer
  * @property-read \Illuminate\Database\Eloquent\Collection<int, ServiceBooking> $serviceBookings
  */
@@ -84,10 +84,10 @@ class Contract extends Model
         ];
     }
 
-    /** @return BelongsTo<TenantKey, $this> */
+    /** @return BelongsTo<Tenant, $this> */
     public function tenant(): BelongsTo
     {
-        return $this->belongsTo(TenantKey::class, 'tenant_id');
+        return $this->belongsTo(Tenant::class, 'tenant_id');
     }
 
     /** @return BelongsTo<Customer, $this> */

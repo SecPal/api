@@ -5,11 +5,12 @@
 
 use App\Models\Customer;
 use App\Models\LegalEntity;
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 /**
- * @property TenantKey $tenant
+ * @property Tenant $tenant
  */
 uses(RefreshDatabase::class);
 
@@ -20,11 +21,11 @@ beforeEach(function (): void {
     TenantKey::ensureKekExists();
 
     // Create tenant for testing
-    if (! TenantKey::first()) {
-        $keys = TenantKey::generateEnvelopeKeys();
-        $this->tenant = TenantKey::create($keys);
+    if (! Tenant::first()) {
+
+        $this->tenant = Tenant::factory()->create();
     } else {
-        $this->tenant = TenantKey::first();
+        $this->tenant = Tenant::first();
     }
 });
 
@@ -125,8 +126,8 @@ test('scope active returns only active customers', function (): void {
 
 test('scope for tenant filters by tenant', function (): void {
     // Create another tenant
-    $keys = TenantKey::generateEnvelopeKeys();
-    $otherTenant = TenantKey::create($keys);
+
+    $otherTenant = Tenant::factory()->create();
 
     // Create customers for both tenants
     Customer::factory()->create(['tenant_id' => $this->tenant->id]);
@@ -141,7 +142,7 @@ test('scope for tenant filters by tenant', function (): void {
 test('customer has tenant relationship', function (): void {
     $customer = Customer::factory()->create(['tenant_id' => $this->tenant->id]);
 
-    expect($customer->tenant)->toBeInstanceOf(TenantKey::class)
+    expect($customer->tenant)->toBeInstanceOf(Tenant::class)
         ->and($customer->tenant->id)->toBe($this->tenant->id);
 });
 

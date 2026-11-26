@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 use App\Jobs\DeliverAndroidPushMessage;
 use App\Models\PushDeviceRegistration;
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use App\Models\User;
 use App\Services\AndroidPushDeliveryService;
@@ -24,7 +25,7 @@ beforeEach(function (): void {
     TenantKey::setKekPath(getTestKekPath());
     TenantKey::generateKek();
 
-    $this->tenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+    $this->tenant = Tenant::factory()->create();
     $this->user = User::factory()->create(['tenant_id' => $this->tenant->id]);
 
     config([
@@ -42,7 +43,7 @@ afterEach(function (): void {
     TenantKey::setKekPath(null);
 });
 
-function createQueuedAndroidPushRegistration(TenantKey $tenant, User $user): PushDeviceRegistration
+function createQueuedAndroidPushRegistration(Tenant $tenant, User $user): PushDeviceRegistration
 {
     return PushDeviceRegistration::query()->create([
         'tenant_id' => $tenant->id,

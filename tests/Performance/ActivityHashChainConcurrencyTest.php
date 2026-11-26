@@ -1,14 +1,14 @@
 <?php
 
 /**
- * SPDX-FileCopyrightText: 2025 SecPal Contributors
+ * SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 declare(strict_types=1);
 
 use App\Models\Activity;
-use App\Models\TenantKey;
+use App\Models\Tenant;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
@@ -37,11 +37,11 @@ uses(RefreshDatabase::class);
  */
 
 /**
- * @property TenantKey $tenant
+ * @property Tenant $tenant
  * @property User $user
  */
 beforeEach(function () {
-    $this->tenant = TenantKey::factory()->create();
+    $this->tenant = Tenant::factory()->create();
     $this->user = User::factory()->create(['tenant_id' => $this->tenant->id]);
     $this->actingAs($this->user);
 });
@@ -94,7 +94,7 @@ test('creates 100 logs sequentially with perfect hash chain integrity', function
 
 test('multi-tenant concurrent processing maintains isolation', function () {
     // Create 3 tenants
-    $tenants = collect(range(1, 3))->map(fn () => TenantKey::factory()->create());
+    $tenants = collect(range(1, 3))->map(fn () => Tenant::factory()->create());
 
     // Create 20 logs per tenant concurrently (simulate concurrent requests)
     $allLogs = $tenants->flatMap(function ($tenant) {

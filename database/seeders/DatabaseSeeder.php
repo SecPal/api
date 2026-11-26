@@ -6,7 +6,7 @@
 namespace Database\Seeders;
 
 use App\Models\Permission;
-use App\Models\TenantKey;
+use App\Models\Tenant;
 use App\Models\User;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
@@ -24,7 +24,7 @@ class DatabaseSeeder extends Seeder
         // Seed roles and permissions first
         $this->call(RolesAndPermissionsSeeder::class);
 
-        // Seed organizational structure (creates tenant key if needed)
+        // Seed organizational structure (creates tenant and key if needed)
         $this->call(OrganizationalUnitSeeder::class);
 
         // Seed standard onboarding form templates (system-wide)
@@ -36,8 +36,8 @@ class DatabaseSeeder extends Seeder
             $this->call(OnboardingDemoUserSeeder::class);
         }
 
-        // Get tenant ID from created tenant key (OrganizationalUnitSeeder ensures it exists)
-        $tenant = TenantKey::firstOrFail();
+        // Get tenant ID from created tenant (OrganizationalUnitSeeder ensures it exists)
+        $tenant = Tenant::query()->oldest('id')->firstOrFail();
         $tenantId = $tenant->id;
 
         // Set the team/tenant context for role assignment

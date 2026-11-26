@@ -9,7 +9,7 @@ namespace Database\Factories;
 
 use App\Models\Site;
 use App\Models\SiteAssignment;
-use App\Models\TenantKey;
+use App\Models\Tenant;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -34,12 +34,7 @@ class SiteAssignmentFactory extends Factory
      */
     public function definition(): array
     {
-        $tenant = TenantKey::query()->latest('id')->first();
-        if (! $tenant) {
-            TenantKey::ensureKekExists();
-            $keys = TenantKey::generateEnvelopeKeys();
-            $tenant = TenantKey::create($keys);
-        }
+        $tenant = Tenant::query()->latest('id')->first() ?? Tenant::factory()->create();
 
         return [
             'tenant_id' => $tenant->id,

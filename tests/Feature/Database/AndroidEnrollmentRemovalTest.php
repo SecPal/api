@@ -6,7 +6,7 @@
 declare(strict_types=1);
 
 use App\Models\Activity;
-use App\Models\TenantKey;
+use App\Models\Tenant;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -67,7 +67,7 @@ test('the removal migration drops existing enrollment data and configured permis
 });
 
 test('historical enrollment audit entries remain readable without changing forensic data', function (): void {
-    $tenant = TenantKey::factory()->create();
+    $tenant = Tenant::factory()->create();
     $subjectId = (string) Str::uuid();
     $activity = Activity::factory()->create([
         'tenant_id' => $tenant->id,

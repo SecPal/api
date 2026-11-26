@@ -10,6 +10,7 @@ use App\Models\CustomerAssignment;
 use App\Models\CustomerEstablishment;
 use App\Models\Establishment;
 use App\Models\OrganizationalUnit;
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -22,7 +23,7 @@ beforeEach(function (): void {
     incrementTestKekCounter();
     TenantKey::setKekPath(getTestKekPath());
     TenantKey::generateKek();
-    $this->tenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+    $this->tenant = Tenant::factory()->create();
     app(PermissionRegistrar::class)->setPermissionsTeamId($this->tenant->id);
     Artisan::call('db:seed', ['--class' => 'RolesAndPermissionsSeeder']);
 
@@ -85,7 +86,7 @@ test("customers.update does not authorize another tenant's customer establishmen
     $user = User::factory()->create(['tenant_id' => $this->tenant->id]);
     givePermissionWithTenant($user, $this->tenant->id, 'customers.update');
     app(PermissionRegistrar::class)->setPermissionsTeamId($this->tenant->id);
-    $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+    $otherTenant = Tenant::factory()->create();
     $otherCustomer = Customer::factory()->create(['tenant_id' => $otherTenant->id]);
     $otherEstablishment = Establishment::factory()->create([
         'tenant_id' => $otherTenant->id,

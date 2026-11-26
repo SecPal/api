@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 use App\Models\OrganizationalUnit;
 use App\Models\OrganizationalUnitClosure;
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use App\Models\User;
 use App\Models\UserInternalOrganizationalScope;
@@ -16,7 +17,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 uses(RefreshDatabase::class);
 
 /**
- * @property TenantKey $tenant
+ * @property Tenant $tenant
  * @property User $user
  * @property OrganizationalUnitAccessService $service
  */
@@ -25,7 +26,7 @@ beforeEach(function (): void {
     TenantKey::setKekPath(getTestKekPath());
     TenantKey::generateKek();
 
-    $this->tenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+    $this->tenant = Tenant::factory()->create();
     $this->user = User::factory()->create([
         'tenant_id' => $this->tenant->id,
     ]);

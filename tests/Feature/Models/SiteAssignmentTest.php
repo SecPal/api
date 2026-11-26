@@ -9,12 +9,13 @@ use App\Models\Customer;
 use App\Models\OrganizationalUnit;
 use App\Models\Site;
 use App\Models\SiteAssignment;
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 /**
- * @property TenantKey $tenant
+ * @property Tenant $tenant
  * @property Customer $customer
  * @property OrganizationalUnit $organizationalUnit
  * @property Site $site
@@ -24,8 +25,8 @@ uses(RefreshDatabase::class);
 
 beforeEach(function (): void {
     TenantKey::ensureKekExists();
-    $keys = TenantKey::generateEnvelopeKeys();
-    $this->tenant = TenantKey::create($keys);
+
+    $this->tenant = Tenant::factory()->create();
 
     $this->customer = Customer::factory()->create(['tenant_id' => $this->tenant->id]);
     $this->organizationalUnit = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
@@ -43,7 +44,7 @@ test('site assignment has required relationships', function (): void {
         'user_id' => $this->user->id,
     ]);
 
-    expect($assignment->tenant)->toBeInstanceOf(TenantKey::class)
+    expect($assignment->tenant)->toBeInstanceOf(Tenant::class)
         ->and($assignment->site)->toBeInstanceOf(Site::class)
         ->and($assignment->user)->toBeInstanceOf(User::class);
 });
@@ -140,8 +141,8 @@ test('forRole scope filters assignments by role', function (): void {
 });
 
 test('forTenant scope filters assignments by tenant', function (): void {
-    $keys2 = TenantKey::generateEnvelopeKeys();
-    $tenant2 = TenantKey::create($keys2);
+
+    $tenant2 = Tenant::factory()->create();
     $customer2 = Customer::factory()->create(['tenant_id' => $tenant2->id]);
     $orgUnit2 = OrganizationalUnit::factory()->create(['tenant_id' => $tenant2->id]);
     $site2 = Site::factory()->create([

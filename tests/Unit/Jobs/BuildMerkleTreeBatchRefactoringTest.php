@@ -11,7 +11,7 @@ use App\Jobs\BuildMerkleTreeBatch;
 use App\Jobs\SubmitMerkleRootToOpenTimestamp;
 use App\Models\Activity;
 use App\Models\Customer;
-use App\Models\TenantKey;
+use App\Models\Tenant;
 use App\Models\User;
 use App\Services\OpenTimestampService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -36,7 +36,7 @@ beforeEach(function () {
     $this->mock(OpenTimestampService::class)
         ->shouldReceive('submit')
         ->andReturn('mock-ots-proof');
-    $this->tenant = TenantKey::factory()->create();
+    $this->tenant = Tenant::factory()->create();
     $this->customer = Customer::factory()->create(['tenant_id' => $this->tenant->id]);
     $this->user = User::factory()->create(['tenant_id' => $this->tenant->id]);
 
@@ -243,7 +243,7 @@ test('batch count stored for integrity checking', function () {
  * Expected: PASS (existing functionality)
  */
 test('multiple tenants get separate batches', function () {
-    $tenant2 = TenantKey::factory()->create();
+    $tenant2 = Tenant::factory()->create();
     $customer2 = Customer::factory()->create(['tenant_id' => $tenant2->id]);
     $user2 = User::factory()->create(['tenant_id' => $tenant2->id]);
 

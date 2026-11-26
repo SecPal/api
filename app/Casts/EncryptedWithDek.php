@@ -62,7 +62,7 @@ class EncryptedWithDek implements CastsAttributes
 
         // Get tenant and decrypt
         /** @var TenantKey $tenant */
-        $tenant = TenantKey::findOrFail($attributes['tenant_id']);
+        $tenant = TenantKey::forTenant($attributes['tenant_id'] ?? null);
 
         try {
             return $tenant->decrypt($ciphertext, $nonce);
@@ -91,7 +91,7 @@ class EncryptedWithDek implements CastsAttributes
 
         // Get tenant and encrypt
         /** @var TenantKey $tenant */
-        $tenant = TenantKey::findOrFail($attributes['tenant_id']);
+        $tenant = TenantKey::forTenant($attributes['tenant_id'] ?? null);
         $encrypted = $tenant->encrypt($value);
 
         // Store as JSON: {ciphertext: base64, nonce: base64}

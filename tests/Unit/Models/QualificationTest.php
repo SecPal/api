@@ -1,24 +1,25 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use App\Models\Employee;
 use App\Models\Qualification;
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
 
 /**
- * @property TenantKey $tenant
+ * @property Tenant $tenant
  */
 beforeEach(function () {
     incrementTestKekCounter();
     TenantKey::setKekPath(getTestKekPath());
     TenantKey::generateKek();
-    $keys = TenantKey::generateEnvelopeKeys();
-    $this->tenant = TenantKey::create($keys);
+
+    $this->tenant = Tenant::factory()->create();
 });
 
 afterEach(function () {
@@ -37,7 +38,7 @@ test('qualification can be created with factory', function () {
 test('qualification has tenant relationship', function () {
     $qualification = Qualification::factory()->create(['tenant_id' => $this->tenant->id]);
 
-    expect($qualification->tenant)->toBeInstanceOf(TenantKey::class)
+    expect($qualification->tenant)->toBeInstanceOf(Tenant::class)
         ->and($qualification->tenant->id)->toBe($this->tenant->id);
 });
 

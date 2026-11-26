@@ -1,7 +1,7 @@
 <?php
 
 /*
- * SPDX-FileCopyrightText: 2025 SecPal Contributors
+ * SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
  *
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
@@ -19,6 +19,7 @@ test('tenant_keys table exists', function (): void {
 test('tenant_keys has correct columns', function (): void {
     expect(Schema::hasColumns('tenant_keys', [
         'id',
+        'tenant_id',
         'dek_wrapped',
         'dek_nonce',
         'idx_wrapped',

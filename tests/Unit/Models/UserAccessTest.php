@@ -8,6 +8,7 @@ use App\Models\CustomerAssignment;
 use App\Models\OrganizationalUnit;
 use App\Models\Site;
 use App\Models\SiteAssignment;
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use App\Models\User;
 use App\Models\UserInternalOrganizationalScope;
@@ -29,7 +30,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 uses(RefreshDatabase::class)->group('unit', 'models', 'user', 'access');
 
 /**
- * @property TenantKey $tenant
+ * @property Tenant $tenant
  * @property User $user
  */
 beforeEach(function () {
@@ -38,11 +39,11 @@ beforeEach(function () {
 
     TenantKey::ensureKekExists();
 
-    if (! TenantKey::first()) {
-        $keys = TenantKey::generateEnvelopeKeys();
-        $this->tenant = TenantKey::create($keys);
+    if (! Tenant::first()) {
+
+        $this->tenant = Tenant::factory()->create();
     } else {
-        $this->tenant = TenantKey::first();
+        $this->tenant = Tenant::first();
     }
 
     $this->user = User::factory()->create();

@@ -1,12 +1,13 @@
 <?php
 
 /*
- * SPDX-FileCopyrightText: 2025 SecPal Contributors
+ * SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
  *
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 use App\Models\Person;
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
@@ -14,7 +15,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 require_once __DIR__.'/../TestConstants.php';
 
 /**
- * @property TenantKey $tenant
+ * @property Tenant $tenant
  */
 uses(RefreshDatabase::class);
 
@@ -25,8 +26,8 @@ beforeEach(function (): void {
 
     // generateKek() will create the directory if needed
     TenantKey::generateKek();
-    $keys = TenantKey::generateEnvelopeKeys();
-    $this->tenant = TenantKey::create($keys);
+
+    $this->tenant = Tenant::factory()->create();
 });
 
 describe('Person Model - Encrypted Casts', function () {
@@ -329,8 +330,8 @@ describe('PersonRepository - Create or Update', function () {
 
 describe('Person Model - Tenant Isolation', function () {
     test('different tenants have different blind indexes for same email', function (): void {
-        $keys2 = TenantKey::generateEnvelopeKeys();
-        $tenant2 = TenantKey::create($keys2);
+
+        $tenant2 = Tenant::factory()->create();
 
         $person1 = new Person;
         $person1->tenant_id = $this->tenant->id;
@@ -350,8 +351,8 @@ describe('Person Model - Tenant Isolation', function () {
     });
 
     test('repository search is tenant-isolated', function (): void {
-        $keys2 = TenantKey::generateEnvelopeKeys();
-        $tenant2 = TenantKey::create($keys2);
+
+        $tenant2 = Tenant::factory()->create();
 
         // Create Person in tenant1
         $person1 = new Person;

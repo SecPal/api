@@ -9,6 +9,7 @@ use App\Models\EmployeeDocument;
 use App\Models\Establishment;
 use App\Models\LegalEntity;
 use App\Models\Qualification;
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use App\Models\User;
 use App\Observers\EmployeeObserver;
@@ -19,15 +20,15 @@ use Illuminate\Support\Str;
 uses(RefreshDatabase::class)->group('unit', 'models', 'employee');
 
 /**
- * @property TenantKey $tenant
+ * @property Tenant $tenant
  */
 beforeEach(function () {
     incrementTestKekCounter();
     // Create KEK and tenant (no factory for TenantKey)
     TenantKey::setKekPath(getTestKekPath());
     TenantKey::generateKek();
-    $keys = TenantKey::generateEnvelopeKeys();
-    $this->tenant = TenantKey::create($keys);
+
+    $this->tenant = Tenant::factory()->create();
 });
 
 afterEach(function () {

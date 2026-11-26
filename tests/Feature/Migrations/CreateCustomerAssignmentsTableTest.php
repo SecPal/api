@@ -4,7 +4,9 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use App\Models\Tenant;
 use App\Models\TenantKey;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -33,8 +35,8 @@ function createCustomerAssignmentTestUser(string $email, ?int $tenantId = null):
     if ($tenantId === null) {
         // Use first available tenant or create one
         // Each parallel process has its own database instance
-        $tenant = TenantKey::first();
-        $tenantId = $tenant !== null ? $tenant->id : TenantKey::factory()->create()->id;
+        $tenant = Tenant::first();
+        $tenantId = $tenant !== null ? $tenant->id : Tenant::factory()->create()->id;
     }
 
     $userId = Str::uuid()->toString();
@@ -148,12 +150,12 @@ describe('CreateCustomerAssignmentsTable Migration', function () {
         expect($hasUniqueConstraint)->toBeTrue();
     });
 
-    test('foreign key constraint on tenant_id references tenant_keys', function (): void {
+    test('foreign key constraint on tenant_id references tenants', function (): void {
         $foreignKeys = Schema::getForeignKeys('customer_assignments');
 
         $hasTenantForeignKey = collect($foreignKeys)->contains(function ($fk) {
             return in_array('tenant_id', $fk['columns'])
-                && $fk['foreign_table'] === 'tenant_keys';
+                && $fk['foreign_table'] === 'tenants';
         });
 
         expect($hasTenantForeignKey)->toBeTrue();
@@ -181,23 +183,23 @@ describe('CreateCustomerAssignmentsTable Migration', function () {
         expect($hasUserForeignKey)->toBeTrue();
     });
 
-    test('cascade delete removes assignments when tenant is deleted', function (): void {
-        $keys = TenantKey::generateEnvelopeKeys();
-        $tenant = TenantKey::create($keys);
+    test('restricts tenant deletion and preserves customer assignments', function (): void {
+
+        $tenant = Tenant::factory()->create();
         $userId = createCustomerAssignmentTestUser('user@example.com');
         $customerId = createCustomerAssignmentTestCustomer($tenant->id, 'KD-2025-001');
         $assignmentId = createMinimalCustomerAssignment($tenant->id, $customerId, $userId, 'Key Account Manager');
 
         expect(DB::table('customer_assignments')->where('id', $assignmentId)->exists())->toBeTrue();
 
-        $tenant->delete();
+        expect(fn () => DB::transaction(fn () => $tenant->delete()))->toThrow(QueryException::class, '23001');
 
-        expect(DB::table('customer_assignments')->where('id', $assignmentId)->exists())->toBeFalse();
+        expect(DB::table('customer_assignments')->where('id', $assignmentId)->exists())->toBeTrue();
     });
 
     test('cascade delete removes assignments when customer is deleted', function (): void {
-        $keys = TenantKey::generateEnvelopeKeys();
-        $tenant = TenantKey::create($keys);
+
+        $tenant = Tenant::factory()->create();
         $userId = createCustomerAssignmentTestUser('user@example.com');
         $customerId = createCustomerAssignmentTestCustomer($tenant->id, 'KD-2025-002');
         $assignmentId = createMinimalCustomerAssignment($tenant->id, $customerId, $userId, 'Sales Representative');
@@ -210,8 +212,8 @@ describe('CreateCustomerAssignmentsTable Migration', function () {
     });
 
     test('user delete preserves assignment history and clears the user reference', function (): void {
-        $keys = TenantKey::generateEnvelopeKeys();
-        $tenant = TenantKey::create($keys);
+
+        $tenant = Tenant::factory()->create();
         $userId = createCustomerAssignmentTestUser('user@example.com');
         $customerId = createCustomerAssignmentTestCustomer($tenant->id, 'KD-2025-003');
         $assignmentId = createMinimalCustomerAssignment($tenant->id, $customerId, $userId, 'Support Contact');
@@ -225,8 +227,8 @@ describe('CreateCustomerAssignmentsTable Migration', function () {
     });
 
     test('role column accepts flexible tenant-specific terminology', function (): void {
-        $keys = TenantKey::generateEnvelopeKeys();
-        $tenant = TenantKey::create($keys);
+
+        $tenant = Tenant::factory()->create();
         $userId = createCustomerAssignmentTestUser('user@example.com');
         $customerId = createCustomerAssignmentTestCustomer($tenant->id, 'KD-2025-004');
 
@@ -256,8 +258,8 @@ describe('CreateCustomerAssignmentsTable Migration', function () {
     });
 
     test('valid_from and valid_until allow temporal assignments', function (): void {
-        $keys = TenantKey::generateEnvelopeKeys();
-        $tenant = TenantKey::create($keys);
+
+        $tenant = Tenant::factory()->create();
         $userId = createCustomerAssignmentTestUser('user@example.com');
         $customerId = createCustomerAssignmentTestCustomer($tenant->id, 'KD-2025-005');
 
@@ -283,8 +285,8 @@ describe('CreateCustomerAssignmentsTable Migration', function () {
     });
 
     test('valid_until nullable allows indefinite assignments', function (): void {
-        $keys = TenantKey::generateEnvelopeKeys();
-        $tenant = TenantKey::create($keys);
+
+        $tenant = Tenant::factory()->create();
         $userId = createCustomerAssignmentTestUser('user@example.com');
         $customerId = createCustomerAssignmentTestCustomer($tenant->id, 'KD-2025-006');
 
@@ -306,8 +308,8 @@ describe('CreateCustomerAssignmentsTable Migration', function () {
     });
 
     test('unique constraint prevents duplicate user and role per customer', function (): void {
-        $keys = TenantKey::generateEnvelopeKeys();
-        $tenant = TenantKey::create($keys);
+
+        $tenant = Tenant::factory()->create();
         $userId = createCustomerAssignmentTestUser('user@example.com');
         $customerId = createCustomerAssignmentTestCustomer($tenant->id, 'KD-2025-007');
 
@@ -316,8 +318,8 @@ describe('CreateCustomerAssignmentsTable Migration', function () {
     })->throws(PDOException::class);
 
     test('same user can have different roles for same customer', function (): void {
-        $keys = TenantKey::generateEnvelopeKeys();
-        $tenant = TenantKey::create($keys);
+
+        $tenant = Tenant::factory()->create();
         $userId = createCustomerAssignmentTestUser('user@example.com');
         $customerId = createCustomerAssignmentTestCustomer($tenant->id, 'KD-2025-008');
 
@@ -333,8 +335,8 @@ describe('CreateCustomerAssignmentsTable Migration', function () {
     });
 
     test('notes column is nullable', function (): void {
-        $keys = TenantKey::generateEnvelopeKeys();
-        $tenant = TenantKey::create($keys);
+
+        $tenant = Tenant::factory()->create();
         $userId = createCustomerAssignmentTestUser('user@example.com');
         $customerId = createCustomerAssignmentTestCustomer($tenant->id, 'KD-2025-009');
 

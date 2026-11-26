@@ -10,6 +10,7 @@ use App\Models\Activity;
 use App\Models\CostCenterAllocation;
 use App\Models\InternalCostCenter;
 use App\Models\ServiceBooking;
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use App\Models\User;
 use App\Services\CostCenterAllocationAuditRecorder;
@@ -27,7 +28,7 @@ beforeEach(function (): void {
     incrementTestKekCounter();
     TenantKey::setKekPath(getTestKekPath());
     TenantKey::generateKek();
-    $this->tenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+    $this->tenant = Tenant::factory()->create();
     $this->actor = User::factory()->create(['tenant_id' => $this->tenant->id]);
     $this->token = $this->actor->createToken('allocation-api')->plainTextToken;
     Artisan::call('db:seed', ['--class' => 'RolesAndPermissionsSeeder']);
@@ -85,7 +86,7 @@ test('GET returns an empty snapshot and conceals unavailable bookings', function
     if ($kind === 'local') {
         $id = ServiceBooking::factory()->forTenant($this->tenant->id)->create()->id;
     } elseif ($kind === 'foreign') {
-        $foreignTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+        $foreignTenant = Tenant::factory()->create();
         $id = ServiceBooking::factory()->forTenant($foreignTenant->id)->create()->id;
     } elseif ($kind === 'missing') {
         $id = (string) Str::uuid();
@@ -267,7 +268,7 @@ test('PUT conceals foreign and nonexistent centers and rejects inactive centers 
     $original = CostCenterAllocation::factory()->createCompleteSplit($booking)->sole();
     $id = (string) Str::uuid();
     if ($kind === 'foreign') {
-        $foreignTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+        $foreignTenant = Tenant::factory()->create();
         $id = InternalCostCenter::factory()->forTenant($foreignTenant->id)->create()->id;
     } elseif ($kind === 'inactive') {
         $id = InternalCostCenter::factory()->forTenant($this->tenant->id)->inactive()->create()->id;

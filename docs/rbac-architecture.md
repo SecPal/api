@@ -63,11 +63,11 @@ Note: All role assignments and permissions are tenant-scoped via Spatie
 ### Database Schema Overview
 
 ```text
-tenant_keys                users                    model_has_roles
+tenants                    users                    model_has_roles
 ┌──────────────┐         ┌──────────────┐         ┌──────────────────┐
 │ id (PK)      │◀────────│ id           │────┐    │ model_id (FK)    │
-│ dek_wrapped  │         │ email        │    └───▶│ role_id (FK)     │
-│ idx_wrapped  │         │ name         │         │ team_id (FK)     │◀──┐
+│ created_at   │         │ email        │    └───▶│ role_id (FK)     │
+│ updated_at   │         │ name         │         │ team_id (FK)     │◀──┐
 └──────────────┘         │ tenant_id(FK)│         │ valid_from       │   │
                          └──────────────┘         │ valid_until      │   │
                                                   │ auto_revoke      │   │
@@ -109,7 +109,7 @@ All role assignments and permissions are **tenant-scoped** using Spatie Permissi
 
 ```php
 // User belongs to a tenant
-$user->tenant_id = 1; // Foreign key to tenant_keys table
+$user->tenant_id = 1; // Foreign key to tenants table
 
 // When assigning roles, set team ID (tenant ID)
 app(PermissionRegistrar::class)->setPermissionsTeamId($user->tenant_id);
@@ -152,9 +152,9 @@ app(PermissionRegistrar::class)->setPermissionsTeamId($user->tenant_id);
 #### Role Assignment Example (Tenant-Scoped)
 
 ```php
-// Create two tenants
-$tenant1 = TenantKey::find(1);
-$tenant2 = TenantKey::find(2);
+// Load two existing tenants
+$tenant1 = Tenant::find(1);
+$tenant2 = Tenant::find(2);
 
 // Create users in different tenants
 $user1 = User::create(['email' => 'manager@tenant1.com', 'tenant_id' => 1]);

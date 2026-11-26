@@ -10,8 +10,12 @@ namespace App\Models;
 
 use App\Exceptions\CorruptedEncryptedAttributeException;
 use App\Exceptions\TenantKeyDecryptionException;
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use SensitiveParameter;
 use SodiumException;
 
 /**
@@ -20,19 +24,19 @@ use SodiumException;
  * This model stores wrapped Data Encryption Keys (DEK) and Index Keys (idx_key)
  * using envelope encryption with a Key Encryption Key (KEK).
  *
- * @property int $id
+ * @property string $id
+ * @property int $tenant_id
  * @property string $dek_wrapped BYTEA wrapped DEK
  * @property string $dek_nonce BYTEA nonce for DEK
  * @property string $idx_wrapped BYTEA wrapped idx_key
  * @property string $idx_nonce BYTEA nonce for idx_key
  * @property int $key_version Key version for rotation
  * @property \Illuminate\Support\Carbon $created_at
- * @property-read \Illuminate\Database\Eloquent\Collection<int, User> $users
  */
 class TenantKey extends Model
 {
     /** @use HasFactory<\Database\Factories\TenantKeyFactory> */
-    use HasFactory;
+    use HasFactory, HasUuids;
 
     /**
      * File system permissions for keys directory (owner read/write/execute only)
@@ -108,46 +112,20 @@ class TenantKey extends Model
         'key_version' => 1,
     ];
 
-    /**
-     * Get the foreign key column name for the tenant.
-     */
-    public function getTenantIdColumn(): string
+    /** @return BelongsTo<Tenant, $this> */
+    public function tenant(): BelongsTo
     {
-        return 'id'; // tenant_keys.id is the tenant identifier
+        return $this->belongsTo(Tenant::class);
     }
 
-    /**
-     * Get all users belonging to this tenant.
-     *
-     * @return \Illuminate\Database\Eloquent\Relations\HasMany<User, $this>
-     */
-    public function users(): \Illuminate\Database\Eloquent\Relations\HasMany
+    public static function forTenant(mixed $tenantId): self
     {
-        return $this->hasMany(User::class, 'tenant_id');
-    }
+        $id = Tenant::parseId($tenantId);
+        if ($id === null) {
+            throw (new ModelNotFoundException)->setModel(self::class);
+        }
 
-    /** @return \Illuminate\Database\Eloquent\Relations\HasMany<Contract, $this> */
-    public function contracts(): \Illuminate\Database\Eloquent\Relations\HasMany
-    {
-        return $this->hasMany(Contract::class, 'tenant_id');
-    }
-
-    /** @return \Illuminate\Database\Eloquent\Relations\HasMany<ServiceBooking, $this> */
-    public function serviceBookings(): \Illuminate\Database\Eloquent\Relations\HasMany
-    {
-        return $this->hasMany(ServiceBooking::class, 'tenant_id');
-    }
-
-    /** @return \Illuminate\Database\Eloquent\Relations\HasMany<InternalCostCenter, $this> */
-    public function internalCostCenters(): \Illuminate\Database\Eloquent\Relations\HasMany
-    {
-        return $this->hasMany(InternalCostCenter::class, 'tenant_id');
-    }
-
-    /** @return \Illuminate\Database\Eloquent\Relations\HasMany<CostCenterAllocation, $this> */
-    public function costCenterAllocations(): \Illuminate\Database\Eloquent\Relations\HasMany
-    {
-        return $this->hasMany(CostCenterAllocation::class, 'tenant_id');
+        return self::query()->where('tenant_id', $id)->firstOrFail();
     }
 
     /**
@@ -502,86 +480,112 @@ class TenantKey extends Model
         return is_dir($dir);
     }
 
-    /**
-     * Generate new envelope keys (DEK and idx_key) wrapped with KEK.
-     *
-     * @return array{dek_wrapped: string, dek_nonce: string, idx_wrapped: string, idx_nonce: string}
-     *
-     * @throws \RuntimeException if KEK is not available
-     */
-    public static function generateEnvelopeKeys(): array
+    /** @return array{dek_wrapped: string, dek_nonce: string, idx_wrapped: string, idx_nonce: string} */
+    public static function generateEnvelopeKeys(int $tenantId): array
     {
         $kek = self::loadKek();
-
-        // Generate Data Encryption Key (DEK)
         $dek = sodium_crypto_secretbox_keygen();
-        $dekNonce = random_bytes(SODIUM_CRYPTO_SECRETBOX_NONCEBYTES);
-        $dekWrapped = sodium_crypto_secretbox($dek, $dekNonce, $kek);
+        $indexKey = sodium_crypto_secretbox_keygen();
 
-        // Generate Index Key for HMAC-SHA256 blind indexes (32 bytes)
-        $idxKey = sodium_crypto_secretbox_keygen();
-        $idxNonce = random_bytes(SODIUM_CRYPTO_SECRETBOX_NONCEBYTES);
-        $idxWrapped = sodium_crypto_secretbox($idxKey, $idxNonce, $kek);
-
-        sodium_memzero($kek);
-        sodium_memzero($dek);
-        sodium_memzero($idxKey);
-
-        return [
-            'dek_wrapped' => $dekWrapped,
-            'dek_nonce' => $dekNonce,
-            'idx_wrapped' => $idxWrapped,
-            'idx_nonce' => $idxNonce,
-        ];
+        try {
+            return self::wrapKey($tenantId, 'dek', $dek, $kek)
+                + self::wrapKey($tenantId, 'idx', $indexKey, $kek);
+        } finally {
+            sodium_memzero($kek);
+            sodium_memzero($dek);
+            sodium_memzero($indexKey);
+        }
     }
 
-    /**
-     * Unwrap the Data Encryption Key (DEK).
-     *
-     * @throws CorruptedEncryptedAttributeException if the wrapped DEK fails authentication (corrupt envelope)
-     * @throws \RuntimeException if the KEK cannot be loaded (operational/transient)
-     */
     public function unwrapDek(): string
     {
+        return $this->unwrapKey('dek');
+    }
+
+    public function unwrapIdxKey(): string
+    {
+        return $this->unwrapKey('idx');
+    }
+
+    public function replaceDek(#[SensitiveParameter] string $dek): void
+    {
         $kek = self::loadKek();
-
-        $dek = sodium_crypto_secretbox_open(
-            $this->dek_wrapped,
-            $this->dek_nonce,
-            $kek
-        );
-
-        sodium_memzero($kek);
-
-        if ($dek === false) {
-            throw new CorruptedEncryptedAttributeException('Failed to unwrap DEK');
+        try {
+            $this->update(self::wrapKey($this->tenant_id, 'dek', $dek, $kek) + [
+                'key_version' => $this->key_version + 1,
+            ]);
+        } finally {
+            sodium_memzero($kek);
         }
+    }
 
-        return $dek;
+    /** @return array{dek_wrapped: string, dek_nonce: string, idx_wrapped: string, idx_nonce: string} */
+    public function rewrappedEnvelopes(#[SensitiveParameter] string $oldKek, #[SensitiveParameter] string $newKek): array
+    {
+        $dek = $this->unwrapKey('dek', $oldKek);
+        try {
+            $indexKey = $this->unwrapKey('idx', $oldKek);
+            try {
+                return self::wrapKey($this->tenant_id, 'dek', $dek, $newKek)
+                    + self::wrapKey($this->tenant_id, 'idx', $indexKey, $newKek);
+            } finally {
+                sodium_memzero($indexKey);
+            }
+        } finally {
+            sodium_memzero($dek);
+        }
     }
 
     /**
-     * Unwrap the Index Key for blind indexes.
+     * @template TPurpose of 'dek'|'idx'
      *
-     * @throws \RuntimeException if unwrapping fails
+     * @param  TPurpose  $purpose
+     * @return (TPurpose is 'dek' ? array{dek_wrapped: string, dek_nonce: string} : array{idx_wrapped: string, idx_nonce: string})
      */
-    public function unwrapIdxKey(): string
+    private static function wrapKey(
+        int $tenantId,
+        string $purpose,
+        #[SensitiveParameter] string $key,
+        #[SensitiveParameter] string $kek,
+    ): array {
+        $nonce = random_bytes(SODIUM_CRYPTO_AEAD_XCHACHA20POLY1305_IETF_NPUBBYTES);
+        $wrapped = sodium_crypto_aead_xchacha20poly1305_ietf_encrypt($key, self::keyContext($tenantId, $purpose), $nonce, $kek);
+
+        return $purpose === 'dek'
+            ? ['dek_wrapped' => $wrapped, 'dek_nonce' => $nonce]
+            : ['idx_wrapped' => $wrapped, 'idx_nonce' => $nonce];
+    }
+
+    /** @param 'dek'|'idx' $purpose */
+    private function unwrapKey(string $purpose, #[SensitiveParameter] ?string $kek = null): string
     {
-        $kek = self::loadKek();
-
-        $idxKey = sodium_crypto_secretbox_open(
-            $this->idx_wrapped,
-            $this->idx_nonce,
-            $kek
-        );
-
-        sodium_memzero($kek);
-
-        if ($idxKey === false) {
-            throw new \RuntimeException('Failed to unwrap idx_key');
+        $kek ??= self::loadKek();
+        try {
+            [$wrapped, $nonce] = $purpose === 'dek'
+                ? [$this->dek_wrapped, $this->dek_nonce]
+                : [$this->idx_wrapped, $this->idx_nonce];
+            $key = sodium_crypto_aead_xchacha20poly1305_ietf_decrypt(
+                $wrapped,
+                self::keyContext($this->tenant_id, $purpose),
+                $nonce,
+                $kek,
+            );
+        } catch (SodiumException) {
+            throw new CorruptedEncryptedAttributeException('Invalid tenant key envelope');
+        } finally {
+            sodium_memzero($kek);
         }
 
-        return $idxKey;
+        if ($key === false || strlen($key) !== SODIUM_CRYPTO_SECRETBOX_KEYBYTES) {
+            throw new CorruptedEncryptedAttributeException('Invalid tenant key envelope');
+        }
+
+        return $key;
+    }
+
+    private static function keyContext(int $tenantId, string $purpose): string
+    {
+        return "secpal/tenant-key/v1/{$purpose}/{$tenantId}";
     }
 
     /**
@@ -591,7 +595,7 @@ class TenantKey extends Model
      *
      * @throws \RuntimeException if encryption fails
      */
-    public function encrypt(string $plaintext): array
+    public function encrypt(#[SensitiveParameter] string $plaintext): array
     {
         $dek = $this->unwrapDek();
         $nonce = random_bytes(SODIUM_CRYPTO_SECRETBOX_NONCEBYTES);
@@ -635,7 +639,7 @@ class TenantKey extends Model
      *
      * Uses HMAC-SHA256 with the tenant's index key.
      */
-    public function generateBlindIndex(string $plaintext): string
+    public function generateBlindIndex(#[SensitiveParameter] string $plaintext): string
     {
         $idxKey = $this->unwrapIdxKey();
         $index = hash_hmac(self::HMAC_ALGORITHM, $plaintext, $idxKey, true);

@@ -39,7 +39,7 @@ function encryptLegacyAddressValue(int $tenantId, ?string $value): ?string
         return null;
     }
 
-    $tenant = TenantKey::query()->findOrFail($tenantId);
+    $tenant = TenantKey::forTenant($tenantId);
     $encrypted = $tenant->encrypt($value);
 
     return json_encode([
@@ -56,7 +56,7 @@ function decryptLegacyAddressValue(int $tenantId, ?string $value): ?string
 
     /** @var array{ciphertext: string, nonce: string} $decoded */
     $decoded = json_decode($value, true, 512, JSON_THROW_ON_ERROR);
-    $tenant = TenantKey::query()->findOrFail($tenantId);
+    $tenant = TenantKey::forTenant($tenantId);
 
     return $tenant->decrypt(
         base64_decode($decoded['ciphertext'], true) ?: throw new RuntimeException('Invalid ciphertext.'),

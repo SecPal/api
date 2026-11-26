@@ -6,6 +6,7 @@
 use App\Models\Employee;
 use App\Models\OnboardingFormSubmission;
 use App\Models\OnboardingFormTemplate;
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use App\Services\OnboardingResidentialAddressHistorySyncService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -16,8 +17,8 @@ beforeEach(function () {
     incrementTestKekCounter();
     TenantKey::setKekPath(getTestKekPath());
     TenantKey::generateKek();
-    $keys = TenantKey::generateEnvelopeKeys();
-    $this->tenant = TenantKey::create($keys);
+
+    $this->tenant = Tenant::factory()->create();
 });
 
 afterEach(function () {

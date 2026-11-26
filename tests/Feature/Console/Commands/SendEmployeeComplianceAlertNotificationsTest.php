@@ -9,6 +9,7 @@ declare(strict_types=1);
 use App\Mail\EmployeeComplianceAlertMail;
 use App\Models\Employee;
 use App\Models\OrganizationalUnit;
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -18,7 +19,7 @@ use Illuminate\Support\Facades\Mail;
 uses(RefreshDatabase::class);
 
 /**
- * @property TenantKey $tenant
+ * @property Tenant $tenant
  * @property OrganizationalUnit $orgUnit
  */
 beforeEach(function (): void {
@@ -27,8 +28,8 @@ beforeEach(function (): void {
     incrementTestKekCounter();
     TenantKey::setKekPath(getTestKekPath());
     TenantKey::generateKek();
-    $keys = TenantKey::generateEnvelopeKeys();
-    $this->tenant = TenantKey::create($keys);
+
+    $this->tenant = Tenant::factory()->create();
 
     $this->orgUnit = OrganizationalUnit::create([
         'tenant_id' => $this->tenant->id,

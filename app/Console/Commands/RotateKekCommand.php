@@ -1,7 +1,7 @@
 <?php
 
 /*
- * SPDX-FileCopyrightText: 2025 SecPal Contributors
+ * SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
  *
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
@@ -15,11 +15,9 @@ use Illuminate\Console\Command;
  * Rotate the Key Encryption Key (KEK) and re-wrap all tenant keys.
  *
  * This command:
- * 1. Backs up the old KEK
- * 2. Generates a new KEK
- * 3. Unwraps all tenant DEKs and idx_keys with the old KEK
- * 4. Re-wraps them with the new KEK
- * 5. Updates the tenant_keys table
+ * 1. Authenticates existing envelopes and prepares the replacements
+ * 2. Backs up the old KEK and writes the new KEK
+ * 3. Updates the tenant_keys table
  *
  * WARNING: Keep the backup KEK safe until all tenants are verified!
  */
@@ -46,6 +44,9 @@ class RotateKekCommand extends Command
     {
         $this->info('Starting KEK rotation...');
 
+        $oldKek = null;
+        $newKek = null;
+
         try {
             // Use TenantKey's getKekPath() method to respect test overrides
             $kekPath = TenantKey::getKekPath();
@@ -56,81 +57,37 @@ class RotateKekCommand extends Command
                 return Command::FAILURE;
             }
 
-            // Step 1: Load old KEK
-            $oldKek = file_get_contents($kekPath);
+            $oldKek = TenantKey::loadKek();
 
-            if ($oldKek === false || strlen($oldKek) !== SODIUM_CRYPTO_SECRETBOX_KEYBYTES) {
-                $this->error('❌ Invalid KEK file');
-
-                return Command::FAILURE;
+            // Authenticate every tenant and purpose before changing keys on disk.
+            $newKek = sodium_crypto_secretbox_keygen();
+            $tenants = TenantKey::all();
+            $rewrapped = [];
+            foreach ($tenants as $tenantKey) {
+                $rewrapped[$tenantKey->id] = $tenantKey->rewrappedEnvelopes($oldKek, $newKek);
             }
 
-            // Step 2: Backup old KEK
             $backupPath = $kekPath.'.'.date('Y-m-d_H-i-s').'.bak';
             file_put_contents($backupPath, $oldKek);
             chmod($backupPath, 0600);
             $this->info("✅ Backed up old KEK to: {$backupPath}");
 
-            // Step 3: Generate new KEK
-            $newKek = sodium_crypto_secretbox_keygen();
             file_put_contents($kekPath, $newKek);
             chmod($kekPath, 0600);
             $this->info('✅ Generated new KEK');
 
-            // Step 4: Re-wrap all tenant keys
-            $tenants = TenantKey::all();
             $this->info("Re-wrapping keys for {$tenants->count()} tenant(s)...");
 
             $bar = $this->output->createProgressBar($tenants->count());
 
-            foreach ($tenants as $tenant) {
-                // Unwrap with old KEK
-                $dek = sodium_crypto_secretbox_open(
-                    $tenant->dek_wrapped,
-                    $tenant->dek_nonce,
-                    $oldKek
-                );
-
-                $idxKey = sodium_crypto_secretbox_open(
-                    $tenant->idx_wrapped,
-                    $tenant->idx_nonce,
-                    $oldKek
-                );
-
-                if ($dek === false || $idxKey === false) {
-                    $this->error("\n❌ Failed to unwrap keys for tenant {$tenant->id}");
-                    sodium_memzero($oldKek);
-                    sodium_memzero($newKek);
-
-                    return Command::FAILURE;
-                }
-
-                // Re-wrap with new KEK
-                $dekNonce = random_bytes(SODIUM_CRYPTO_SECRETBOX_NONCEBYTES);
-                $dekWrapped = sodium_crypto_secretbox($dek, $dekNonce, $newKek);
-
-                $idxNonce = random_bytes(SODIUM_CRYPTO_SECRETBOX_NONCEBYTES);
-                $idxWrapped = sodium_crypto_secretbox($idxKey, $idxNonce, $newKek);
-
-                // Update tenant
-                $tenant->update([
-                    'dek_wrapped' => $dekWrapped,
-                    'dek_nonce' => $dekNonce,
-                    'idx_wrapped' => $idxWrapped,
-                    'idx_nonce' => $idxNonce,
-                ]);
-
-                sodium_memzero($dek);
-                sodium_memzero($idxKey);
+            foreach ($tenants as $tenantKey) {
+                $tenantKey->update($rewrapped[$tenantKey->id]);
 
                 $bar->advance();
             }
 
             $bar->finish();
             $this->newLine();
-
-            sodium_memzero($oldKek);
-            sodium_memzero($newKek);
 
             $this->info("✅ Re-wrapped {$tenants->count()} tenant(s)");
             $this->info('✅ KEK rotation complete!');
@@ -141,6 +98,13 @@ class RotateKekCommand extends Command
             $this->error('❌ KEK rotation failed: '.$e->getMessage());
 
             return Command::FAILURE;
+        } finally {
+            if ($oldKek !== null) {
+                sodium_memzero($oldKek);
+            }
+            if ($newKek !== null) {
+                sodium_memzero($newKek);
+            }
         }
     }
 }

@@ -6,6 +6,7 @@ declare(strict_types=1);
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use App\Models\OnboardingFormTemplate;
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
@@ -23,24 +24,24 @@ afterEach(function (): void {
 });
 
 test('onboarding form template factory creates a tenant when none exists', function (): void {
-    expect(TenantKey::count())->toBe(0);
+    expect(Tenant::count())->toBe(0);
 
     $template = OnboardingFormTemplate::factory()->create();
 
     expect($template->tenant_id)->not->toBeNull()
-        ->and(TenantKey::count())->toBe(1)
-        ->and($template->tenant)->toBeInstanceOf(TenantKey::class);
+        ->and(Tenant::count())->toBe(1)
+        ->and($template->tenant)->toBeInstanceOf(Tenant::class);
 });
 
 test('onboarding form template factory respects an explicit tenant id', function (): void {
-    $tenant = TenantKey::factory()->create();
+    $tenant = Tenant::factory()->create();
 
     $template = OnboardingFormTemplate::factory()->create([
         'tenant_id' => $tenant->id,
     ]);
 
     expect($template->tenant_id)->toBe($tenant->id)
-        ->and(TenantKey::count())->toBe(1);
+        ->and(Tenant::count())->toBe(1);
 });
 
 test('system onboarding form template state stays tenantless', function (): void {
@@ -48,5 +49,5 @@ test('system onboarding form template state stays tenantless', function (): void
 
     expect($template->tenant_id)->toBeNull()
         ->and($template->is_system_template)->toBeTrue()
-        ->and(TenantKey::count())->toBe(0);
+        ->and(Tenant::count())->toBe(0);
 });

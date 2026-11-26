@@ -8,7 +8,7 @@ declare(strict_types=1);
 namespace Database\Factories;
 
 use App\Models\Person;
-use App\Models\TenantKey;
+use App\Models\Tenant;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -31,12 +31,7 @@ final class PersonFactory extends Factory
     public function definition(): array
     {
         // Resolve the latest tenant so factory defaults follow the current test context.
-        $tenant = TenantKey::query()->latest('id')->first();
-        if (! $tenant) {
-            TenantKey::ensureKekExists();
-            $keys = TenantKey::generateEnvelopeKeys();
-            $tenant = TenantKey::create($keys);
-        }
+        $tenant = Tenant::query()->latest('id')->first() ?? Tenant::factory()->create();
 
         return [
             'tenant_id' => $tenant->id,

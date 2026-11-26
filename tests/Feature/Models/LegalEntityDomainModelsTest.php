@@ -10,6 +10,7 @@ use App\Models\CustomerEstablishment;
 use App\Models\Establishment;
 use App\Models\LegalEntity;
 use App\Models\OrganizationalUnit;
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use App\Models\User;
 use App\Models\UserInternalOrganizationalScope;
@@ -74,7 +75,7 @@ test('customer establishment stores local contact data outside customer master d
 });
 
 test('domain creation policies do not infer Legal Entity access from OU scopes', function (): void {
-    $tenant = TenantKey::factory()->create();
+    $tenant = Tenant::factory()->create();
     app(PermissionRegistrar::class)->setPermissionsTeamId($tenant->id);
     Artisan::call('db:seed', ['--class' => 'RolesAndPermissionsSeeder']);
 

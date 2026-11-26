@@ -150,10 +150,10 @@ class CustomerEstablishment extends Model
         return $value;
     }
 
-    /** @return BelongsTo<TenantKey, $this> */
+    /** @return BelongsTo<Tenant, $this> */
     public function tenant(): BelongsTo
     {
-        return $this->belongsTo(TenantKey::class);
+        return $this->belongsTo(Tenant::class);
     }
 
     /** @return BelongsTo<Customer, $this> */

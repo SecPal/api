@@ -5,6 +5,7 @@
 
 declare(strict_types=1);
 
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -41,11 +42,11 @@ afterEach(function (): void {
 });
 
 /**
- * @return array{tenant: TenantKey, user: User}
+ * @return array{tenant: Tenant, user: User}
  */
 function createPushDeviceContext(): array
 {
-    $tenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+    $tenant = Tenant::factory()->create();
     $user = User::factory()->create(['tenant_id' => $tenant->id]);
 
     return [
@@ -55,11 +56,11 @@ function createPushDeviceContext(): array
 }
 
 /**
- * @return array{tenant: TenantKey, user: User}
+ * @return array{tenant: Tenant, user: User}
  */
 function createBrowserPushContext(): array
 {
-    $tenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+    $tenant = Tenant::factory()->create();
     $user = User::factory()->create([
         'tenant_id' => $tenant->id,
         'email' => 'browser-web-push-'.Str::uuid().'@testing.secpal.dev',

@@ -10,6 +10,7 @@ use App\Models\Customer;
 use App\Models\CustomerEstablishment;
 use App\Models\Establishment;
 use App\Models\Site;
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabaseState;
@@ -61,7 +62,7 @@ function refreshCustomerSiteNumberConcurrencyDatabase(): void
 }
 
 /**
- * @property TenantKey $tenant
+ * @property Tenant $tenant
  * @property User $user
  * @property string $token
  * @property Customer $customer
@@ -73,8 +74,8 @@ beforeEach(function (): void {
     incrementTestKekCounter();
     TenantKey::setKekPath(getTestKekPath());
     TenantKey::generateKek();
-    $keys = TenantKey::generateEnvelopeKeys();
-    $this->tenant = TenantKey::create($keys);
+
+    $this->tenant = Tenant::factory()->create();
 
     $registrar = app(PermissionRegistrar::class);
     $registrar->setPermissionsTeamId($this->tenant->id);

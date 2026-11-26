@@ -11,6 +11,7 @@ namespace App\Console\Commands;
 
 use App\Models\Activity;
 use App\Models\ActivityArchive;
+use App\Models\Tenant;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -73,10 +74,17 @@ class ApplyRetentionPolicies extends Command
 
         // Get tenants to process
         $tenantFilter = $this->option('tenant');
+        $tenantId = Tenant::parseId($tenantFilter);
+        if ($tenantFilter !== null && $tenantId === null) {
+            $this->error('The --tenant option must be a numeric tenant ID.');
+
+            return self::FAILURE;
+        }
+
         /** @var \Illuminate\Support\Collection<int, int|string> $tenantIds */
-        $tenantIds = $tenantFilter
-            ? collect([$tenantFilter])
-            : Activity::distinct('tenant_id')->pluck('tenant_id');
+        $tenantIds = $tenantId === null
+            ? Activity::distinct('tenant_id')->pluck('tenant_id')
+            : collect([$tenantId]);
 
         if ($tenantIds->isEmpty()) {
             $this->info('No tenants with activity logs found.');

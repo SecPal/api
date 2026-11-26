@@ -5,8 +5,8 @@ SPDX-License-Identifier: CC0-1.0
 
 # Tenant Provisioning Guide
 
-Examples for the shipped tenant-key-based data model, where users have a direct
-tenant association. Use the automatic seed example only in a disposable
+Examples for the shipped model, where users have a direct association with
+a functional tenant. Each tenant has a separate key record. Use the automatic seed example only in a disposable
 development database. [ADR-014: Tenant, Identity, Employee, and Access Model](https://github.com/SecPal/.github/blob/main/docs/adr/20260720-tenant-identity-access-model-adr014.md)
 defines the accepted membership-based redesign and audited tenant bootstrap.
 The [production boundary](../deployment.md) owns deployment guidance.
@@ -33,8 +33,8 @@ php artisan migrate:fresh --seed
 
 The `OrganizationalUnitSeeder` handles:
 
-1. Check if `TenantKey` exists
-2. If not: generate KEK, create envelope keys, insert tenant record
+1. Check if a tenant exists
+2. Create the tenant and its wrapped keys together when initializing the database
 3. Seed organizational structure with that `tenant_id`
 4. Create test users linked to that tenant
 
@@ -79,7 +79,7 @@ namespace App\Console\Commands;
 
 use App\Models\OrganizationalUnit;
 use App\Models\Permission;
-use App\Models\TenantKey;
+use App\Services\TenantProvisioner;
 use App\Models\User;
 use App\Models\UserInternalOrganizationalScope;
 use Illuminate\Console\Command;
@@ -111,8 +111,7 @@ class ProvisionTenant extends Command
         try {
             // Step 1: Create tenant with encryption keys
             $this->info('1️⃣  Creating tenant encryption keys...');
-            $keys = TenantKey::generateEnvelopeKeys();
-            $tenant = TenantKey::create($keys);
+            $tenant = app(TenantProvisioner::class)->create()->tenant()->firstOrFail();
             $this->line("   ✅ Tenant created (ID: {$tenant->id})");
 
             // Step 2: Create bootstrap user
@@ -247,7 +246,7 @@ php artisan tinker
 ```
 
 ```php
-use App\Models\TenantKey;
+use App\Services\TenantProvisioner;
 use App\Models\User;
 use App\Models\OrganizationalUnit;
 use App\Models\Permission;
@@ -256,7 +255,7 @@ use Illuminate\Support\Facades\Hash;
 use Spatie\Permission\PermissionRegistrar;
 
 // 1. Create tenant
-$tenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+$tenant = app(TenantProvisioner::class)->create()->tenant()->firstOrFail();
 echo "Tenant created: ID = {$tenant->id}\n";
 
 // 2. Create bootstrap user
@@ -637,7 +636,7 @@ class TenantKeyObserver
     public function created(TenantKey $tenant): void
     {
         Log::info('Tenant provisioned', [
-            'tenant_id' => $tenant->id,
+            'tenant_id' => $tenant->tenant_id,
             'key_version' => $tenant->key_version,
         ]);
 
@@ -694,9 +693,9 @@ mkdir -p "$BACKUP_DIR"
 
 # Export tenant keys (encrypted)
 php artisan tinker --execute="
-  \$tenant = \App\Models\TenantKey::find(${TENANT_ID});
+  \$tenant = \App\Models\TenantKey::forTenant(${TENANT_ID});
   echo json_encode([
-    'tenant_id' => \$tenant->id,
+    'tenant_id' => \$tenant->tenant_id,
     'dek_wrapped' => base64_encode(\$tenant->dek_wrapped),
     'idx_wrapped' => base64_encode(\$tenant->idx_wrapped),
     'key_version' => \$tenant->key_version,

@@ -1,7 +1,7 @@
 <?php
 
 /*
- * SPDX-FileCopyrightText: 2025 SecPal Contributors
+ * SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
  *
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
@@ -122,7 +122,7 @@ test('person has GIN index on note_tsv', function (): void {
     expect($index->indexdef)->toContain('USING gin'); // @phpstan-ignore property.nonObject
 });
 
-test('person has foreign key to tenant_keys', function (): void {
+test('person has foreign key to tenants', function (): void {
     $fk = DB::selectOne("
         SELECT constraint_name
         FROM information_schema.table_constraints

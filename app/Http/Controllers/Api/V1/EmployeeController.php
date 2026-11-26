@@ -18,7 +18,7 @@ use App\Models\Employee;
 use App\Models\EmployeeAddress;
 use App\Models\EmployeeDocument;
 use App\Models\EmployeeQualification;
-use App\Models\TenantKey;
+use App\Models\Tenant;
 use App\Models\User;
 use App\Services\BewacherregisterExportService;
 use App\Services\DomainAccessService;
@@ -169,7 +169,7 @@ class EmployeeController extends Controller
 
         // Prepare data with tenant_id FIRST (required for encryption cast to work)
         $employee = DB::transaction(function () use ($tenantId, $validated): Employee {
-            TenantKey::query()->select('id')->whereKey($tenantId)->lockForUpdate()->firstOrFail();
+            Tenant::query()->select('id')->whereKey($tenantId)->lockForUpdate()->firstOrFail();
 
             $addresses = $validated['addresses'] ?? [];
             unset($validated['addresses']);

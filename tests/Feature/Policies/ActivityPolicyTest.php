@@ -6,6 +6,7 @@
 use App\Models\Activity;
 use App\Models\Employee;
 use App\Models\OrganizationalUnit;
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use App\Models\User;
 use App\Policies\ActivityPolicy;
@@ -18,7 +19,7 @@ use Spatie\Permission\PermissionRegistrar;
 uses(RefreshDatabase::class)->group('serial');
 
 /**
- * @property TenantKey $tenant
+ * @property Tenant $tenant
  * @property PermissionRegistrar $registrar
  * @property ActivityPolicy $policy
  * @property OrganizationalUnit $orgUnit
@@ -27,8 +28,8 @@ beforeEach(function (): void {
     incrementTestKekCounter();
     TenantKey::setKekPath(getTestKekPath());
     TenantKey::generateKek();
-    $keys = TenantKey::generateEnvelopeKeys();
-    $this->tenant = TenantKey::create($keys);
+
+    $this->tenant = Tenant::factory()->create();
 
     // Set tenant context for permission system (required for role assignments)
     $this->registrar = app(PermissionRegistrar::class);
@@ -56,7 +57,7 @@ afterEach(function (): void {
  * Helper function to create an employee with associated user in one call.
  * Reduces repetitive code pattern throughout tests.
  */
-function createEmployeeWithUser(TenantKey $tenant, OrganizationalUnit $orgUnit, ?int $leadershipRank = null): array
+function createEmployeeWithUser(Tenant $tenant, OrganizationalUnit $orgUnit, ?int $leadershipRank = null): array
 {
     $user = User::factory()->create(['tenant_id' => $tenant->id]);
     $employee = Employee::factory()->for($tenant, 'tenant')->create([
@@ -93,7 +94,7 @@ test('view denies activity from different tenant', function (): void {
     givePermissionWithTenant($user, $this->tenant->id, 'activity_log.read');
 
     // Create another tenant
-    $otherTenantKey = TenantKey::factory()->create();
+    $otherTenantKey = Tenant::factory()->create();
     $activity = Activity::factory()->create([
         'tenant_id' => $otherTenantKey->id,
         'organizational_unit_id' => null,

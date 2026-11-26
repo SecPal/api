@@ -9,7 +9,6 @@
 use App\Models\TenantKey;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 
 uses(RefreshDatabase::class);
@@ -36,14 +35,7 @@ describe('app:validate-setup Command', function () {
 
     it('returns exit code 0 when all checks pass', function () {
         // Setup: Create tenant key in database
-        DB::table('tenant_keys')->insert([
-            'dek_wrapped' => base64_encode(random_bytes(32)),
-            'dek_nonce' => base64_encode(random_bytes(24)),
-            'idx_wrapped' => base64_encode(random_bytes(32)),
-            'idx_nonce' => base64_encode(random_bytes(24)),
-            'created_at' => now(),
-            'key_version' => 1,
-        ]);
+        seedTenantKeyPresence();
 
         // Setup: Create KEK file
         TenantKey::generateKek();
@@ -78,14 +70,7 @@ describe('app:validate-setup Command', function () {
     it('checks database connection successfully', function () {
         // Setup: Create KEK and tenant key
         TenantKey::generateKek();
-        DB::table('tenant_keys')->insert([
-            'dek_wrapped' => base64_encode(random_bytes(32)),
-            'dek_nonce' => base64_encode(random_bytes(24)),
-            'idx_wrapped' => base64_encode(random_bytes(32)),
-            'idx_nonce' => base64_encode(random_bytes(24)),
-            'created_at' => now(),
-            'key_version' => 1,
-        ]);
+        seedTenantKeyPresence();
 
         // Act
         Artisan::call('app:validate-setup');
@@ -112,14 +97,7 @@ describe('app:validate-setup Command', function () {
 
     it('detects missing KEK file', function () {
         // Setup: Create tenant key but no KEK
-        DB::table('tenant_keys')->insert([
-            'dek_wrapped' => base64_encode(random_bytes(32)),
-            'dek_nonce' => base64_encode(random_bytes(24)),
-            'idx_wrapped' => base64_encode(random_bytes(32)),
-            'idx_nonce' => base64_encode(random_bytes(24)),
-            'created_at' => now(),
-            'key_version' => 1,
-        ]);
+        seedTenantKeyPresence();
 
         // Act
         Artisan::call('app:validate-setup');
@@ -133,14 +111,7 @@ describe('app:validate-setup Command', function () {
 
     it('detects unreadable KEK file', function () {
         // Setup: Create tenant key and KEK file
-        DB::table('tenant_keys')->insert([
-            'dek_wrapped' => base64_encode(random_bytes(32)),
-            'dek_nonce' => base64_encode(random_bytes(24)),
-            'idx_wrapped' => base64_encode(random_bytes(32)),
-            'idx_nonce' => base64_encode(random_bytes(24)),
-            'created_at' => now(),
-            'key_version' => 1,
-        ]);
+        seedTenantKeyPresence();
 
         TenantKey::generateKek();
         $kekPath = TenantKey::getKekPath();
@@ -167,14 +138,7 @@ describe('app:validate-setup Command', function () {
     });
 
     it('detects insecure KEK file permissions', function () {
-        DB::table('tenant_keys')->insert([
-            'dek_wrapped' => base64_encode(random_bytes(32)),
-            'dek_nonce' => base64_encode(random_bytes(24)),
-            'idx_wrapped' => base64_encode(random_bytes(32)),
-            'idx_nonce' => base64_encode(random_bytes(24)),
-            'created_at' => now(),
-            'key_version' => 1,
-        ]);
+        seedTenantKeyPresence();
 
         TenantKey::generateKek();
         chmod(TenantKey::getKekPath(), 0644);
@@ -191,14 +155,7 @@ describe('app:validate-setup Command', function () {
     it('checks storage directories are writable', function () {
         // Setup: Create KEK and tenant key
         TenantKey::generateKek();
-        DB::table('tenant_keys')->insert([
-            'dek_wrapped' => base64_encode(random_bytes(32)),
-            'dek_nonce' => base64_encode(random_bytes(24)),
-            'idx_wrapped' => base64_encode(random_bytes(32)),
-            'idx_nonce' => base64_encode(random_bytes(24)),
-            'created_at' => now(),
-            'key_version' => 1,
-        ]);
+        seedTenantKeyPresence();
 
         // Act
         Artisan::call('app:validate-setup');
@@ -212,14 +169,7 @@ describe('app:validate-setup Command', function () {
     it('checks required PHP extensions are loaded', function () {
         // Setup: Create KEK and tenant key
         TenantKey::generateKek();
-        DB::table('tenant_keys')->insert([
-            'dek_wrapped' => base64_encode(random_bytes(32)),
-            'dek_nonce' => base64_encode(random_bytes(24)),
-            'idx_wrapped' => base64_encode(random_bytes(32)),
-            'idx_nonce' => base64_encode(random_bytes(24)),
-            'created_at' => now(),
-            'key_version' => 1,
-        ]);
+        seedTenantKeyPresence();
 
         // Act
         Artisan::call('app:validate-setup');
@@ -232,14 +182,7 @@ describe('app:validate-setup Command', function () {
 
     it('displays colored output with emojis', function () {
         // Setup: Partially valid configuration (missing KEK)
-        DB::table('tenant_keys')->insert([
-            'dek_wrapped' => base64_encode(random_bytes(32)),
-            'dek_nonce' => base64_encode(random_bytes(24)),
-            'idx_wrapped' => base64_encode(random_bytes(32)),
-            'idx_nonce' => base64_encode(random_bytes(24)),
-            'created_at' => now(),
-            'key_version' => 1,
-        ]);
+        seedTenantKeyPresence();
 
         // Act
         Artisan::call('app:validate-setup');
@@ -274,14 +217,7 @@ describe('app:validate-setup Command', function () {
     it('counts and displays number of tenant keys found', function () {
         // Setup: Create multiple tenant keys
         for ($i = 0; $i < 3; $i++) {
-            DB::table('tenant_keys')->insert([
-                'dek_wrapped' => base64_encode(random_bytes(32)),
-                'dek_nonce' => base64_encode(random_bytes(24)),
-                'idx_wrapped' => base64_encode(random_bytes(32)),
-                'idx_nonce' => base64_encode(random_bytes(24)),
-                'created_at' => now(),
-                'key_version' => 1,
-            ]);
+            seedTenantKeyPresence();
         }
 
         TenantKey::generateKek();
@@ -297,14 +233,7 @@ describe('app:validate-setup Command', function () {
     it('verifies all required extensions (sodium, pgsql)', function () {
         // Setup: Full configuration
         TenantKey::generateKek();
-        DB::table('tenant_keys')->insert([
-            'dek_wrapped' => base64_encode(random_bytes(32)),
-            'dek_nonce' => base64_encode(random_bytes(24)),
-            'idx_wrapped' => base64_encode(random_bytes(32)),
-            'idx_nonce' => base64_encode(random_bytes(24)),
-            'created_at' => now(),
-            'key_version' => 1,
-        ]);
+        seedTenantKeyPresence();
 
         // Act
         Artisan::call('app:validate-setup');

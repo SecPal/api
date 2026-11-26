@@ -1,7 +1,7 @@
 <?php
 
 /*
- * SPDX-FileCopyrightText: 2025 SecPal Contributors
+ * SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
  *
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
@@ -18,7 +18,8 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('tenant_keys', function (Blueprint $table) {
-            $table->id();
+            $table->uuid('id')->primary();
+            $table->foreignId('tenant_id')->unique()->constrained()->restrictOnDelete();
             $table->binary('dek_wrapped');
             $table->binary('dek_nonce');
             $table->binary('idx_wrapped');

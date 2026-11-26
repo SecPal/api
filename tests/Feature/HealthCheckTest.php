@@ -111,16 +111,7 @@ describe('Health Check Endpoints', function () {
         it('returns 200 OK when fully configured', function () {
             $runtimeHeartbeatService = app(RuntimeHeartbeatService::class);
 
-            // Create tenant key directly in database
-            // Note: tenant_keys uses base64-encoded strings in varchar(64), not binary data
-            DB::table('tenant_keys')->insert([
-                'dek_wrapped' => base64_encode(random_bytes(32)),
-                'dek_nonce' => base64_encode(random_bytes(24)),
-                'idx_wrapped' => base64_encode(random_bytes(32)),
-                'idx_nonce' => base64_encode(random_bytes(24)),
-                'key_version' => 1,
-                'created_at' => now(),
-            ]);
+            seedTenantKeyPresence();
 
             // Generate KEK file for test
             TenantKey::generateKek();
@@ -146,16 +137,7 @@ describe('Health Check Endpoints', function () {
         it('returns 503 when KEK file is missing', function () {
             app(RuntimeHeartbeatService::class)->recordSchedulerHeartbeat();
 
-            // Create tenant key directly in database
-            // Note: tenant_keys uses base64-encoded strings in varchar(64), not binary data
-            DB::table('tenant_keys')->insert([
-                'dek_wrapped' => base64_encode(random_bytes(32)),
-                'dek_nonce' => base64_encode(random_bytes(24)),
-                'idx_wrapped' => base64_encode(random_bytes(32)),
-                'idx_nonce' => base64_encode(random_bytes(24)),
-                'key_version' => 1,
-                'created_at' => now(),
-            ]);
+            seedTenantKeyPresence();
 
             // KEK file does not exist
             TenantKey::setKekPath('/nonexistent/path/kek.key');
@@ -293,14 +275,7 @@ describe('Health Check Endpoints', function () {
 
         it('returns CORS headers for /health/ready with whitelisted origin', function () {
             // Setup for ready endpoint
-            DB::table('tenant_keys')->insert([
-                'dek_wrapped' => base64_encode(random_bytes(32)),
-                'dek_nonce' => base64_encode(random_bytes(24)),
-                'idx_wrapped' => base64_encode(random_bytes(32)),
-                'idx_nonce' => base64_encode(random_bytes(24)),
-                'key_version' => 1,
-                'created_at' => now(),
-            ]);
+            seedTenantKeyPresence();
             TenantKey::generateKek();
             app(RuntimeHeartbeatService::class)->recordSchedulerHeartbeat();
 
@@ -353,14 +328,7 @@ describe('Health Check Endpoints', function () {
 
 function seedHealthReadinessPrerequisites(): void
 {
-    DB::table('tenant_keys')->insert([
-        'dek_wrapped' => base64_encode(random_bytes(32)),
-        'dek_nonce' => base64_encode(random_bytes(24)),
-        'idx_wrapped' => base64_encode(random_bytes(32)),
-        'idx_nonce' => base64_encode(random_bytes(24)),
-        'key_version' => 1,
-        'created_at' => now(),
-    ]);
+    seedTenantKeyPresence();
 
     TenantKey::generateKek();
 }

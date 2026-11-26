@@ -47,7 +47,7 @@ test('throws exception when KEK file is missing', function (): void {
     // Explicitly remove KEK file to ensure clean state
     cleanupTestKekFile();
 
-    expect(fn () => TenantKey::generateEnvelopeKeys())
+    expect(fn () => TenantKey::generateEnvelopeKeys(1))
         ->toThrow(RuntimeException::class, 'KEK file not found');
 });
 
@@ -63,7 +63,7 @@ test('throws targeted exception when KEK file is not readable', function (): voi
 test('generates envelope keys with correct structure', function (): void {
     TenantKey::generateKek();
 
-    $keys = TenantKey::generateEnvelopeKeys();
+    $keys = TenantKey::generateEnvelopeKeys(1);
 
     expect($keys)->toHaveKeys(['dek_wrapped', 'dek_nonce', 'idx_wrapped', 'idx_nonce']);
     expect(strlen($keys['dek_nonce']))->toBe(SODIUM_CRYPTO_SECRETBOX_NONCEBYTES);
@@ -76,8 +76,8 @@ test('generates envelope keys with correct structure', function (): void {
 test('generates unique nonces for each key generation', function (): void {
     TenantKey::generateKek();
 
-    $keys1 = TenantKey::generateEnvelopeKeys();
-    $keys2 = TenantKey::generateEnvelopeKeys();
+    $keys1 = TenantKey::generateEnvelopeKeys(1);
+    $keys2 = TenantKey::generateEnvelopeKeys(1);
 
     expect($keys1['dek_nonce'])->not->toBe($keys2['dek_nonce']);
     expect($keys1['idx_nonce'])->not->toBe($keys2['idx_nonce']);
@@ -88,9 +88,7 @@ test('generates unique nonces for each key generation', function (): void {
 test('unwraps DEK correctly', function (): void {
     TenantKey::generateKek();
 
-    $keys = TenantKey::generateEnvelopeKeys();
-
-    $tenantKey = TenantKey::create($keys);
+    $tenantKey = TenantKey::factory()->create();
 
     $dek = $tenantKey->unwrapDek();
 
@@ -100,9 +98,7 @@ test('unwraps DEK correctly', function (): void {
 test('unwraps idx_key correctly', function (): void {
     TenantKey::generateKek();
 
-    $keys = TenantKey::generateEnvelopeKeys();
-
-    $tenantKey = TenantKey::create($keys);
+    $tenantKey = TenantKey::factory()->create();
 
     $idxKey = $tenantKey->unwrapIdxKey();
 
@@ -112,8 +108,7 @@ test('unwraps idx_key correctly', function (): void {
 test('encrypts and decrypts data correctly', function (): void {
     TenantKey::generateKek();
 
-    $keys = TenantKey::generateEnvelopeKeys();
-    $tenantKey = TenantKey::create($keys);
+    $tenantKey = TenantKey::factory()->create();
 
     $plaintext = 'sensitive data';
 
@@ -130,8 +125,7 @@ test('encrypts and decrypts data correctly', function (): void {
 test('throws exception on decryption with wrong nonce', function (): void {
     TenantKey::generateKek();
 
-    $keys = TenantKey::generateEnvelopeKeys();
-    $tenantKey = TenantKey::create($keys);
+    $tenantKey = TenantKey::factory()->create();
 
     $encrypted = $tenantKey->encrypt('test data');
     $wrongNonce = random_bytes(SODIUM_CRYPTO_SECRETBOX_NONCEBYTES);
@@ -143,8 +137,7 @@ test('throws exception on decryption with wrong nonce', function (): void {
 test('generates consistent blind index for same plaintext', function (): void {
     TenantKey::generateKek();
 
-    $keys = TenantKey::generateEnvelopeKeys();
-    $tenantKey = TenantKey::create($keys);
+    $tenantKey = TenantKey::factory()->create();
 
     $plaintext = 'test@example.com';
 
@@ -158,8 +151,7 @@ test('generates consistent blind index for same plaintext', function (): void {
 test('generates different blind indexes for different plaintexts', function (): void {
     TenantKey::generateKek();
 
-    $keys = TenantKey::generateEnvelopeKeys();
-    $tenantKey = TenantKey::create($keys);
+    $tenantKey = TenantKey::factory()->create();
 
     $index1 = $tenantKey->generateBlindIndex('test1@example.com');
     $index2 = $tenantKey->generateBlindIndex('test2@example.com');
@@ -170,11 +162,8 @@ test('generates different blind indexes for different plaintexts', function (): 
 test('different tenants have different blind indexes for same plaintext', function (): void {
     TenantKey::generateKek();
 
-    $keys1 = TenantKey::generateEnvelopeKeys();
-    $keys2 = TenantKey::generateEnvelopeKeys();
-
-    $tenant1 = TenantKey::create($keys1);
-    $tenant2 = TenantKey::create($keys2);
+    $tenant1 = TenantKey::factory()->create();
+    $tenant2 = TenantKey::factory()->create();
 
     $plaintext = 'test@example.com';
 
@@ -187,8 +176,7 @@ test('different tenants have different blind indexes for same plaintext', functi
 test('key_version defaults to 1', function (): void {
     TenantKey::generateKek();
 
-    $keys = TenantKey::generateEnvelopeKeys();
-    $tenantKey = TenantKey::create($keys);
+    $tenantKey = TenantKey::factory()->create();
 
     expect($tenantKey->key_version)->toBe(1);
 });

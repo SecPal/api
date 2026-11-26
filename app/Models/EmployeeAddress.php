@@ -33,7 +33,7 @@ use Spatie\Activitylog\Support\LogOptions;
  * @property-read string|null $city
  * @property-read string|null $supplement
  * @property-read Employee $employee
- * @property-read TenantKey $tenant
+ * @property-read Tenant $tenant
  */
 class EmployeeAddress extends Model
 {
@@ -181,11 +181,11 @@ class EmployeeAddress extends Model
     }
 
     /**
-     * @return BelongsTo<TenantKey, $this>
+     * @return BelongsTo<Tenant, $this>
      */
     public function tenant(): BelongsTo
     {
-        return $this->belongsTo(TenantKey::class);
+        return $this->belongsTo(Tenant::class);
     }
 
     public function getStreetAttribute(): ?string

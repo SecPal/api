@@ -8,6 +8,7 @@ use App\Models\CustomerEstablishment;
 use App\Models\Establishment;
 use App\Models\LegalEntity;
 use App\Models\Site;
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
@@ -19,7 +20,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 uses(RefreshDatabase::class)->group('unit', 'models', 'site');
 
 /**
- * @property TenantKey $tenant
+ * @property Tenant $tenant
  */
 beforeEach(function () {
     incrementTestKekCounter();
@@ -28,11 +29,11 @@ beforeEach(function () {
     TenantKey::ensureKekExists();
 
     // Create tenant for testing
-    if (! TenantKey::first()) {
-        $keys = TenantKey::generateEnvelopeKeys();
-        $this->tenant = TenantKey::create($keys);
+    if (! Tenant::first()) {
+
+        $this->tenant = Tenant::factory()->create();
     } else {
-        $this->tenant = TenantKey::first();
+        $this->tenant = Tenant::first();
     }
 });
 
@@ -200,7 +201,7 @@ test('scope for establishment filters correctly', function (): void {
 test('site has tenant relationship', function () {
     $site = Site::factory()->create(['tenant_id' => $this->tenant->id]);
 
-    expect($site->tenant)->toBeInstanceOf(TenantKey::class);
+    expect($site->tenant)->toBeInstanceOf(Tenant::class);
     expect($site->tenant->id)->toBe($this->tenant->id);
 });
 

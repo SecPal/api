@@ -6,6 +6,7 @@
 declare(strict_types=1);
 
 use App\Models\PushDeviceRegistration;
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use App\Models\User;
 use App\Services\AndroidPushDeliveryService;
@@ -21,7 +22,7 @@ beforeEach(function (): void {
     TenantKey::setKekPath(getTestKekPath());
     TenantKey::generateKek();
 
-    $this->tenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+    $this->tenant = Tenant::factory()->create();
     $this->user = User::factory()->create(['tenant_id' => $this->tenant->id]);
 
     $privateKey = generateFirebaseTestPrivateKey();
@@ -42,7 +43,7 @@ afterEach(function (): void {
     TenantKeyReadabilityOverride::clear();
 });
 
-function createAndroidPushRegistration(TenantKey $tenant, User $user): PushDeviceRegistration
+function createAndroidPushRegistration(Tenant $tenant, User $user): PushDeviceRegistration
 {
     return PushDeviceRegistration::query()->create([
         'tenant_id' => $tenant->id,

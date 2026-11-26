@@ -11,6 +11,7 @@ use App\Models\CustomerEstablishment;
 use App\Models\Establishment;
 use App\Models\LegalEntity;
 use App\Models\Site;
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -23,7 +24,7 @@ beforeEach(function (): void {
     incrementTestKekCounter();
     TenantKey::setKekPath(getTestKekPath());
     TenantKey::generateKek();
-    $this->tenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+    $this->tenant = Tenant::factory()->create();
     app(PermissionRegistrar::class)->setPermissionsTeamId($this->tenant->id);
     Artisan::call('db:seed', ['--class' => 'RolesAndPermissionsSeeder']);
     $this->user = User::factory()->create(['tenant_id' => $this->tenant->id]);
@@ -312,7 +313,7 @@ test('assigned customer editors need customers.update to delete customer establi
 });
 
 test('customer establishment mutations fail closed for another tenant', function (): void {
-    $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+    $otherTenant = Tenant::factory()->create();
     $otherCustomer = Customer::factory()->create(['tenant_id' => $otherTenant->id]);
     $otherEstablishment = Establishment::factory()->create([
         'tenant_id' => $otherTenant->id,

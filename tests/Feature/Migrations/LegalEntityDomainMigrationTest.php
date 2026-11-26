@@ -9,6 +9,7 @@ use App\Models\Customer;
 use App\Models\CustomerEstablishment;
 use App\Models\Establishment;
 use App\Models\LegalEntity;
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -74,8 +75,8 @@ test('rejects customer establishment assignments across legal entities', functio
 })->throws(QueryException::class);
 
 test('rejects cross-tenant establishment and customer legal entity relationships', function (string $table): void {
-    $tenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
-    $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+    $tenant = Tenant::factory()->create();
+    $otherTenant = Tenant::factory()->create();
     $foreignLegalEntity = LegalEntity::factory()->forTenant($otherTenant->id)->create();
 
     $attributes = [

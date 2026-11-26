@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Separate functional tenants from their encryption keys in the clean
+  PostgreSQL baseline. Functional references use `tenants.id`, and wrapped
+  keys authenticate their tenant and purpose (refs #3098).
+
 - Store customer and site house numbers in `house_number` separately from the
   street name. Site address display and customer duplicate detection include
   the house number. Clients that included the house number in `street` must

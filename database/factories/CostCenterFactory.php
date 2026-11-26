@@ -9,7 +9,7 @@ namespace Database\Factories;
 
 use App\Models\CostCenter;
 use App\Models\Site;
-use App\Models\TenantKey;
+use App\Models\Tenant;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -33,12 +33,7 @@ class CostCenterFactory extends Factory
      */
     public function definition(): array
     {
-        $tenant = TenantKey::query()->latest('id')->first();
-        if (! $tenant) {
-            TenantKey::ensureKekExists();
-            $keys = TenantKey::generateEnvelopeKeys();
-            $tenant = TenantKey::create($keys);
-        }
+        $tenant = Tenant::query()->latest('id')->first() ?? Tenant::factory()->create();
 
         $sequence = $this->faker->unique()->numberBetween(1, 999);
 

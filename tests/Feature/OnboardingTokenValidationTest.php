@@ -11,6 +11,7 @@ use App\Http\Middleware\RestoreSessionFromRememberToken;
 use App\Http\Middleware\SetLocaleFromHeader;
 use App\Models\Employee;
 use App\Models\EmployeeOnboardingToken;
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use App\Models\User;
 use Illuminate\Auth\Events\Login;
@@ -34,8 +35,8 @@ beforeEach(function () {
     incrementTestKekCounter();
     TenantKey::setKekPath(getTestKekPath());
     TenantKey::generateKek();
-    $keys = TenantKey::generateEnvelopeKeys();
-    $this->tenant = TenantKey::create($keys);
+
+    $this->tenant = Tenant::factory()->create();
 });
 
 afterEach(function () {

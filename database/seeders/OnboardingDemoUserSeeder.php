@@ -9,7 +9,7 @@ use App\Models\Employee;
 use App\Models\Establishment;
 use App\Models\LegalEntity;
 use App\Models\OrganizationalUnit;
-use App\Models\TenantKey;
+use App\Models\Tenant;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Seeder;
@@ -28,7 +28,7 @@ class OnboardingDemoUserSeeder extends Seeder
     public function run(): void
     {
         $this->runWithModelEvents(function (): void {
-            $tenant = TenantKey::query()->firstOrFail();
+            $tenant = Tenant::query()->oldest('id')->firstOrFail();
             $tenantId = $tenant->id;
 
             $holding = OrganizationalUnit::query()

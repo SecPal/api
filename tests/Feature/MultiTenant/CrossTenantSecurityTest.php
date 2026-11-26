@@ -8,6 +8,7 @@ use App\Models\Customer;
 use App\Models\Employee;
 use App\Models\OrganizationalUnit;
 use App\Models\Site;
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -15,8 +16,8 @@ use Illuminate\Support\Facades\Artisan;
 use Spatie\Permission\PermissionRegistrar;
 
 /**
- * @property TenantKey $tenant1
- * @property TenantKey $tenant2
+ * @property Tenant $tenant1
+ * @property Tenant $tenant2
  * @property User $user1
  * @property mixed $token1
  * @property User $user2
@@ -31,12 +32,12 @@ beforeEach(function (): void {
     TenantKey::generateKek();
 
     // Create Tenant 1
-    $keys1 = TenantKey::generateEnvelopeKeys();
-    $this->tenant1 = TenantKey::create($keys1);
+
+    $this->tenant1 = Tenant::factory()->create();
 
     // Create Tenant 2
-    $keys2 = TenantKey::generateEnvelopeKeys();
-    $this->tenant2 = TenantKey::create($keys2);
+
+    $this->tenant2 = Tenant::factory()->create();
 
     // Set tenant context for Tenant 1
     $registrar = app(PermissionRegistrar::class);

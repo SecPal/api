@@ -9,7 +9,7 @@ namespace Database\Factories;
 
 use App\Enums\InternalCostCenterStatus;
 use App\Models\InternalCostCenter;
-use App\Models\TenantKey;
+use App\Models\Tenant;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
 
@@ -22,7 +22,7 @@ class InternalCostCenterFactory extends Factory
     public function definition(): array
     {
         return [
-            'tenant_id' => TenantKey::factory(),
+            'tenant_id' => Tenant::factory(),
             'code' => 'ICC-'.Str::upper(Str::random(12)),
             'name' => fake()->words(3, true),
             'status' => InternalCostCenterStatus::Active,

@@ -1,7 +1,7 @@
 <?php
 
 /*
- * SPDX-FileCopyrightText: 2025 SecPal Contributors
+ * SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
  *
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
@@ -30,7 +30,7 @@ class PersonRepository
      */
     public function findByEmail(int $tenantId, string $email): ?Person
     {
-        $tenantKey = TenantKey::findOrFail($tenantId);
+        $tenantKey = TenantKey::forTenant($tenantId);
         $normalized = $this->normalizeEmail($email);
         $emailIdx = $tenantKey->generateBlindIndex($normalized);
 
@@ -49,7 +49,7 @@ class PersonRepository
      */
     public function findByPhone(int $tenantId, string $phone): ?Person
     {
-        $tenantKey = TenantKey::findOrFail($tenantId);
+        $tenantKey = TenantKey::forTenant($tenantId);
         $normalized = $this->normalizePhone($phone);
         $phoneIdx = $tenantKey->generateBlindIndex($normalized);
 

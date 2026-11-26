@@ -30,7 +30,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * - Soft deletes to preserve historical references
  *
  * @property string $id UUID primary key
- * @property int $tenant_id Foreign key to tenant_keys
+ * @property int $tenant_id Foreign key to tenants
  * @property string $site_id Foreign key to sites
  * @property string $code Cost center code (e.g., KST-001)
  * @property string $name Descriptive name
@@ -40,7 +40,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property \Illuminate\Support\Carbon $created_at
  * @property \Illuminate\Support\Carbon $updated_at
  * @property \Illuminate\Support\Carbon|null $deleted_at
- * @property-read TenantKey $tenant The tenant this cost center belongs to
+ * @property-read Tenant $tenant The tenant this cost center belongs to
  * @property-read Site $site The site this cost center belongs to
  *
  * @see SecPal/.github#210 Customer & Site Management Epic
@@ -95,11 +95,11 @@ class CostCenter extends Model
     /**
      * Get the tenant that owns this cost center.
      *
-     * @return BelongsTo<TenantKey, $this>
+     * @return BelongsTo<Tenant, $this>
      */
     public function tenant(): BelongsTo
     {
-        return $this->belongsTo(TenantKey::class, 'tenant_id');
+        return $this->belongsTo(Tenant::class, 'tenant_id');
     }
 
     /**

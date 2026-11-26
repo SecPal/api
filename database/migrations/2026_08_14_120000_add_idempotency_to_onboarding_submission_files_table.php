@@ -30,8 +30,8 @@ return new class extends Migration
         Schema::table('onboarding_submission_files', function (Blueprint $table): void {
             $table->foreign('tenant_id')
                 ->references('id')
-                ->on('tenant_keys')
-                ->cascadeOnDelete();
+                ->on('tenants')
+                ->restrictOnDelete();
         });
 
         DB::statement(<<<'SQL'

@@ -8,6 +8,7 @@ declare(strict_types=1);
 use App\Contracts\WebPushDeliveryServiceInterface;
 use App\Jobs\DeliverWebPushMessage;
 use App\Models\PushDeviceRegistration;
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use App\Models\User;
 use App\Services\QueueWebPushDeliveryService;
@@ -24,8 +25,8 @@ beforeEach(function (): void {
     TenantKey::setKekPath(getTestKekPath());
     TenantKey::generateKek();
 
-    $this->tenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
-    $this->otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+    $this->tenant = Tenant::factory()->create();
+    $this->otherTenant = Tenant::factory()->create();
     $this->user = User::factory()->create(['tenant_id' => $this->tenant->id]);
     $this->otherUser = User::factory()->create(['tenant_id' => $this->otherTenant->id]);
 
@@ -41,7 +42,7 @@ afterEach(function (): void {
     TenantKey::setKekPath(null);
 });
 
-function createQueuedWebPushRegistration(TenantKey $tenant, User $user, string $installationId = 'b1c2d3e4-f5a6-4789-8abc-1d2e3f4a5b6c'): PushDeviceRegistration
+function createQueuedWebPushRegistration(Tenant $tenant, User $user, string $installationId = 'b1c2d3e4-f5a6-4789-8abc-1d2e3f4a5b6c'): PushDeviceRegistration
 {
     return PushDeviceRegistration::query()->create([
         'tenant_id' => $tenant->id,
@@ -66,7 +67,7 @@ function createQueuedWebPushRegistration(TenantKey $tenant, User $user, string $
     ]);
 }
 
-function createQueuedAndroidRegistration(TenantKey $tenant, User $user, string $installationId = 'a0b1c2d3-e4f5-4a67-89ab-0c1d2e3f4a5b'): PushDeviceRegistration
+function createQueuedAndroidRegistration(Tenant $tenant, User $user, string $installationId = 'a0b1c2d3-e4f5-4a67-89ab-0c1d2e3f4a5b'): PushDeviceRegistration
 {
     return PushDeviceRegistration::query()->create([
         'tenant_id' => $tenant->id,

@@ -10,7 +10,7 @@ use App\Models\CustomerEstablishment;
 use App\Models\Establishment;
 use App\Models\LegalEntity;
 use App\Models\Site;
-use App\Models\TenantKey;
+use App\Models\Tenant;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -72,12 +72,7 @@ class SiteFactory extends Factory
     public function definition(): array
     {
         // Get or create the most recently created tenant for testing.
-        $tenant = TenantKey::query()->latest('id')->first();
-        if (! $tenant) {
-            TenantKey::ensureKekExists();
-            $keys = TenantKey::generateEnvelopeKeys();
-            $tenant = TenantKey::create($keys);
-        }
+        $tenant = Tenant::query()->latest('id')->first() ?? Tenant::factory()->create();
 
         // Use faker unique() for test site numbers instead of Site::generateSiteNumber()
         // Trade-off: Fast test execution + parallel test isolation vs production parity

@@ -6,6 +6,7 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -13,7 +14,7 @@ use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
 
 /**
- * @property TenantKey $tenant
+ * @property Tenant $tenant
  * @property PermissionRegistrar $registrar
  * @property User $user
  * @property Role $managerRole
@@ -27,8 +28,8 @@ describe('TemporalRoleUser Pivot Model', function () {
         incrementTestKekCounter();
         TenantKey::setKekPath(getTestKekPath());
         TenantKey::generateKek();
-        $keys = TenantKey::generateEnvelopeKeys();
-        $this->tenant = TenantKey::create($keys);
+
+        $this->tenant = Tenant::factory()->create();
 
         // Get Permission Registrar for tenant context management
         $this->registrar = app(PermissionRegistrar::class);
@@ -126,8 +127,8 @@ describe('TemporalRoleUser Pivot Model', function () {
         });
 
         it('filters roles to the active permission team', function () {
-            $otherTenantKeys = TenantKey::generateEnvelopeKeys();
-            $otherTenant = TenantKey::create($otherTenantKeys);
+
+            $otherTenant = Tenant::factory()->create();
 
             assignTemporalRole($this->user, $this->managerRole, $this->tenant->id);
 

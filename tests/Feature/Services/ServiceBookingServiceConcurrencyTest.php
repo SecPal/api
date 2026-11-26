@@ -9,6 +9,7 @@ use App\Exceptions\ServiceBookingInvoicedException;
 use App\Exceptions\ServiceBookingRetiredException;
 use App\Models\Activity;
 use App\Models\ServiceBooking;
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use App\Models\User;
 use App\Services\ServiceBookingService;
@@ -61,7 +62,7 @@ afterEach(function (): void {
     TenantKey::setKekPath(null);
 });
 
-function serviceBookingConcurrencyActor(TenantKey $tenant): User
+function serviceBookingConcurrencyActor(Tenant $tenant): User
 {
     $actor = User::factory()->create(['tenant_id' => $tenant->id]);
     foreach (['service_bookings.update', 'service_bookings.retire'] as $permission) {
@@ -282,7 +283,7 @@ function runTransitionBeforeServiceBookingUpdate(
 }
 
 test('concurrent retirement commits exactly one terminal transition and audit', function (): void {
-    $tenant = TenantKey::factory()->create();
+    $tenant = Tenant::factory()->create();
     $actor = serviceBookingConcurrencyActor($tenant);
     $booking = ServiceBooking::factory()->create(['tenant_id' => $tenant->id]);
 
@@ -304,7 +305,7 @@ test('a committed invoice or retirement transition prevents stale financial upda
     string $transition,
     string $exception,
 ): void {
-    $tenant = TenantKey::factory()->create();
+    $tenant = Tenant::factory()->create();
     $actor = serviceBookingConcurrencyActor($tenant);
     $booking = ServiceBooking::factory()->create([
         'tenant_id' => $tenant->id,
@@ -323,7 +324,7 @@ test('a committed invoice or retirement transition prevents stale financial upda
 ]);
 
 test('an update that commits first remains valid evidence for a later invoice transition', function (): void {
-    $tenant = TenantKey::factory()->create();
+    $tenant = Tenant::factory()->create();
     $actor = serviceBookingConcurrencyActor($tenant);
     $booking = ServiceBooking::factory()->create(['tenant_id' => $tenant->id]);
 

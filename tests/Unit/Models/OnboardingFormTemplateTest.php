@@ -1,24 +1,25 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use App\Models\OnboardingFormSubmission;
 use App\Models\OnboardingFormTemplate;
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
 
 /**
- * @property TenantKey $tenant
+ * @property Tenant $tenant
  */
 beforeEach(function () {
     incrementTestKekCounter();
     TenantKey::setKekPath(getTestKekPath());
     TenantKey::generateKek();
-    $keys = TenantKey::generateEnvelopeKeys();
-    $this->tenant = TenantKey::create($keys);
+
+    $this->tenant = Tenant::factory()->create();
 });
 
 afterEach(function () {
@@ -45,7 +46,7 @@ test('onboarding form template has tenant relationship', function () {
         'tenant_id' => $this->tenant->id,
     ]);
 
-    expect($template->tenant)->toBeInstanceOf(TenantKey::class)
+    expect($template->tenant)->toBeInstanceOf(Tenant::class)
         ->and($template->tenant->id)->toBe($this->tenant->id);
 });
 

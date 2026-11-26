@@ -11,6 +11,7 @@ use App\Models\EmployeeQualification;
 use App\Models\OrganizationalUnit;
 use App\Models\Permission;
 use App\Models\Qualification;
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -18,7 +19,7 @@ use Illuminate\Support\Facades\Artisan;
 use Spatie\Permission\PermissionRegistrar;
 
 /**
- * @property TenantKey $tenant
+ * @property Tenant $tenant
  * @property User $user
  * @property mixed $token
  * @property Employee $employee
@@ -30,8 +31,8 @@ beforeEach(function (): void {
     incrementTestKekCounter();
     TenantKey::setKekPath(getTestKekPath());
     TenantKey::generateKek();
-    $keys = TenantKey::generateEnvelopeKeys();
-    $this->tenant = TenantKey::create($keys);
+
+    $this->tenant = Tenant::factory()->create();
 
     // Set tenant context for permission system
     $registrar = app(PermissionRegistrar::class);
@@ -249,7 +250,7 @@ describe('POST /v1/employees/{employee}/qualifications', function () {
     test('returns 422 when qualification belongs to a different tenant', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'employee_qualification.write');
 
-        $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+        $otherTenant = Tenant::factory()->create();
         $foreignQualification = Qualification::factory()->create([
             'tenant_id' => $otherTenant->id,
             'is_system_qualification' => false,

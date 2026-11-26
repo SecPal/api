@@ -5,6 +5,7 @@
 
 use App\Models\Employee;
 use App\Models\OrganizationalUnit;
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use App\Models\User;
 use App\Models\UserInternalOrganizationalScope;
@@ -14,7 +15,7 @@ use Illuminate\Support\Facades\Gate;
 use Spatie\Permission\PermissionRegistrar;
 
 /**
- * @property TenantKey $tenant
+ * @property Tenant $tenant
  * @property User $scopeManagerUser
  * @property User $regularUser
  * @property User $targetUser
@@ -29,8 +30,8 @@ beforeEach(function (): void {
     incrementTestKekCounter();
     TenantKey::setKekPath(getTestKekPath());
     TenantKey::generateKek();
-    $keys = TenantKey::generateEnvelopeKeys();
-    $this->tenant = TenantKey::create($keys);
+
+    $this->tenant = Tenant::factory()->create();
 
     $this->scopeManagerUser = User::factory()->create(['tenant_id' => $this->tenant->id]);
     $this->regularUser = User::factory()->create(['tenant_id' => $this->tenant->id]);

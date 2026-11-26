@@ -1,15 +1,15 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use App\Models\Activity;
-use App\Models\TenantKey;
+use App\Models\Tenant;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 /**
- * @property TenantKey $tenant
+ * @property Tenant $tenant
  * @property User $user
  */
 uses(RefreshDatabase::class);
@@ -22,7 +22,7 @@ uses(RefreshDatabase::class);
  * to avoid UUID polymorphic morph binding issues in the test environment.
  */
 beforeEach(function () {
-    $this->tenant = TenantKey::factory()->create();
+    $this->tenant = Tenant::factory()->create();
     $this->user = User::factory()->create(['tenant_id' => $this->tenant->id]);
 });
 
@@ -86,7 +86,7 @@ test('activity log with named log type gets correct retention period', function 
 // ============================================================================
 
 test('activity logs are isolated by tenant', function () {
-    $tenant2 = TenantKey::factory()->create();
+    $tenant2 = Tenant::factory()->create();
     $user2 = User::factory()->create(['tenant_id' => $tenant2->id]);
 
     Activity::create([
@@ -115,7 +115,7 @@ test('activity logs are isolated by tenant', function () {
 });
 
 test('hash chains are isolated by tenant', function () {
-    $tenant2 = TenantKey::factory()->create();
+    $tenant2 = Tenant::factory()->create();
     $user2 = User::factory()->create(['tenant_id' => $tenant2->id]);
 
     // Tenant 1: Create 2 logs

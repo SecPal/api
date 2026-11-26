@@ -1,9 +1,9 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use App\Models\TenantKey;
+use App\Models\Tenant;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
 
@@ -21,7 +21,7 @@ return new class extends Migration
     public function up(): void
     {
         // Get first tenant key ID
-        $firstTenantId = TenantKey::oldest('id')->value('id');
+        $firstTenantId = Tenant::oldest('id')->value('id');
 
         if ($firstTenantId === null) {
             // No tenant keys exist - this is fine for fresh installations

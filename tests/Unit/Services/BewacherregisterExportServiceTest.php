@@ -8,6 +8,7 @@ declare(strict_types=1);
 use App\Exceptions\BewacherregisterExportNotReadyException;
 use App\Models\Employee;
 use App\Models\EmployeeAddress;
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use App\Services\BewacherregisterExportService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -19,8 +20,8 @@ beforeEach(function (): void {
     incrementTestKekCounter();
     TenantKey::setKekPath(getTestKekPath());
     TenantKey::generateKek();
-    $keys = TenantKey::generateEnvelopeKeys();
-    $this->tenant = TenantKey::create($keys);
+
+    $this->tenant = Tenant::factory()->create();
 
     Storage::fake('local');
 
@@ -32,7 +33,7 @@ afterEach(function (): void {
     TenantKey::setKekPath(null);
 });
 
-function createBewacherregisterReadyEmployee(TenantKey $tenant, array $overrides = []): Employee
+function createBewacherregisterReadyEmployee(Tenant $tenant, array $overrides = []): Employee
 {
     $employee = Employee::factory()->create(array_merge([
         'tenant_id' => $tenant->id,

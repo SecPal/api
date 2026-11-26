@@ -18,6 +18,7 @@ use App\Models\LegalEntity;
 use App\Models\OrganizationalUnit;
 use App\Models\Permission;
 use App\Models\Qualification;
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use App\Models\User;
 use App\Support\LikePattern;
@@ -36,7 +37,7 @@ use function Pest\Laravel\travelTo;
 uses(RefreshDatabase::class);
 
 /**
- * @property TenantKey $tenant
+ * @property Tenant $tenant
  * @property User $user
  * @property string $token
  * @property LegalEntity $legalEntity
@@ -47,8 +48,8 @@ beforeEach(function (): void {
     incrementTestKekCounter();
     TenantKey::setKekPath(getTestKekPath());
     TenantKey::generateKek();
-    $keys = TenantKey::generateEnvelopeKeys();
-    $this->tenant = TenantKey::create($keys);
+
+    $this->tenant = Tenant::factory()->create();
 
     // Set tenant context for permission system
     $registrar = app(PermissionRegistrar::class);
@@ -239,7 +240,7 @@ describe('GET /v1/employees', function () {
     test('returns empty list for foreign-tenant establishment_id filter', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'employee.read');
 
-        $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+        $otherTenant = Tenant::factory()->create();
         $foreignEstablishment = Establishment::factory()->create([
             'tenant_id' => $otherTenant->id,
         ]);
@@ -907,7 +908,7 @@ describe('POST /v1/employees', function () {
         $this->user->forceFill(['tenant_id' => $this->tenant->id])->save();
         Sanctum::actingAs($this->user, [User::API_ACCESS_ABILITY]);
 
-        $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+        $otherTenant = Tenant::factory()->create();
         $otherUser = User::factory()->create(['tenant_id' => $otherTenant->id]);
         givePermissionWithTenant($otherUser, $otherTenant->id, 'employee.write');
         givePermissionWithTenant($otherUser, $otherTenant->id, 'employees.read_salary');
@@ -1253,7 +1254,7 @@ describe('GET /v1/employees/{employee}', function () {
     test('returns 404 when user tries to access employee from different tenant', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'employee.read');
 
-        $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+        $otherTenant = Tenant::factory()->create();
         $employee = Employee::factory()->create([
             'tenant_id' => $otherTenant->id,
         ]);

@@ -84,6 +84,19 @@ function spaOrigin(): string
     return 'https://app.secpal.dev';
 }
 
+/** Seed the database prerequisite for readiness checks that vary the KEK independently. */
+function seedTenantKeyPresence(): void
+{
+    Illuminate\Support\Facades\DB::table('tenant_keys')->insert([
+        'id' => Illuminate\Support\Str::uuid()->toString(),
+        'tenant_id' => App\Models\Tenant::query()->create()->id,
+        'dek_wrapped' => base64_encode(random_bytes(48)),
+        'dek_nonce' => base64_encode(random_bytes(24)),
+        'idx_wrapped' => base64_encode(random_bytes(48)),
+        'idx_nonce' => base64_encode(random_bytes(24)),
+    ]);
+}
+
 function spaReferer(): string
 {
     return spaOrigin().'/';
@@ -222,7 +235,7 @@ function giveOrganizationalScope(
  */
 function grantEmployeeEstablishmentAccess(
     App\Models\User $user,
-    App\Models\TenantKey $tenant,
+    App\Models\Tenant $tenant,
     App\Models\LegalEntity $legalEntity,
     App\Models\Establishment $establishment,
     App\Models\OrganizationalUnit $scopeUnit,

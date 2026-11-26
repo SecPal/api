@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 use App\Models\Customer;
 use App\Models\LegalEntity;
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -61,8 +62,8 @@ test('customers has atomic normalized duplicate guards per tenant and legal enti
 });
 
 test('customers rejects a legal entity from another tenant', function (): void {
-    $tenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
-    $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+    $tenant = Tenant::factory()->create();
+    $otherTenant = Tenant::factory()->create();
     $foreignLegalEntity = LegalEntity::factory()->forTenant($otherTenant->id)->create();
 
     Customer::factory()->create([
@@ -71,11 +72,11 @@ test('customers rejects a legal entity from another tenant', function (): void {
     ]);
 })->throws(QueryException::class);
 
-test('tenant deletion cascades to customer master data', function (): void {
-    $tenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+test('restricts tenant deletion and preserves customer master data', function (): void {
+    $tenant = Tenant::factory()->create();
     $customer = Customer::factory()->create(['tenant_id' => $tenant->id]);
 
-    $tenant->delete();
+    expect(fn () => DB::transaction(fn () => $tenant->delete()))->toThrow(QueryException::class, '23001');
 
-    expect(DB::table('customers')->where('id', $customer->id)->exists())->toBeFalse();
+    expect(DB::table('customers')->where('id', $customer->id)->exists())->toBeTrue();
 });

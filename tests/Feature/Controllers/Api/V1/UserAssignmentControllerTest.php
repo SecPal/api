@@ -10,6 +10,7 @@ use App\Models\Customer;
 use App\Models\CustomerAssignment;
 use App\Models\Site;
 use App\Models\SiteAssignment;
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -20,7 +21,7 @@ use Spatie\Permission\PermissionRegistrar;
 uses(RefreshDatabase::class);
 
 /**
- * @property TenantKey $tenant
+ * @property Tenant $tenant
  * @property User $user
  * @property string $token
  */
@@ -28,8 +29,8 @@ beforeEach(function (): void {
     incrementTestKekCounter();
     TenantKey::setKekPath(getTestKekPath());
     TenantKey::generateKek();
-    $keys = TenantKey::generateEnvelopeKeys();
-    $this->tenant = TenantKey::create($keys);
+
+    $this->tenant = Tenant::factory()->create();
 
     // Set tenant context for permission system
     $registrar = app(PermissionRegistrar::class);
@@ -184,8 +185,8 @@ describe('GET /v1/me/customer-assignments', function () {
 
     test('returns only assignments for current tenant', function (): void {
         // Create second tenant
-        $keys2 = TenantKey::generateEnvelopeKeys();
-        $tenant2 = TenantKey::create($keys2);
+
+        $tenant2 = Tenant::factory()->create();
 
         $customer1 = Customer::factory()->create([
             'tenant_id' => $this->tenant->id,
@@ -442,8 +443,8 @@ describe('GET /v1/me/site-assignments', function () {
 
     test('returns only assignments for current tenant', function (): void {
         // Create second tenant
-        $keys2 = TenantKey::generateEnvelopeKeys();
-        $tenant2 = TenantKey::create($keys2);
+
+        $tenant2 = Tenant::factory()->create();
 
         $customer1 = Customer::factory()->create([
             'tenant_id' => $this->tenant->id,

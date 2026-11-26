@@ -12,6 +12,7 @@ use App\Models\Person;
 use App\Models\TenantKey;
 use App\Traits\NormalizesPersonFields;
 use Illuminate\Console\Command;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 
 /**
  * Rebuild blind indexes for a specific tenant.
@@ -61,10 +62,9 @@ class RebuildIndexCommand extends Command
         $this->info("Rebuilding blind indexes for tenant {$tenantId}...");
 
         try {
-            // Find tenant
-            $tenant = TenantKey::find($tenantId);
-
-            if (! $tenant) {
+            try {
+                $tenant = TenantKey::forTenant($tenantId);
+            } catch (ModelNotFoundException) {
                 $this->error("Tenant {$tenantId} not found.");
 
                 return Command::FAILURE;

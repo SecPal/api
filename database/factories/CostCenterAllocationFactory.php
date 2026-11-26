@@ -10,7 +10,7 @@ namespace Database\Factories;
 use App\Models\CostCenterAllocation;
 use App\Models\InternalCostCenter;
 use App\Models\ServiceBooking;
-use App\Models\TenantKey;
+use App\Models\Tenant;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\DB;
@@ -24,7 +24,7 @@ class CostCenterAllocationFactory extends Factory
     public function definition(): array
     {
         return [
-            'tenant_id' => TenantKey::factory(),
+            'tenant_id' => Tenant::factory(),
             'service_booking_id' => function (array $attributes): string {
                 $tenantId = $this->tenantId($attributes);
 

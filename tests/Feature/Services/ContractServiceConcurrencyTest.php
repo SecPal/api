@@ -11,6 +11,7 @@ use App\Exceptions\ContractRetiredException;
 use App\Models\Activity;
 use App\Models\Contract;
 use App\Models\Customer;
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use App\Models\User;
 use App\Services\ContractService;
@@ -70,7 +71,7 @@ afterEach(function (): void {
     TenantKey::setKekPath(null);
 });
 
-function contractConcurrencyActor(TenantKey $tenant): User
+function contractConcurrencyActor(Tenant $tenant): User
 {
     $actor = User::factory()->create(['tenant_id' => $tenant->id]);
     foreach (['contracts.create', 'contracts.update', 'contracts.retire', 'customers.read', 'customers.update'] as $permission) {
@@ -475,7 +476,7 @@ function runContractCustomerAuditLockRace(User $actor, Customer $customer, ?Cont
 }
 
 test('concurrent retirement commits exactly one successful transition and audit', function (): void {
-    $tenant = TenantKey::factory()->create();
+    $tenant = Tenant::factory()->create();
     $actor = contractConcurrencyActor($tenant);
     $contract = Contract::factory()->create(['tenant_id' => $tenant->id]);
 
@@ -498,7 +499,7 @@ test('concurrent booking history prevents customer or currency mutation with sta
     string $field,
     string $exception,
 ): void {
-    $tenant = TenantKey::factory()->create();
+    $tenant = Tenant::factory()->create();
     $actor = contractConcurrencyActor($tenant);
     $contract = Contract::factory()->create(['tenant_id' => $tenant->id, 'currency_code' => 'EUR']);
     $replacement = Customer::factory()->create(['tenant_id' => $tenant->id]);
@@ -519,7 +520,7 @@ test('concurrent booking history prevents customer or currency mutation with sta
 ]);
 
 test('Contract association writes and Customer auditing share one deadlock-free lock order', function (string $operation): void {
-    $tenant = TenantKey::factory()->create();
+    $tenant = Tenant::factory()->create();
     $actor = contractConcurrencyActor($tenant);
     $customer = Customer::factory()->create(['tenant_id' => $tenant->id]);
     $contract = $operation === 'update'

@@ -171,12 +171,12 @@ class Person extends Model
     }
 
     /**
-     * Relation to TenantKey.
+     * Relation to Tenant.
      *
-     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<TenantKey, self>
+     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<Tenant, self>
      */
     public function tenantKey(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
-        return $this->belongsTo(TenantKey::class, 'tenant_id');
+        return $this->belongsTo(Tenant::class, 'tenant_id');
     }
 }

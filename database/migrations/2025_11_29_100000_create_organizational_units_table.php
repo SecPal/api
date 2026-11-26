@@ -25,7 +25,7 @@ return new class extends Migration
     {
         Schema::create('organizational_units', function (Blueprint $table) {
             $table->uuid('id')->primary();
-            $table->foreignId('tenant_id')->constrained('tenant_keys')->cascadeOnDelete();
+            $table->foreignId('tenant_id')->constrained('tenants')->restrictOnDelete();
 
             // Flexible type system for internal organization
             $table->enum('type', [

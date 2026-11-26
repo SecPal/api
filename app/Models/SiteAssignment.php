@@ -30,7 +30,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * - No soft deletes (assignments are historical records)
  *
  * @property string $id UUID primary key
- * @property int $tenant_id Foreign key to tenant_keys
+ * @property int $tenant_id Foreign key to tenants
  * @property string $site_id Foreign key to sites
  * @property string|null $user_id Foreign key to users
  * @property string $role Flexible role name (tenant-specific)
@@ -40,7 +40,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property \Illuminate\Support\Carbon $created_at
  * @property \Illuminate\Support\Carbon $updated_at
  * @property-read bool $is_active Whether assignment is currently active
- * @property-read TenantKey $tenant The tenant this assignment belongs to
+ * @property-read Tenant $tenant The tenant this assignment belongs to
  * @property-read Site $site The site for this assignment
  * @property-read User|null $user The user assigned to the site
  *
@@ -96,11 +96,11 @@ class SiteAssignment extends Model
     /**
      * Get the tenant that owns this assignment.
      *
-     * @return BelongsTo<TenantKey, $this>
+     * @return BelongsTo<Tenant, $this>
      */
     public function tenant(): BelongsTo
     {
-        return $this->belongsTo(TenantKey::class, 'tenant_id');
+        return $this->belongsTo(Tenant::class, 'tenant_id');
     }
 
     /**

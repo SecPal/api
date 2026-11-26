@@ -9,6 +9,7 @@
 namespace App\Console\Commands;
 
 use App\Models\TenantKey;
+use App\Services\TenantProvisioner;
 use Illuminate\Console\Command;
 
 /**
@@ -17,8 +18,8 @@ use Illuminate\Console\Command;
  * This command initializes tenant keys for a new SecPal deployment by:
  * 1. Validating KEK file existence
  * 2. Generating random DEK and idx_key
- * 3. Wrapping keys with KEK using sodium_crypto_secretbox
- * 4. Storing wrapped keys in tenant_keys table
+ * 3. Wrapping keys with the KEK
+ * 4. Storing the tenant and its wrapped keys in one transaction
  *
  * Security considerations:
  * - KEK file must have 0600 permissions (owner read/write only)
@@ -45,7 +46,7 @@ class TenantSetupCommand extends Command
     /**
      * Execute the console command.
      */
-    public function handle(): int
+    public function handle(TenantProvisioner $provisioner): int
     {
         $this->info('SecPal Tenant Key Setup');
         $this->info('=======================');
@@ -108,18 +109,12 @@ class TenantSetupCommand extends Command
             // Step 3: Generate and wrap tenant keys
             $this->line('<fg=green>✅</> Generating and wrapping tenant keys...');
 
-            $keys = TenantKey::generateEnvelopeKeys();
-
-            $this->line('   <fg=green>Done</>');
-
-            // Step 4: Store in database
-            $this->line('<fg=green>✅</> Storing in database...');
-            $tenantKey = TenantKey::create($keys);
+            $tenantKey = $provisioner->create();
             $this->line('   <fg=green>Done</>');
 
             $this->newLine();
             $this->info('Tenant key setup complete!');
-            $this->line("   Tenant ID: {$tenantKey->id}");
+            $this->line("   Tenant ID: {$tenantKey->tenant_id}");
             $this->line("   Key version: {$tenantKey->key_version}");
             $this->newLine();
             $this->comment('Verify setup with:');

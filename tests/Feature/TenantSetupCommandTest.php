@@ -37,7 +37,7 @@ afterEach(function (): void {
 describe('tenant:setup Command', function () {
     test('bootstrap clears pre-existing tenant key state', function (): void {
         TenantKey::generateKek();
-        TenantKey::create(TenantKey::generateEnvelopeKeys());
+        TenantKey::factory()->create();
 
         expect(TenantKey::count())->toBe(1);
 
@@ -64,7 +64,6 @@ describe('tenant:setup Command', function () {
             ->expectsOutput('=======================')
             ->expectsOutputToContain('Checking KEK file')
             ->expectsOutputToContain('Generating and wrapping tenant keys')
-            ->expectsOutputToContain('Storing in database')
             ->expectsOutput('Tenant key setup complete!')
             ->expectsOutputToContain('php artisan app:validate-setup')
             ->assertExitCode(0);
@@ -97,8 +96,8 @@ describe('tenant:setup Command', function () {
     test('aborts when tenant key already exists', function (): void {
         // Generate KEK and tenant
         TenantKey::generateKek();
-        $keys = TenantKey::generateEnvelopeKeys();
-        TenantKey::create($keys);
+
+        TenantKey::factory()->create();
 
         $countBefore = TenantKey::count();
 
@@ -227,8 +226,8 @@ describe('tenant:setup Command', function () {
         TenantKey::generateKek();
 
         // Create multiple tenant keys
-        TenantKey::create(TenantKey::generateEnvelopeKeys());
-        TenantKey::create(TenantKey::generateEnvelopeKeys());
+        TenantKey::factory()->create();
+        TenantKey::factory()->create();
 
         $countBefore = TenantKey::count();
 

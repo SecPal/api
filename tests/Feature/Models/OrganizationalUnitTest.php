@@ -5,11 +5,14 @@
 
 use App\Models\OrganizationalUnit;
 use App\Models\OrganizationalUnitClosure;
+use App\Models\Tenant;
 use App\Models\TenantKey;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 
 /**
- * @property TenantKey $tenant
+ * @property Tenant $tenant
  */
 uses(RefreshDatabase::class);
 
@@ -17,8 +20,8 @@ beforeEach(function (): void {
     incrementTestKekCounter();
     TenantKey::setKekPath(getTestKekPath());
     TenantKey::generateKek();
-    $keys = TenantKey::generateEnvelopeKeys();
-    $this->tenant = TenantKey::create($keys);
+
+    $this->tenant = Tenant::factory()->create();
 });
 
 afterEach(function (): void {
@@ -242,21 +245,21 @@ describe('OrganizationalUnit Model', function () {
                 'type' => 'company',
             ]);
 
-            expect($unit->tenant)->toBeInstanceOf(TenantKey::class);
+            expect($unit->tenant)->toBeInstanceOf(Tenant::class);
             expect($unit->tenant->id)->toBe($this->tenant->id);
         });
 
-        it('is deleted when tenant is deleted (cascade)', function (): void {
+        it('survives a restricted tenant deletion', function (): void {
             $unit = OrganizationalUnit::create([
                 'tenant_id' => $this->tenant->id,
-                'name' => 'Cascading Unit',
+                'name' => 'Retained Unit',
                 'type' => 'branch',
             ]);
 
             $unitId = $unit->id;
-            $this->tenant->delete();
+            expect(fn () => DB::transaction(fn () => $this->tenant->delete()))->toThrow(QueryException::class, '23001');
 
-            expect(OrganizationalUnit::withTrashed()->find($unitId))->toBeNull();
+            expect(OrganizationalUnit::withTrashed()->find($unitId))->not->toBeNull();
         });
     });
 

@@ -11,6 +11,7 @@ namespace App\Console\Commands;
 use App\Models\Person;
 use App\Models\TenantKey;
 use Illuminate\Console\Command;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 
 /**
  * Rotate the Data Encryption Key (DEK) for a specific tenant.
@@ -56,10 +57,9 @@ class RotateDekCommand extends Command
         $this->info("Starting DEK rotation for tenant {$tenantId}...");
 
         try {
-            // Find tenant
-            $tenant = TenantKey::find($tenantId);
-
-            if (! $tenant) {
+            try {
+                $tenant = TenantKey::forTenant($tenantId);
+            } catch (ModelNotFoundException) {
                 $this->error("Tenant {$tenantId} not found.");
 
                 return Command::FAILURE;
@@ -69,12 +69,7 @@ class RotateDekCommand extends Command
             $oldDek = $tenant->unwrapDek();
 
             // Step 2: Generate new DEK
-            $kek = TenantKey::loadKek();
             $newDek = sodium_crypto_secretbox_keygen();
-            $dekNonce = random_bytes(SODIUM_CRYPTO_SECRETBOX_NONCEBYTES);
-            $dekWrapped = sodium_crypto_secretbox($newDek, $dekNonce, $kek);
-
-            sodium_memzero($kek);
 
             $this->info('✅ Generated new DEK');
 
@@ -147,11 +142,7 @@ class RotateDekCommand extends Command
 
             // Step 4: Update tenant with new wrapped DEK and increment version
             $oldVersion = $tenant->key_version;
-            $tenant->update([
-                'dek_wrapped' => $dekWrapped,
-                'dek_nonce' => $dekNonce,
-                'key_version' => $tenant->key_version + 1,
-            ]);
+            $tenant->replaceDek($newDek);
 
             sodium_memzero($oldDek);
             sodium_memzero($newDek);

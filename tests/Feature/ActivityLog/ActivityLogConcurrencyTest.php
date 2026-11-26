@@ -1,19 +1,19 @@
 <?php
 
 /**
- * SPDX-FileCopyrightText: 2025 SecPal Contributors
+ * SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 declare(strict_types=1);
 
 use App\Models\Activity;
-use App\Models\TenantKey;
+use App\Models\Tenant;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 /**
- * @property TenantKey $tenant
+ * @property Tenant $tenant
  * @property User $user
  */
 uses(RefreshDatabase::class);
@@ -30,7 +30,7 @@ uses(RefreshDatabase::class);
  * @see Epic #385 Activity Logging & Audit Trail
  */
 beforeEach(function () {
-    $this->tenant = TenantKey::factory()->create();
+    $this->tenant = Tenant::factory()->create();
     $this->user = User::factory()->create(['tenant_id' => $this->tenant->id]);
     $this->actingAs($this->user);
 });
@@ -152,7 +152,7 @@ test('sequential log creation maintains hash chain integrity', function () {
  */
 test('queue-based processing respects tenant isolation', function () {
     // Create second tenant
-    $tenant2 = TenantKey::factory()->create();
+    $tenant2 = Tenant::factory()->create();
     $user2 = User::factory()->create(['tenant_id' => $tenant2->id]);
 
     // Spawn concurrent logs for both tenants (interleaved)

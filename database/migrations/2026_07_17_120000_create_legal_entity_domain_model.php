@@ -29,7 +29,7 @@ return new class extends Migration
 
         Schema::create('legal_entities', function (Blueprint $table): void {
             $table->uuid('id')->primary();
-            $table->foreignId('tenant_id')->constrained('tenant_keys')->cascadeOnDelete();
+            $table->foreignId('tenant_id')->constrained('tenants')->restrictOnDelete();
             $table->string('name');
             $table->boolean('is_active')->default(true);
             $table->timestamps();
@@ -41,7 +41,7 @@ return new class extends Migration
 
         Schema::create('establishments', function (Blueprint $table): void {
             $table->uuid('id')->primary();
-            $table->foreignId('tenant_id')->constrained('tenant_keys')->cascadeOnDelete();
+            $table->foreignId('tenant_id')->constrained('tenants')->restrictOnDelete();
             $table->uuid('legal_entity_id');
             $table->string('name');
             $table->boolean('is_active')->default(true);
@@ -79,7 +79,7 @@ return new class extends Migration
 
         Schema::create('customer_establishments', function (Blueprint $table): void {
             $table->uuid('id')->primary();
-            $table->foreignId('tenant_id')->constrained('tenant_keys')->cascadeOnDelete();
+            $table->foreignId('tenant_id')->constrained('tenants')->restrictOnDelete();
             $table->uuid('legal_entity_id');
             $table->uuid('customer_id');
             $table->uuid('establishment_id');

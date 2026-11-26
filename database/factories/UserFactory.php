@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 namespace Database\Factories;
@@ -22,7 +22,7 @@ class UserFactory extends Factory
     /**
      * Define the model's default state.
      *
-     * Note: the latest TenantKey is resolved for each user creation, which can
+     * Note: the latest Tenant is resolved for each user creation, which can
      * cause N+1 issues when creating many users. For bulk operations, explicitly
      * pass tenant_id: User::factory()->create(['tenant_id' => $tenantId])
      *
@@ -30,7 +30,7 @@ class UserFactory extends Factory
      */
     public function definition(): array
     {
-        $tenant = \App\Models\TenantKey::query()->latest('id')->first();
+        $tenant = \App\Models\Tenant::query()->latest('id')->first();
 
         return [
             'name' => fake()->name(),
@@ -39,7 +39,7 @@ class UserFactory extends Factory
             'password' => static::$password ??= Hash::make('password'),
             'remember_token' => Str::random(10),
             'preferred_locale' => null,
-            'tenant_id' => $tenant !== null ? $tenant->id : \App\Models\TenantKey::factory(),
+            'tenant_id' => $tenant !== null ? $tenant->id : \App\Models\Tenant::factory(),
         ];
     }
 
