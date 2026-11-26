@@ -326,7 +326,7 @@ test('repository workflows use version-documented immutable commit SHAs', functi
     }
 });
 
-test('Dependabot proposes shared components independently', function (): void {
+test('Dependabot proposes shared components independently and uses central admission', function (): void {
     $root = dirname(__DIR__, 2);
     $updates = Yaml::parseFile($root.'/.github/dependabot.yml')['updates'];
     $actions = array_values(array_filter(
@@ -336,14 +336,11 @@ test('Dependabot proposes shared components independently', function (): void {
 
     expect($actions)->toHaveCount(1);
 
-    expect($actions[0])->not->toHaveKey('groups');
-
     $workflow = Yaml::parseFile($root.'/.github/workflows/dependabot-auto-merge.yml');
-    $input = $workflow['jobs']['auto-merge']['with']['shared-sha-workflow-paths'];
-    expect(json_decode($input, true, flags: JSON_THROW_ON_ERROR))->toBe([
-        '.github/workflows/check-conflict-markers.yml',
-        '.github/workflows/pr-size.yml',
-    ]);
+
+    expect($actions[0])->not->toHaveKey('groups')
+        ->and($workflow['jobs']['auto-merge']['with'])->not->toHaveKey('shared-sha-workflow-paths');
+
 });
 
 test('Dependabot forwards only the dedicated publisher credential and opts in by App ID', function (): void {
