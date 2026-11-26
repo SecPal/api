@@ -5,6 +5,7 @@
 
 namespace App\Providers;
 
+use App\Contracts\GlobalIdentityKeyWrapper;
 use App\Contracts\ProcessExecutor;
 use App\Contracts\SecurityEventEmitter;
 use App\Contracts\WebPushDeliveryServiceInterface;
@@ -45,6 +46,8 @@ use App\Policies\SiteAssignmentPolicy;
 use App\Policies\SitePolicy;
 use App\SecurityEvents\SecurityEventName;
 use App\Services\BoundedSecurityEventEmitter;
+use App\Services\GlobalIdentity\FileGlobalIdentityKeyWrapper;
+use App\Services\GlobalIdentity\FileGlobalIdentityRootProvider;
 use App\Services\RuntimeHeartbeatService;
 use App\Services\SecurityEventRecorder;
 use App\Services\SystemProcessExecutor;
@@ -75,6 +78,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
+        $this->app->bind(GlobalIdentityKeyWrapper::class, FileGlobalIdentityKeyWrapper::class);
+        $this->app->bind(FileGlobalIdentityRootProvider::class, static fn (): FileGlobalIdentityRootProvider => new FileGlobalIdentityRootProvider(
+            config()->string('global_identity.root_directory'),
+        ));
         $this->app->bind(ProcessExecutor::class, SystemProcessExecutor::class);
         $this->app->bind(SecurityEventEmitter::class, BoundedSecurityEventEmitter::class);
         $this->app->bind(WebPushTransportInterface::class, WebPushTransport::class);
