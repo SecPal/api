@@ -35,18 +35,7 @@ updates:
       interval: "daily"
       time: "04:00"
       timezone: "Europe/Berlin"
-    groups:
-      shared-no-op-workflow-pins:
-        patterns:
-          - "SecPal/.github/.github/workflows/reusable-check-conflict-markers.yml"
-          - "SecPal/.github/.github/workflows/reusable-pr-size.yml"
-      shared-github-workflows:
-        patterns:
-          - "SecPal/.github/.github/workflows/*"
-      shared-github-workflows-security:
-        applies-to: "security-updates"
-        patterns:
-          - "SecPal/.github/.github/workflows/*"
+    # Let Dependabot update each SecPal component independently, including merge authority.
     commit-message:
       prefix: "chore"
       include: "scope"

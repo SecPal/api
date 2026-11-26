@@ -326,7 +326,7 @@ test('repository workflows use version-documented immutable commit SHAs', functi
     }
 });
 
-test('Dependabot isolates reviewed no-op helpers to their exact caller and first group', function (): void {
+test('Dependabot proposes shared components independently', function (): void {
     $root = dirname(__DIR__, 2);
     $updates = Yaml::parseFile($root.'/.github/dependabot.yml')['updates'];
     $actions = array_values(array_filter(
@@ -336,14 +336,7 @@ test('Dependabot isolates reviewed no-op helpers to their exact caller and first
 
     expect($actions)->toHaveCount(1);
 
-    $groups = $actions[0]['groups'];
-    expect(array_key_first($groups))->toBe('shared-no-op-workflow-pins')
-        ->and($groups['shared-no-op-workflow-pins'])->toBe([
-            'patterns' => [
-                'SecPal/.github/.github/workflows/reusable-check-conflict-markers.yml',
-                'SecPal/.github/.github/workflows/reusable-pr-size.yml',
-            ],
-        ]);
+    expect($actions[0])->not->toHaveKey('groups');
 
     $workflow = Yaml::parseFile($root.'/.github/workflows/dependabot-auto-merge.yml');
     $input = $workflow['jobs']['auto-merge']['with']['shared-sha-workflow-paths'];
