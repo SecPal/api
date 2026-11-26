@@ -109,7 +109,7 @@ jobs:
   ai-instructions:
     name: AI Instructions
     # main
-    uses: SecPal/.github/.github/workflows/reusable-ai-instructions.yml@2d02204e03a7d93132fcbcba45cdff1161017e11
+    uses: SecPal/.github/.github/workflows/reusable-ai-instructions.yml@d3044d801cacb5aebf87d42744e918128c115207
 
   pint:
     name: Laravel Pint
