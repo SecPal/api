@@ -54,7 +54,7 @@ return new class extends Migration
             $table->timestamp('bwr_registered_at')->nullable()->after('bwr_status')
                 ->comment('When BWR approval was received from authority');
             $table->date('bwr_submission_date')->nullable()->after('bwr_registered_at')
-                ->comment('When BWR export was submitted to authority');
+                ->comment('Date the BWR report was submitted to the authority');
 
             // Internal notes for BWR process (e.g., rejection reasons)
             $table->text('bwr_notes')->nullable()->after('bwr_submission_date');

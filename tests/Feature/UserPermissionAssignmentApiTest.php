@@ -28,7 +28,7 @@ function seedUserPermissionAssignmentPermissions(): void
 {
     foreach ([
         'employees.read',
-        'employees.export',
+        'employees.read_sensitive',
         'reports.generate',
         'shifts.read',
         'permissions.read',
@@ -127,7 +127,7 @@ test('user permission assignment bootstrap tolerates pre-seeded permissions and 
         ->where('guard_name', 'sanctum')
         ->whereIn('name', [
             'employees.read',
-            'employees.export',
+            'employees.read_sensitive',
             'reports.generate',
             'shifts.read',
             'permissions.read',
@@ -148,7 +148,7 @@ test('user can view own permissions via_roles and direct and all', function () {
 
     $user = createTenantUser($tenant);
     assignRoleWithTenant($user, $tenant->id, 'Manager');
-    givePermissionWithTenant($user, $tenant->id, 'employees.export');
+    givePermissionWithTenant($user, $tenant->id, 'employees.read_sensitive');
 
     actingAs($user, 'sanctum');
 
@@ -168,7 +168,7 @@ test('user can view own permissions via_roles and direct and all', function () {
         ])
         ->assertJsonPath('data.all', fn ($all) => in_array('employees.read', $all)
             && in_array('shifts.read', $all)
-            && in_array('employees.export', $all));
+            && in_array('employees.read_sensitive', $all));
 });
 
 test('privileged user can view any user permissions', function () {
@@ -225,13 +225,13 @@ test('privileged user can assign direct permission to user', function () {
     actingAs($admin, 'sanctum');
 
     $response = postJson("/v1/users/{$targetUser->id}/permissions", [
-        'permissions' => ['employees.export'],
+        'permissions' => ['employees.read_sensitive'],
     ]);
 
     $response->assertCreated()
-        ->assertJsonPath('data.0.name', 'employees.export');
+        ->assertJsonPath('data.0.name', 'employees.read_sensitive');
 
-    expect($targetUser->fresh()->hasDirectPermission('employees.export'))->toBeTrue();
+    expect($targetUser->fresh()->hasDirectPermission('employees.read_sensitive'))->toBeTrue();
 });
 
 test('hasDirectPermission ignores assignments from another tenant context', function () {
@@ -242,18 +242,18 @@ test('hasDirectPermission ignores assignments from another tenant context', func
     $otherTenantKeys = TenantKey::generateEnvelopeKeys();
     $otherTenant = TenantKey::create($otherTenantKeys);
 
-    givePermissionWithTenant($user, $otherTenant->id, 'employees.export');
+    givePermissionWithTenant($user, $otherTenant->id, 'employees.read_sensitive');
 
     $registrar->setPermissionsTeamId($tenant->id);
 
-    expect($user->fresh()->hasDirectPermission('employees.export'))->toBeFalse();
+    expect($user->fresh()->hasDirectPermission('employees.read_sensitive'))->toBeFalse();
 });
 
 test('hasDirectPermission ignores expired direct assignments', function () {
     ['tenant' => $tenant, 'registrar' => $registrar] = createUserPermissionAssignmentContext();
 
     $user = createTenantUser($tenant);
-    $permission = Permission::findByName('employees.export', 'sanctum');
+    $permission = Permission::findByName('employees.read_sensitive', 'sanctum');
 
     $registrar->setPermissionsTeamId($tenant->id);
 
@@ -270,7 +270,7 @@ test('hasDirectPermission ignores expired direct assignments', function () {
         'updated_at' => now(),
     ]);
 
-    expect($user->fresh()->hasDirectPermission('employees.export'))->toBeFalse();
+    expect($user->fresh()->hasDirectPermission('employees.read_sensitive'))->toBeFalse();
 });
 
 test('privileged user gets 404 when assigning permission to cross-tenant user', function () {
@@ -282,7 +282,7 @@ test('privileged user gets 404 when assigning permission to cross-tenant user', 
     actingAs($admin, 'sanctum');
 
     $response = postJson("/v1/users/{$crossTenantUser->id}/permissions", [
-        'permissions' => ['employees.export'],
+        'permissions' => ['employees.read_sensitive'],
     ]);
 
     $response->assertNotFound()
@@ -326,7 +326,7 @@ test('user without permission-management access cannot assign permissions', func
     actingAs($user, 'sanctum');
 
     $response = postJson("/v1/users/{$targetUser->id}/permissions", [
-        'permissions' => ['employees.export'],
+        'permissions' => ['employees.read_sensitive'],
     ]);
 
     $response->assertForbidden();
@@ -339,17 +339,17 @@ test('privileged user can revoke direct permission from user', function () {
     grantUserPermissionManagementAccess($admin, $tenant->id);
 
     $targetUser = createTenantUser($tenant);
-    givePermissionWithTenant($targetUser, $tenant->id, 'employees.export');
+    givePermissionWithTenant($targetUser, $tenant->id, 'employees.read_sensitive');
 
-    expect($targetUser->hasDirectPermission('employees.export'))->toBeTrue();
+    expect($targetUser->hasDirectPermission('employees.read_sensitive'))->toBeTrue();
 
     actingAs($admin, 'sanctum');
 
-    $response = deleteJson("/v1/users/{$targetUser->id}/permissions/employees.export");
+    $response = deleteJson("/v1/users/{$targetUser->id}/permissions/employees.read_sensitive");
 
     $response->assertOk();
 
-    expect($targetUser->fresh()->hasDirectPermission('employees.export'))->toBeFalse();
+    expect($targetUser->fresh()->hasDirectPermission('employees.read_sensitive'))->toBeFalse();
 });
 
 test('privileged user gets 404 when revoking permission from cross-tenant user', function () {
@@ -360,7 +360,7 @@ test('privileged user gets 404 when revoking permission from cross-tenant user',
 
     actingAs($admin, 'sanctum');
 
-    $response = deleteJson("/v1/users/{$crossTenantUser->id}/permissions/employees.export");
+    $response = deleteJson("/v1/users/{$crossTenantUser->id}/permissions/employees.read_sensitive");
 
     $response->assertNotFound();
 });
@@ -390,7 +390,7 @@ test('user can view only direct permissions', function () {
 
     $user = createTenantUser($tenant);
     assignRoleWithTenant($user, $tenant->id, 'Manager');
-    givePermissionWithTenant($user, $tenant->id, 'employees.export');
+    givePermissionWithTenant($user, $tenant->id, 'employees.read_sensitive');
 
     actingAs($user, 'sanctum');
 
@@ -398,7 +398,7 @@ test('user can view only direct permissions', function () {
 
     $response->assertOk()
         ->assertJsonCount(1, 'data.direct')
-        ->assertJsonPath('data.direct.0.name', 'employees.export');
+        ->assertJsonPath('data.direct.0.name', 'employees.read_sensitive');
 });
 
 test('privileged user gets 404 when viewing direct permissions for cross-tenant user', function () {
@@ -521,7 +521,7 @@ test('validation fails when valid_until is before valid_from', function () {
     actingAs($admin, 'sanctum');
 
     $response = postJson("/v1/users/{$targetUser->id}/permissions", [
-        'permissions' => ['employees.export'],
+        'permissions' => ['employees.read_sensitive'],
         'valid_from' => now()->addDays(7)->toIso8601String(),
         'valid_until' => now()->toIso8601String(),
     ]);

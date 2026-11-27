@@ -30,8 +30,9 @@ class UpdateEmployeeBwrStatusRequest extends FormRequest
         $employee = $this->route('employee');
 
         return [
-            'status' => ['required', 'string', Rule::in(['active', 'suspended', 'revoked'])],
+            'status' => ['required', 'string', Rule::in(['pending', 'active', 'suspended', 'revoked'])],
             'bwr_id' => [
+                'prohibited_if:status,pending',
                 Rule::requiredIf(fn (): bool => $this->input('status') === 'active' && ($employee?->bwr_id === null || $employee->bwr_id === '')),
                 'nullable',
                 'string',

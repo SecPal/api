@@ -160,19 +160,30 @@ enum bwr_status {
 **State Transitions:**
 
 ```text
-not_registered → pending → active
-                           ↓
-                      suspended → active
-                           ↓
-                       revoked (final)
+not_registered → pending
+pending        → active, suspended, revoked
+active         → suspended, revoked
+suspended      → active, revoked
+revoked        → active
 ```
 
 **Triggers:**
 
-- **pending**: When BWR export (XML) is submitted to authority
+- **pending**: After the report is submitted manually in the Bewacherregister and recorded in SecPal
 - **active**: When authority confirms registration (triggers ID document deletion)
 - **suspended**: Authority temporarily suspends due to investigation
 - **revoked**: Authority permanently revokes due to disqualification (e.g., criminal record)
+
+### Recording the manual report through the API
+
+1. Use `PATCH /v1/employees/{employee}` to set `bwr_submission_date`
+   to the actual date of the external report.
+2. Use `PUT /v1/employees/{employee}/bwr/status` with `status: pending`.
+   The API checks the recorded date and BWR readiness before accepting the report.
+3. Use the same status endpoint to record the authority outcome. An active
+   decision uses the seven-digit `bwr_id`, and `notes` can record the result.
+   The API records the initial approval timestamp and applies the existing
+   evidence-retention rules.
 
 ---
 
@@ -212,7 +223,7 @@ not_registered → pending → active
 - **Current address:** at most one row per employee with `resided_until = null` (enforced by a unique partial index). A current address row is required only for BWR-pending and BWR-active employees.
 - **Historical addresses:** `resided_from` / `resided_until` set; `resided_from` may be null when unknown.
 - **API:** clients send/receive `addresses[]` with `street`, `house_number`, `postal_code`, `city`, `supplement`, `country`, `resided_from`, `resided_until`. (No separate Bundesland/state field—0.x product scope is DE-focused.) Updates replace the full list for that employee. The migration that introduced `employee_addresses` backfilled legacy flat-column values into address rows before dropping those columns—use `addresses[]` for all current reads and writes.
-- **BWR five-year continuity** for exports is enforced in `BewacherregisterExportService` (gaps/overlaps and coverage), not by requiring a complete history at employee creation.
+- **BWR five-year continuity** is checked when recording a manual report (gaps, overlaps and coverage).
 
 **Computed property:**
 
@@ -302,7 +313,7 @@ BWR application prepared
      ↓
 ID document uploaded → storage/id_docs/employee_123.pdf
      ↓
-BWR export submitted (bwr_status = 'pending')
+Manual BWR report recorded (bwr_status = 'pending')
      ↓
 Authority processes application
      ↓
@@ -500,7 +511,7 @@ If auditors or authorities question this implementation, refer them to:
 
 **Rationale:**
 
-1. **BWR Export Requirements**: XML export requires separate fields
+1. **BWR data entry**: Separate fields support recording and reviewing addresses for manual reporting
 2. **Searchability**: Can filter by city, postal code without decryption
 3. **Data Quality**: Validation per field (postal code format, ISO country codes)
 4. **International Addresses**: Proper support for different address formats
