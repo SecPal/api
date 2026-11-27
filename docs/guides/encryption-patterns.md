@@ -13,6 +13,7 @@ This document defines the encryption patterns used in SecPal for protecting sens
 - [Encryption Architecture](#encryption-architecture)
 - [Global Identity Key Wrapping](#global-identity-key-wrapping)
 - [Global User Email](#global-user-email)
+- [Identity Operation Delivery](#identity-operation-delivery)
 - [Pattern 1: Field-Level Encryption with Blind Indexes](#pattern-1-field-level-encryption-with-blind-indexes)
 - [Pattern 2: JSON Encryption](#pattern-2-json-encryption)
 - [When NOT to Encrypt](#when-not-to-encrypt)
@@ -201,6 +202,43 @@ rotation table keeps alternate binary indexes for the same User. The caller
 owns operation state and expiry. Hold the applicable operation lock when
 consuming or releasing a reservation. The rotation and recovery workflow
 belongs to [#3116](https://github.com/SecPal/api/issues/3116).
+
+## Identity Operation Delivery
+
+The shared protocol stores the SHA-256 verifier of an independently generated
+256-bit token. A temporary authenticated envelope retains the exact token for
+the worker. The token and any stored recipient use separate working-key
+purposes. Both authenticate the immutable operation context using the shared
+V1 envelope and length-delimited encoder. Each optional operation identifier
+has a distinct absent marker.
+
+The caller creates the operation within its business transaction and
+dispatches `DeliverGlobalIdentityOperation` with the operation UUID. The job
+runs after commitment. Integrations consume a token inside the transaction that
+applies its business effect. The protocol checks the verifier, the current
+subject and the operation lifetime before recording consumption.
+
+Delivery claims an attempt under a row lock. Recipient resolution and
+rendering occur after the claim commits. The worker rechecks the attempt, lease,
+fence and subject in the short dispatch transaction. After that transaction
+commits, the transport receives the message and the full V1 idempotency key
+when supported. Provider-reference lookup takes precedence over supported key
+lookup. Repetition of an ambiguous attempt requires an authoritative absent
+result and explicit provider support within the first dispatch's idempotency
+window. Reconciliation uses the provider account bound to the attempt. Key
+lookup and repetition require a key authorized at the original dispatch.
+A late result cannot revive an invalidated operation.
+
+The isolated restore entry point quarantines the restored operations first.
+The recovery owner supplies the backup epoch and sequence and observes the
+latest journal sequence independently. The journal authenticator verifies a
+checkpoint bound to the exact contiguous entries. Verified terminal entries
+tombstone matching operations. An absent terminal entry alone leaves the
+restored operation quarantined, since later dispatch may be unobserved.
+
+[#3102](https://github.com/SecPal/api/issues/3102) owns integration of the normal
+authentication and email lifecycle. The deployment custody and actual restore
+rehearsal belong to [SecPal/deployment#527](https://github.com/SecPal/deployment/issues/527).
 
 ## Pattern 1: Field-Level Encryption with Blind Indexes
 

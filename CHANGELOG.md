@@ -42,6 +42,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Add the shared identity operation delivery protocol, authenticated token
+  envelopes, dispatch fencing and terminal-journal quarantine (refs #3101).
+
 - Add the encrypted global email repository, versioned blind indexes,
   reservation primitives and PostgreSQL schema for the coordinated identity
   cutover (refs #3100, #3102).
