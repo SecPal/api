@@ -58,6 +58,9 @@ final readonly class GlobalIdentityWorkingKeyRegistry
         return DB::transaction(function () use ($purpose): GlobalIdentityWorkingKeyContext {
             DB::select('SELECT pg_advisory_xact_lock(?, ?)', self::LOCK);
             $active = $this->activeRecord($purpose, 'stage');
+            if ($active->delivery_block_reason !== null) {
+                $this->reject('stage', 'blocked_version', $purpose);
+            }
             $this->verify($active, $this->context($purpose, $active), 'stage');
 
             $candidate = GlobalIdentityWorkingKey::envelopeQuery()->where('purpose', $purpose->value)
@@ -87,7 +90,21 @@ final readonly class GlobalIdentityWorkingKeyRegistry
 
     public function activate(GlobalIdentityWorkingKeyContext $context): void
     {
-        DB::transaction(function () use ($context): void {
+        $this->activateCandidate($context, rotateLookup: false);
+    }
+
+    public function activateLookupRotation(GlobalIdentityWorkingKeyContext $context): void
+    {
+        if ($context->purpose !== GlobalIdentityWorkingKeyPurpose::UserEmailLookup) {
+            throw new GlobalIdentityKeyException('Invalid lookup rotation key purpose.');
+        }
+        $this->activateCandidate($context, rotateLookup: true);
+    }
+
+    /** @param null|Closure(): bool $revocationComplete */
+    private function activateCandidate(GlobalIdentityWorkingKeyContext $context, bool $rotateLookup, ?Closure $revocationComplete = null): void
+    {
+        DB::transaction(function () use ($context, $rotateLookup, $revocationComplete): void {
             DB::select('SELECT pg_advisory_xact_lock(?, ?)', self::LOCK);
             $candidate = $this->exactRecord($context, 'activate');
             $this->verify($candidate, $context, 'activate');
@@ -99,13 +116,266 @@ final readonly class GlobalIdentityWorkingKeyRegistry
             $purpose = $context->purpose;
             $active = $this->activeRecord($purpose, 'activate');
             $this->requireNextCandidate($candidate, $active, $purpose, 'activate');
-            $this->verify($active, $this->context($purpose, $active), 'activate');
+            if ($active->delivery_block_reason === null) {
+                $this->verify($active, $this->context($purpose, $active), 'activate');
+            } elseif ($revocationComplete === null || ! $revocationComplete()) {
+                $this->reject('activate', 'incident_revocation_incomplete', $purpose);
+            }
+            if ($active->previous_lookup_version !== null) {
+                $this->reject('activate', 'lookup_rotation_active', $purpose);
+            }
 
             if (! $active->update(['state' => GlobalIdentityWorkingKey::DECRYPT_ONLY])
-                || ! $candidate->update(['state' => GlobalIdentityWorkingKey::WRITE_ACTIVE, 'activated_at' => now()])) {
+                || ! $candidate->update([
+                    'state' => GlobalIdentityWorkingKey::WRITE_ACTIVE,
+                    'activated_at' => now(),
+                    'previous_lookup_version' => $rotateLookup ? $active->key_version : null,
+                ])) {
                 $this->reject('activate', 'update_failed', $purpose);
             }
             $this->auditCommit('activate', $context);
+        });
+    }
+
+    /** @param Closure(): bool $revocationComplete */
+    public function activateDeliveryReplacement(GlobalIdentityWorkingKeyContext $context, Closure $revocationComplete): void
+    {
+        if ($context->purpose !== GlobalIdentityWorkingKeyPurpose::OperationDeliverySecret) {
+            throw new GlobalIdentityKeyException('Invalid delivery replacement key purpose.');
+        }
+        $this->activateCandidate($context, rotateLookup: false, revocationComplete: $revocationComplete);
+    }
+
+    public function blockDeliveryVersion(
+        GlobalIdentityKeyReference $source,
+        GlobalIdentityTerminalReason $reason,
+        ?GlobalIdentityKeyReference $expectedTarget = null,
+    ): void {
+        if (! in_array($reason, [GlobalIdentityTerminalReason::SecurityRevoked, GlobalIdentityTerminalReason::KeyUnavailable], true)) {
+            throw new GlobalIdentityKeyException('Invalid delivery incident reason.');
+        }
+
+        DB::transaction(function () use ($source, $reason, $expectedTarget): void {
+            DB::select('SELECT pg_advisory_xact_lock(?, ?)', self::LOCK);
+            $purpose = GlobalIdentityWorkingKeyPurpose::OperationDeliverySecret;
+            $active = $this->activeRecord($purpose, 'block_delivery');
+            $activeReference = $this->context($purpose, $active)->reference;
+            $context = new GlobalIdentityWorkingKeyContext($purpose, $source);
+            $affected = $this->exactRecord($context, 'block_delivery');
+            $target = $activeReference == $source
+                ? new GlobalIdentityKeyReference($source->id, $source->version + 1)
+                : $activeReference;
+            if (! in_array($affected->state, [GlobalIdentityWorkingKey::WRITE_ACTIVE, GlobalIdentityWorkingKey::DECRYPT_ONLY], true)
+                || ($expectedTarget !== null && $expectedTarget != $target)
+                || ($affected->delivery_block_reason !== null && $affected->delivery_block_reason !== $reason->value)) {
+                $this->reject('block_delivery', 'unexpected_source', $purpose);
+            }
+            if (! $affected->update(['delivery_block_reason' => $reason->value])) {
+                $this->reject('block_delivery', 'update_failed', $purpose);
+            }
+            $this->auditCommit('block_delivery', $context);
+        });
+    }
+
+    public function stageBlockedDeliveryReplacement(GlobalIdentityKeyReference $source): GlobalIdentityWorkingKeyContext
+    {
+        return DB::transaction(function () use ($source): GlobalIdentityWorkingKeyContext {
+            DB::select('SELECT pg_advisory_xact_lock(?, ?)', self::LOCK);
+            $purpose = GlobalIdentityWorkingKeyPurpose::OperationDeliverySecret;
+            $active = $this->activeRecord($purpose, 'stage_delivery_replacement');
+            if ($active->delivery_block_reason === null || $this->context($purpose, $active)->reference != $source) {
+                $this->reject('stage_delivery_replacement', 'unexpected_source', $purpose);
+            }
+            $candidate = GlobalIdentityWorkingKey::envelopeQuery()->where('purpose', $purpose->value)
+                ->where('state', GlobalIdentityWorkingKey::CANDIDATE)->first();
+            $target = new GlobalIdentityWorkingKeyContext($purpose, new GlobalIdentityKeyReference($source->id, $source->version + 1));
+            if ($candidate !== null) {
+                $this->requireNextCandidate($candidate, $active, $purpose, 'stage_delivery_replacement');
+                $this->verify($candidate, $target, 'stage_delivery_replacement');
+            } else {
+                $this->insert($target, new GlobalIdentityKeyReference($active->root_id, $active->root_version),
+                    GlobalIdentityWorkingKey::CANDIDATE, 'stage_delivery_replacement');
+            }
+
+            return $target;
+        });
+    }
+
+    public function deliveryBlockReason(string $keyId, int $version): ?GlobalIdentityTerminalReason
+    {
+        return $this->withReadLease(function () use ($keyId, $version): ?GlobalIdentityTerminalReason {
+            $context = new GlobalIdentityWorkingKeyContext(
+                GlobalIdentityWorkingKeyPurpose::OperationDeliverySecret,
+                new GlobalIdentityKeyReference($keyId, $version),
+            );
+            $row = $this->exactRecord($context, 'delivery_fence');
+
+            return $row->delivery_block_reason === null ? null : GlobalIdentityTerminalReason::from($row->delivery_block_reason);
+        });
+    }
+
+    /**
+     * Hold the lookup epoch through the authorized repository operation.
+     *
+     * @template T
+     *
+     * @param  Closure(GlobalEmailLookupVersions): T  $use
+     * @return T
+     */
+    public function withLookupVersions(Closure $use): mixed
+    {
+        return $this->withReadLease(function () use ($use): mixed {
+            $active = $this->activeRecord(GlobalIdentityWorkingKeyPurpose::UserEmailLookup, 'lookup_versions');
+            $write = $active->key_version;
+            $previous = $active->lookup_cleanup ? null : $active->previous_lookup_version;
+
+            return $use(new GlobalEmailLookupVersions($write, $previous === null ? [$write] : [$previous, $write]));
+        });
+    }
+
+    public function lookupCleanupVersion(): ?int
+    {
+        return $this->withReadLease(function (): ?int {
+            $active = $this->activeRecord(GlobalIdentityWorkingKeyPurpose::UserEmailLookup, 'lookup_cleanup');
+
+            return $active->lookup_cleanup ? $active->previous_lookup_version : null;
+        });
+    }
+
+    /**
+     * @param  Closure(int, int): void  $verifyProjection
+     * @param  Closure(int, int): bool  $removePriorProjection
+     */
+    public function completeLookupRotation(
+        GlobalIdentityWorkingKeyContext $target,
+        Closure $verifyProjection,
+        Closure $removePriorProjection,
+    ): bool {
+        return DB::transaction(function () use ($target, $verifyProjection, $removePriorProjection): bool {
+            DB::select('SELECT pg_advisory_xact_lock(?, ?)', self::LOCK);
+            $purpose = GlobalIdentityWorkingKeyPurpose::UserEmailLookup;
+            $active = $this->activeRecord($purpose, 'complete_lookup');
+            if ($target != $this->context($purpose, $active)) {
+                $this->reject('complete_lookup', 'stale_target', $purpose);
+            }
+            if ($active->previous_lookup_version === null) {
+                return true;
+            }
+            $prior = $active->previous_lookup_version;
+            if (! $active->lookup_cleanup) {
+                $verifyProjection($prior, $active->key_version);
+                if (! $active->update(['lookup_cleanup' => true])) {
+                    $this->reject('complete_lookup', 'update_failed', $purpose);
+                }
+                $this->auditCommit('cutover_lookup', $target);
+            }
+            if (! $removePriorProjection($prior, $active->key_version)) {
+                return false;
+            }
+            if (! $active->update(['previous_lookup_version' => null, 'lookup_cleanup' => false])) {
+                $this->reject('complete_lookup', 'update_failed', $purpose);
+            }
+            $this->auditCommit('complete_lookup', $target);
+
+            return true;
+        });
+    }
+
+    /**
+     * @template T
+     *
+     * @param  Closure(): T  $use
+     * @return T
+     */
+    public function withReadLease(Closure $use): mixed
+    {
+        return DB::transaction(function () use ($use): mixed {
+            DB::select('SELECT pg_advisory_xact_lock_shared(?, ?)', self::LOCK);
+
+            return $use();
+        });
+    }
+
+    public function activeReference(GlobalIdentityWorkingKeyPurpose $purpose): GlobalIdentityKeyReference
+    {
+        return $this->withReadLease(function () use ($purpose): GlobalIdentityKeyReference {
+            $active = $this->activeRecord($purpose, 'active_reference');
+
+            return new GlobalIdentityKeyReference($active->key_id, $active->key_version);
+        });
+    }
+
+    /** @param Closure(): bool $hasLiveReferences */
+    public function retire(GlobalIdentityWorkingKeyContext $context, Closure $hasLiveReferences): void
+    {
+        DB::transaction(function () use ($context, $hasLiveReferences): void {
+            DB::select('SELECT pg_advisory_xact_lock(?, ?)', self::LOCK);
+            $row = $this->exactRecord($context, 'retire');
+            if ($hasLiveReferences()) {
+                $this->reject('retire', 'live_references', $context->purpose);
+            }
+            if ($row->state === GlobalIdentityWorkingKey::RETIRED) {
+                return;
+            }
+            if ($row->state !== GlobalIdentityWorkingKey::DECRYPT_ONLY
+                || ! $row->update(['state' => GlobalIdentityWorkingKey::RETIRED])) {
+                $this->reject('retire', 'invalid_state', $context->purpose);
+            }
+            $this->auditCommit('retire', $context);
+        });
+    }
+
+    /** @param Closure(): bool $hasLiveReferences */
+    public function activateDrainedReservationKey(GlobalIdentityWorkingKeyContext $target, Closure $hasLiveReferences): bool
+    {
+        if ($target->purpose !== GlobalIdentityWorkingKeyPurpose::UserEmailReservation) {
+            throw new GlobalIdentityKeyException('Invalid reservation rotation key.');
+        }
+
+        return DB::transaction(function () use ($target, $hasLiveReferences): bool {
+            DB::select('SELECT pg_advisory_xact_lock(?, ?)', self::LOCK);
+            if ($hasLiveReferences()) {
+                return false;
+            }
+            $this->activate($target);
+
+            return true;
+        });
+    }
+
+    /** The persisted exact root reference is the checkpoint for each row. */
+    public function rewrapRootBatch(
+        GlobalIdentityKeyReference $from,
+        GlobalIdentityKeyReference $to,
+        int $limit,
+    ): int {
+        if ($from == $to || $limit < 1 || $limit > 500) {
+            throw new GlobalIdentityKeyException('Invalid global identity root rewrap batch.');
+        }
+
+        return DB::transaction(function () use ($from, $to, $limit): int {
+            DB::select('SELECT pg_advisory_xact_lock(?, ?)', self::LOCK);
+            $rows = GlobalIdentityWorkingKey::envelopeQuery()->addSelect('purpose')
+                ->where('root_id', $from->id)->where('root_version', $from->version)
+                ->orderBy('id')->limit($limit)->lockForUpdate()->get();
+
+            foreach ($rows as $row) {
+                $purpose = GlobalIdentityWorkingKeyPurpose::tryFrom($row->purpose)
+                    ?? throw new GlobalIdentityKeyException('Unknown global identity working key purpose.');
+                $context = $this->context($purpose, $row);
+                $key = $this->unwrap($row, $context, 'rewrap');
+                try {
+                    $wrapped = $this->wrapVerified($key, $context, $to, 'rewrap');
+                    if (! $row->update($this->wrappedAttributes($wrapped))) {
+                        $this->reject('rewrap', 'update_failed', $purpose);
+                    }
+                } finally {
+                    sodium_memzero($key);
+                }
+                $this->auditCommit('rewrap', $context);
+            }
+
+            return $rows->count();
         });
     }
 
@@ -121,9 +391,11 @@ final readonly class GlobalIdentityWorkingKeyRegistry
      */
     public function withActiveKey(GlobalIdentityWorkingKeyPurpose $purpose, Closure $use): mixed
     {
-        return DB::transaction(function () use ($purpose, $use): mixed {
-            DB::select('SELECT pg_advisory_xact_lock_shared(?, ?)', self::LOCK);
+        return $this->withReadLease(function () use ($purpose, $use): mixed {
             $active = $this->activeRecord($purpose, 'resolve_active');
+            if ($active->delivery_block_reason !== null) {
+                $this->reject('resolve_active', 'blocked_version', $purpose);
+            }
             $context = $this->context($purpose, $active);
             $key = $this->unwrap($active, $context, 'resolve_active');
 
@@ -175,7 +447,8 @@ final readonly class GlobalIdentityWorkingKeyRegistry
      */
     private function withReadableRecord(GlobalIdentityWorkingKey $record, GlobalIdentityWorkingKeyContext $context, Closure $use): mixed
     {
-        if (! in_array($record->state, [GlobalIdentityWorkingKey::WRITE_ACTIVE, GlobalIdentityWorkingKey::DECRYPT_ONLY], true)) {
+        if ($record->delivery_block_reason !== null
+            || ! in_array($record->state, [GlobalIdentityWorkingKey::WRITE_ACTIVE, GlobalIdentityWorkingKey::DECRYPT_ONLY], true)) {
             $this->reject('resolve', 'unreadable_state', $context->purpose);
         }
 
@@ -271,24 +544,13 @@ final readonly class GlobalIdentityWorkingKeyRegistry
     ): void {
         try {
             $key = random_bytes(32);
-            $wrapped = $this->wrapper->wrap($key, $context, $root);
-            $verified = $this->wrapper->unwrap($wrapped, $context);
-            $verifiedAgainstRoot = $wrapped->root == $root && hash_equals($key, $verified);
         } catch (RandomException) {
             $this->reject($operation, 'generation_failed', $context->purpose);
-        } catch (GlobalIdentityKeyException) {
-            $this->reject($operation, 'invalid_envelope', $context->purpose);
-        } finally {
-            if (isset($key)) {
-                sodium_memzero($key);
-            }
-            if (isset($verified)) {
-                sodium_memzero($verified);
-            }
         }
-
-        if (! $verifiedAgainstRoot) {
-            $this->reject($operation, 'verification_failed', $context->purpose);
+        try {
+            $wrapped = $this->wrapVerified($key, $context, $root, $operation);
+        } finally {
+            sodium_memzero($key);
         }
 
         $stored = GlobalIdentityWorkingKey::query()->create([
@@ -297,12 +559,7 @@ final readonly class GlobalIdentityWorkingKeyRegistry
             'purpose' => $context->purpose->value,
             'algorithm' => $context->purpose->algorithm(),
             'state' => $state,
-            'root_id' => $root->id,
-            'root_version' => $root->version,
-            'wrapping_format_version' => $wrapped->formatVersion,
-            'wrapping_algorithm' => $wrapped->algorithm,
-            'wrapping_nonce' => '\\x'.bin2hex($wrapped->nonce),
-            'wrapped_key' => '\\x'.bin2hex($wrapped->ciphertextAndTag),
+            ...$this->wrappedAttributes($wrapped),
             'activated_at' => $state === GlobalIdentityWorkingKey::WRITE_ACTIVE ? now() : null,
         ]);
         if (! $stored->exists) {
@@ -310,6 +567,44 @@ final readonly class GlobalIdentityWorkingKeyRegistry
         }
 
         $this->auditCommit($operation, $context);
+    }
+
+    private function wrapVerified(
+        #[SensitiveParameter] string $key,
+        GlobalIdentityWorkingKeyContext $context,
+        GlobalIdentityKeyReference $root,
+        string $operation,
+    ): WrappedGlobalIdentityKey {
+        try {
+            $wrapped = $this->wrapper->wrap($key, $context, $root);
+            $verified = $this->wrapper->unwrap($wrapped, $context);
+            $matches = $wrapped->root == $root && hash_equals($key, $verified);
+        } catch (GlobalIdentityKeyException) {
+            $this->reject($operation, 'invalid_envelope', $context->purpose);
+        } finally {
+            if (isset($verified)) {
+                sodium_memzero($verified);
+            }
+        }
+
+        if (! $matches) {
+            $this->reject($operation, 'verification_failed', $context->purpose);
+        }
+
+        return $wrapped;
+    }
+
+    /** @return array<string, int|string> */
+    private function wrappedAttributes(#[SensitiveParameter] WrappedGlobalIdentityKey $wrapped): array
+    {
+        return [
+            'root_id' => $wrapped->root->id,
+            'root_version' => $wrapped->root->version,
+            'wrapping_format_version' => $wrapped->formatVersion,
+            'wrapping_algorithm' => $wrapped->algorithm,
+            'wrapping_nonce' => '\\x'.bin2hex($wrapped->nonce),
+            'wrapped_key' => '\\x'.bin2hex($wrapped->ciphertextAndTag),
+        ];
     }
 
     private function auditCommit(string $operation, GlobalIdentityWorkingKeyContext $context): void

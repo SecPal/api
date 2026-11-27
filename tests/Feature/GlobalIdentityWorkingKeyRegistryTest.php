@@ -6,10 +6,16 @@
 declare(strict_types=1);
 
 use App\Contracts\GlobalIdentityKeyWrapper;
+use App\Contracts\GlobalIdentityRotationAuthority;
 use App\Exceptions\GlobalIdentityKeyException;
+use App\Models\User;
 use App\Services\GlobalIdentity\FileGlobalIdentityKeyWrapper;
 use App\Services\GlobalIdentity\FileGlobalIdentityRootProvider;
+use App\Services\GlobalIdentity\GlobalEmailRepository;
+use App\Services\GlobalIdentity\GlobalIdentityAccounts;
 use App\Services\GlobalIdentity\GlobalIdentityKeyReference;
+use App\Services\GlobalIdentity\GlobalIdentityRotationKind;
+use App\Services\GlobalIdentity\GlobalIdentityRotationPlan;
 use App\Services\GlobalIdentity\GlobalIdentityWorkingKeyContext;
 use App\Services\GlobalIdentity\GlobalIdentityWorkingKeyPurpose as Purpose;
 use App\Services\GlobalIdentity\GlobalIdentityWorkingKeyRegistry;
@@ -19,6 +25,7 @@ use Illuminate\Filesystem\Filesystem;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 uses(RefreshDatabase::class, Tests\Support\ManagesGlobalIdentityFixture::class);
 
@@ -109,6 +116,135 @@ it('activates an authenticated candidate while keeping the former exact version 
         ->and($this->registry->withKey($candidate, registryKeyDigest(...)))->toBe($this->registry->withActiveKey($purpose, registryKeyDigest(...)))
         ->and($this->registry->withKey($old, registryKeyDigest(...)))->toBe($oldDigest)
         ->and(fn () => $this->registry->activate($old))->toThrow(GlobalIdentityKeyException::class);
+});
+
+it('resumes root rewrap and preserves each exact working key', function (): void {
+    $this->registry->initialize($this->root);
+    $nextRoot = new GlobalIdentityKeyReference('root', 2);
+    $this->provider->provision($nextRoot);
+    $prior = DB::table('global_identity_working_keys')->orderBy('id')
+        ->selectRaw("id, purpose, key_id, key_version, encode(wrapping_nonce, 'hex') AS nonce")->get();
+    $digests = [];
+    foreach ($prior as $row) {
+        $context = new GlobalIdentityWorkingKeyContext(Purpose::from($row->purpose), new GlobalIdentityKeyReference($row->key_id, $row->key_version));
+        $digests[$row->id] = $this->registry->withKey($context, registryKeyDigest(...));
+    }
+
+    expect($this->registry->rewrapRootBatch($this->root, $nextRoot, 3))->toBe(3)
+        ->and(DB::table('global_identity_working_keys')->where('root_version', 2)->count())->toBe(3)
+        ->and(DB::table('global_identity_working_keys')->where('root_version', 1)->count())->toBe(5);
+
+    foreach ($prior as $row) {
+        $context = new GlobalIdentityWorkingKeyContext(Purpose::from($row->purpose), new GlobalIdentityKeyReference($row->key_id, $row->key_version));
+        expect($this->registry->withKey($context, registryKeyDigest(...)))->toBe($digests[$row->id]);
+    }
+
+    expect($this->registry->rewrapRootBatch($this->root, $nextRoot, 10))->toBe(5)
+        ->and($this->registry->rewrapRootBatch($this->root, $nextRoot, 10))->toBe(0);
+    foreach ($prior as $row) {
+        $context = new GlobalIdentityWorkingKeyContext(Purpose::from($row->purpose), new GlobalIdentityKeyReference($row->key_id, $row->key_version));
+        $rewrapped = DB::table('global_identity_working_keys')->where('id', $row->id)
+            ->selectRaw("root_version, encode(wrapping_nonce, 'hex') AS nonce")->sole();
+        expect($rewrapped->root_version)->toBe(2)
+            ->and($rewrapped->nonce)->not->toBe($row->nonce)
+            ->and($this->registry->withKey($context, registryKeyDigest(...)))->toBe($digests[$row->id]);
+    }
+});
+
+it('advances an approved root rotation in independently committed command batches', function (): void {
+    $this->registry->initialize($this->root);
+    $target = new GlobalIdentityKeyReference('root', 2);
+    $this->provider->provision($target);
+    app()->instance(GlobalIdentityWorkingKeyRegistry::class, $this->registry);
+    $id = (string) Str::uuid();
+    $plan = new GlobalIdentityRotationPlan($id, GlobalIdentityRotationKind::Root, $this->root, $target);
+    $authority = Mockery::mock(GlobalIdentityRotationAuthority::class);
+    $authority->shouldReceive('approvedPlan')->with($id, 'start')->once()->andReturn($plan);
+    $authority->shouldReceive('approvedPlan')->with($id, 'advance')->times(3)->andReturn($plan);
+    $authority->shouldReceive('approvedPlan')->with($id, 'pause')->once()->andReturn($plan);
+    $authority->shouldReceive('approvedPlan')->with($id, 'resume')->once()->andReturn($plan);
+    $authority->shouldReceive('approvedPlan')->with($id, 'complete')->twice()->andReturn($plan);
+    app()->instance(GlobalIdentityRotationAuthority::class, $authority);
+
+    $arguments = ['operation' => $id, '--batch' => 3];
+    $this->artisan('identity:rotation', $arguments + ['action' => 'start'])->assertSuccessful();
+    $this->artisan('identity:rotation', $arguments + ['action' => 'advance'])->assertSuccessful();
+    expect(DB::table('global_identity_working_keys')->where('root_version', 2)->count())->toBe(3);
+
+    $this->artisan('identity:rotation', $arguments + ['action' => 'pause'])->assertSuccessful();
+    expect(DB::table('global_identity_rotations')->where('id', $id)->value('phase'))->toBe('paused');
+    $this->artisan('identity:rotation', $arguments + ['action' => 'resume'])->assertSuccessful();
+    $this->artisan('identity:rotation', $arguments + ['action' => 'advance'])->assertSuccessful();
+    expect(DB::table('global_identity_working_keys')->where('root_version', 2)->count())->toBe(6);
+    $this->artisan('identity:rotation', $arguments + ['action' => 'complete'])->assertFailed();
+    expect(DB::table('global_identity_working_keys')->where('root_version', 1)->count())->toBe(2);
+    $this->artisan('identity:rotation', $arguments + ['action' => 'advance'])->assertSuccessful();
+    $this->artisan('identity:rotation', $arguments + ['action' => 'complete'])->assertSuccessful();
+    expect(DB::table('global_identity_rotations')->where('id', $id)->value('phase'))->toBe('complete');
+});
+
+it('keeps a partial root rewrap batch intact when an exact target root is unavailable', function (): void {
+    $this->registry->initialize($this->root);
+    $next = new GlobalIdentityKeyReference('root', 2);
+    $this->provider->provision($next);
+    expect($this->registry->rewrapRootBatch($this->root, $next, 2))->toBe(2);
+
+    rename($this->rootDirectory.'/root.2.key', $this->rootDirectory.'/offline.key');
+    expect(fn () => $this->registry->rewrapRootBatch($this->root, $next, 3))->toThrow(GlobalIdentityKeyException::class)
+        ->and(DB::table('global_identity_working_keys')->where('root_version', 2)->count())->toBe(2);
+
+    rename($this->rootDirectory.'/offline.key', $this->rootDirectory.'/root.2.key');
+    expect($this->registry->rewrapRootBatch($this->root, $next, 10))->toBe(6);
+});
+
+it('opens restored encrypted identity state before, during and after root rewrap using only the exact roots', function (): void {
+    $directory = $this->rootDirectory;
+    $this->registry->initialize($this->root);
+    $target = new GlobalIdentityKeyReference('root', 2);
+    $this->provider->provision($target);
+    app()->instance(GlobalIdentityWorkingKeyRegistry::class, $this->registry);
+    $accounts = app(GlobalIdentityAccounts::class);
+    $email = app(GlobalEmailRepository::class);
+    $address = 'Recovery+Checkpoint@secpal.dev';
+    $user = User::factory()->create(['email' => $address]);
+
+    DB::statement('CREATE TEMP TABLE root_before ON COMMIT DROP AS TABLE global_identity_working_keys');
+    $this->registry->rewrapRootBatch($this->root, $target, 3);
+    DB::statement('CREATE TEMP TABLE root_during ON COMMIT DROP AS TABLE global_identity_working_keys');
+    $this->registry->rewrapRootBatch($this->root, $target, 10);
+    DB::statement('CREATE TEMP TABLE root_after ON COMMIT DROP AS TABLE global_identity_working_keys');
+
+    foreach (['root_before' => [1], 'root_during' => [1, 2], 'root_after' => [2]] as $snapshot => $roots) {
+        DB::beginTransaction();
+        try {
+            DB::table('global_identity_working_keys')->delete();
+            DB::statement('INSERT INTO global_identity_working_keys TABLE '.$snapshot);
+            $omitted = count($roots) === 2 ? null : $directory.'/root.'.(3 - $roots[0]).'.key';
+            if ($omitted !== null) {
+                rename($omitted, $directory.'/offline.key');
+            }
+            try {
+                expect($accounts->find($address)?->id)->toBe($user->id)
+                    ->and($email->withEmail($user->id, 1, false, static fn (#[SensitiveParameter] string $value): string => $value))->toBe($address)
+                    ->and(DB::table('global_identity_working_keys')->distinct()->orderBy('root_version')->pluck('root_version')->all())->toBe($roots);
+                $required = $directory.'/root.'.$roots[0].'.key';
+                $purpose = Purpose::from(DB::table('global_identity_working_keys')->where('root_version', $roots[0])->value('purpose'));
+                rename($required, $directory.'/required.key');
+                try {
+                    expect(fn () => $this->registry->withActiveKey($purpose, registryKeyDigest(...)))
+                        ->toThrow(GlobalIdentityKeyException::class);
+                } finally {
+                    rename($directory.'/required.key', $required);
+                }
+            } finally {
+                if ($omitted !== null) {
+                    rename($directory.'/offline.key', $omitted);
+                }
+            }
+        } finally {
+            DB::rollBack();
+        }
+    }
 });
 
 it('fails closed on substituted roots and purposes and only audits bounded metadata', function (): void {

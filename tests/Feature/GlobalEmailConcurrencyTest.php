@@ -12,6 +12,7 @@ use App\Services\GlobalIdentity\FileGlobalIdentityRootProvider;
 use App\Services\GlobalIdentity\GlobalEmailLookupVersions;
 use App\Services\GlobalIdentity\GlobalEmailRepository;
 use App\Services\GlobalIdentity\GlobalEmailSchema;
+use App\Services\GlobalIdentity\GlobalIdentityAccounts;
 use App\Services\GlobalIdentity\GlobalIdentityKeyReference;
 use App\Services\GlobalIdentity\GlobalIdentityWorkingKeyPurpose as Purpose;
 use App\Services\GlobalIdentity\GlobalIdentityWorkingKeyRegistry;
@@ -129,6 +130,48 @@ it('serializes concurrent user creation and reservations under two accepted key 
     }
 });
 
+it('serializes lookup activation and account writes against the rotation projections', function (): void {
+    expect(Artisan::call('migrate', ['--force' => true]))->toBe(0);
+    $directory = sys_get_temp_dir().'/secpal-racing-rotation-'.bin2hex(random_bytes(12));
+    mkdir($directory, 0700);
+    $workers = [];
+    try {
+        $root = new GlobalIdentityKeyReference('root', 1);
+        (new FileGlobalIdentityRootProvider($directory))->provision($root);
+        config(['global_identity.root_directory' => $directory]);
+        $keys = app(GlobalIdentityWorkingKeyRegistry::class);
+        $keys->initialize($root);
+        $tenant = TenantKey::factory()->create();
+        $accounts = app(GlobalIdentityAccounts::class);
+        $user = $accounts->create(new User(['name' => 'Fixture', 'password' => 'test-password', 'tenant_id' => $tenant->id]), 'Old@secpal.app');
+        $worker = globalEmailWorker($directory, $this->schema, $tenant->id, 'rotate_lookup', 'unused');
+        $workers[] = $worker;
+        $keys->withLookupVersions(function (GlobalEmailLookupVersions $versions) use ($worker, $accounts, $user): void {
+            expect($versions->accepted)->toBe([1]);
+            assertEmailWorkerBlocked($worker);
+            expect($accounts->find('old@secpal.app')?->id)->toBe($user->id);
+        });
+        expect($worker->wait())->toBe(0);
+
+        $repo = app(GlobalEmailRepository::class);
+        $competitor = globalEmailWorker($directory, $this->schema, $tenant->id, 'create_active', 'old@secpal.app');
+        $workers[] = $competitor;
+        DB::transaction(function () use ($repo, $user, $competitor): void {
+            expect($repo->rotateIndex($user->id, promote: false))->toBeTrue();
+            assertEmailWorkerBlocked($competitor);
+        });
+        expect($competitor->wait())->toBe(0)
+            ->and(DB::table('users')->count())->toBe(1)
+            ->and($repo->rotateIndex($user->id, promote: true))->toBeTrue()
+            ->and($accounts->find('old@secpal.app')?->id)->toBe($user->id);
+    } finally {
+        foreach ($workers as $worker) {
+            $worker->stop();
+        }
+        (new Filesystem)->deleteDirectory($directory);
+    }
+});
+
 function assertEmailWorkerBlocked(Process $worker): void
 {
     $worker->start();
@@ -157,6 +200,11 @@ function globalEmailWorker(string $root, string $schema, int $tenantId, string $
         $db->statement("SET statement_timeout = '10s'");
         echo $db->scalar('SELECT pg_backend_pid()').PHP_EOL;
         $repository = $app->make(App\Services\GlobalIdentity\GlobalEmailRepository::class);
+        if ($argv[2] === 'rotate_lookup') {
+            $keys = $app->make(App\Services\GlobalIdentity\GlobalIdentityWorkingKeyRegistry::class);
+            $keys->activateLookupRotation($keys->stage(App\Services\GlobalIdentity\GlobalIdentityWorkingKeyPurpose::UserEmailLookup));
+            exit(0);
+        }
         if ($argv[2] === 'release') {
             $repository->release($argv[3]);
             exit(0);
@@ -167,7 +215,10 @@ function globalEmailWorker(string $root, string $schema, int $tenantId, string $
             exit(0);
         }
         try {
-            if ($argv[2] === 'create') {
+            if ($argv[2] === 'create_active') {
+                $user = new App\Models\User(['name' => 'Fixture', 'password' => 'test-password', 'tenant_id' => (int) $argv[1]]);
+                $app->make(App\Services\GlobalIdentity\GlobalIdentityAccounts::class)->create($user, $argv[3]);
+            } elseif ($argv[2] === 'create') {
                 $user = new App\Models\User(['name' => 'Fixture', 'password' => 'test-password', 'tenant_id' => (int) $argv[1]]);
                 $repository->create($user, $argv[3], $versions);
             } else {

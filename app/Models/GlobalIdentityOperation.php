@@ -36,6 +36,8 @@ use Illuminate\Database\Eloquent\Model;
  * @property bool $uses_idempotency_key
  * @property ?string $provider_message_reference
  * @property ?string $terminal_reason
+ * @property ?string $incident_id
+ * @property ?string $replaces_operation_id
  * @property bool $quarantined
  */
 final class GlobalIdentityOperation extends Model
