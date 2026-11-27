@@ -91,7 +91,7 @@ SecPal seeds seven predefined roles that cover common use cases. There is no pre
 **Typical Permissions:**
 
 - `employees.read`, `employees.create`, `employees.update`, `employees.delete`
-- `employees.read_sensitive`, `employees.read_salary`, `employees.export`
+- `employees.read_sensitive`, `employees.read_salary`
 - `employee.read`, `employee.write`, `employee.activate`, `employee.terminate`
 - `employee_qualification.write`, `employee_document.write`
 - `onboarding.read`, `onboarding.write`, `onboarding.approve`, `onboarding.confirm`

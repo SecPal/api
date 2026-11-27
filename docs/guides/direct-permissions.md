@@ -42,14 +42,14 @@ Role Permissions (Manager):
 └── reports.view
 
 Direct Permissions (John):
-├── employees.export  ← Direct permission
+├── employees.read_sensitive  ← Direct permission
 └── reports.generate  ← Direct permission
 
 John's Total Permissions:
 ├── employees.view     (from Manager)
 ├── employees.create   (from Manager)
 ├── employees.update   (from Manager)
-├── employees.export   (direct)
+├── employees.read_sensitive   (direct)
 ├── reports.view       (from Manager)
 └── reports.generate   (direct)
 ```
@@ -68,20 +68,20 @@ Direct permissions solve **exceptional access scenarios** that don't fit standar
 
 ### Use Case Matrix
 
-| Scenario                              | Problem                              | Solution                                | Why Direct Permission?                             |
-| ------------------------------------- | ------------------------------------ | --------------------------------------- | -------------------------------------------------- |
-| **Temporary Exception Access**        | Guard needs export for 1 week audit  | Assign `employees.export` (temporal)    | Avoid modifying Guard role or creating custom role |
-| **Project-Specific Access**           | Manager needs data import for Q4     | Assign `data.import` (temporal)         | Only this manager, only this project               |
-| **Special Client Privilege**          | VIP client needs report generation   | Assign `reports.generate` (permanent)   | Exception for one client, not role-worthy          |
-| **Auditor Access**                    | External auditor needs read access   | Assign multiple read permissions        | Time-limited, full audit scope                     |
-| **Developer Production Debugging**    | Dev needs production logs access     | Assign `logs.view` (temporal, 2 hours)  | Emergency access without permanent role change     |
-| **Compliance Officer Special Access** | CO needs employee salary view        | Assign `employees.salary.view`          | Highly sensitive, exceptional access               |
-| **Manager Covering Vacation**         | Acting manager during absence        | Assign temporal Manager role            | Use role assignment, not direct permissions        |
-| **Cross-Department Collaboration**    | HR manager needs IT system access    | Assign `it.systems.view` (temporal)     | Temporary cross-functional need                    |
-| **Event-Based Elevation**             | Guard becomes security lead for gala | Assign `security.lead` permissions      | Time-limited elevation for specific event          |
-| **Beta Feature Testing**              | User tests new reporting feature     | Assign `reports.beta.access` (temporal) | Limited testing scope before general availability  |
-| **Training Access**                   | Trainer needs live system access     | Assign training permissions (temporal)  | Real data access for training purposes             |
-| **Vendor/Contractor Temporary Needs** | External consultant needs task queue | Assign `tasks.view` (project duration)  | Scoped vendor access without role creation         |
+| Scenario                              | Problem                                  | Solution                                     | Why Direct Permission?                             |
+| ------------------------------------- | ---------------------------------------- | -------------------------------------------- | -------------------------------------------------- |
+| **Temporary Exception Access**        | HR reviewer needs temporary audit access | Assign `employees.read_sensitive` (temporal) | Avoid modifying Guard role or creating custom role |
+| **Project-Specific Access**           | Manager needs data import for Q4         | Assign `data.import` (temporal)              | Only this manager, only this project               |
+| **Special Client Privilege**          | VIP client needs report generation       | Assign `reports.generate` (permanent)        | Exception for one client, not role-worthy          |
+| **Auditor Access**                    | External auditor needs read access       | Assign multiple read permissions             | Time-limited, full audit scope                     |
+| **Developer Production Debugging**    | Dev needs production logs access         | Assign `logs.view` (temporal, 2 hours)       | Emergency access without permanent role change     |
+| **Compliance Officer Special Access** | CO needs employee salary view            | Assign `employees.salary.view`               | Highly sensitive, exceptional access               |
+| **Manager Covering Vacation**         | Acting manager during absence            | Assign temporal Manager role                 | Use role assignment, not direct permissions        |
+| **Cross-Department Collaboration**    | HR manager needs IT system access        | Assign `it.systems.view` (temporal)          | Temporary cross-functional need                    |
+| **Event-Based Elevation**             | Guard becomes security lead for gala     | Assign `security.lead` permissions           | Time-limited elevation for specific event          |
+| **Beta Feature Testing**              | User tests new reporting feature         | Assign `reports.beta.access` (temporal)      | Limited testing scope before general availability  |
+| **Training Access**                   | Trainer needs live system access         | Assign training permissions (temporal)       | Real data access for training purposes             |
+| **Vendor/Contractor Temporary Needs** | External consultant needs task queue     | Assign `tasks.view` (project duration)       | Scoped vendor access without role creation         |
 
 ### Decision Tree: Role vs. Direct Permission
 
@@ -157,7 +157,7 @@ Content-Type: application/json
 Authorization: Bearer {token}
 
 {
-  "permissions": ["employees.export", "reports.generate"]
+  "permissions": ["employees.read_sensitive", "reports.generate"]
 }
 ```
 
@@ -167,7 +167,7 @@ Authorization: Bearer {token}
 {
   "data": {
     "user_id": 123,
-    "direct_permissions": ["employees.export", "reports.generate"],
+    "direct_permissions": ["employees.read_sensitive", "reports.generate"],
     "assigned_at": "2025-11-11T10:00:00Z",
     "expires_at": null
   },
@@ -256,12 +256,12 @@ Authorization: Bearer {token}
     "roles": ["manager"],
     "permissions": {
       "via_roles": ["employees.view", "employees.create", "employees.update", "reports.view"],
-      "direct": ["employees.export", "reports.generate"],
+      "direct": ["employees.read_sensitive", "reports.generate"],
       "all": [
         "employees.view",
         "employees.create",
         "employees.update",
-        "employees.export",
+        "employees.read_sensitive",
         "reports.view",
         "reports.generate"
       ]
@@ -281,7 +281,7 @@ Authorization: Bearer {token}
 **Request:**
 
 ```http
-DELETE /v1/users/123/permissions/employees.export
+DELETE /v1/users/123/permissions/employees.read_sensitive
 Authorization: Bearer {token}
 ```
 
@@ -291,7 +291,7 @@ Authorization: Bearer {token}
 {
   "data": {
     "user_id": 123,
-    "revoked_permission": "employees.export",
+    "revoked_permission": "employees.read_sensitive",
     "remaining_direct_permissions": ["reports.generate"],
     "revoked_at": "2025-11-11T11:00:00Z"
   },
@@ -309,11 +309,11 @@ Authorization: Bearer {token}
 
 ```plaintext
 User John (Manager role) has:
-- employees.export (from Manager role)
-- employees.export (direct permission)
+- employees.read_sensitive (from Manager role)
+- employees.read_sensitive (direct permission)
 
 After revoking direct permission:
-→ John still has employees.export (via Manager role)
+→ John still has employees.read_sensitive (via Manager role)
 → Only the direct assignment is removed
 ```
 
@@ -377,7 +377,7 @@ Manager Role Permissions:
 └── shifts.manage
 
 Direct Permissions:
-├── employees.export        ← Exception permission
+├── employees.read_sensitive        ← Exception permission
 ├── reports.generate        ← Exception permission
 └── financial_records.view  ← Exception permission
 
@@ -385,7 +385,7 @@ Lisa's Total Permissions (Union):
 ├── employees.view          (via Manager)
 ├── employees.create        (via Manager)
 ├── employees.update        (via Manager)
-├── employees.export        (direct) ← Added
+├── employees.read_sensitive        (direct) ← Added
 ├── reports.view            (via Manager)
 ├── reports.generate        (direct) ← Added
 ├── shifts.manage           (via Manager)
@@ -400,13 +400,13 @@ Lisa's Total Permissions (Union):
 User: Former Manager Tom
 Initially:
   Roles: [Manager]
-  Direct: [employees.export]
-  Total: [Manager permissions + employees.export]
+  Direct: [employees.read_sensitive]
+  Total: [Manager permissions + employees.read_sensitive]
 
 After removing Manager role:
   Roles: []
-  Direct: [employees.export]  ← Still has this
-  Total: [employees.export]    ← Only direct permission remains
+  Direct: [employees.read_sensitive]  ← Still has this
+  Total: [employees.read_sensitive]    ← Only direct permission remains
 ```
 
 **Important:** Direct permissions are **independent** of roles. Removing role doesn't remove direct permissions.
@@ -415,9 +415,9 @@ After removing Manager role:
 
 ```plaintext
 2025-11-10 10:00 - Tom assigned Manager role
-2025-11-10 10:15 - Tom given direct permission: employees.export
+2025-11-10 10:15 - Tom given direct permission: employees.read_sensitive
 2025-11-11 09:00 - Tom's Manager role revoked (job change)
-2025-11-11 09:00 - Tom still has employees.export (direct)
+2025-11-11 09:00 - Tom still has employees.read_sensitive (direct)
                    → Must explicitly revoke direct permission if needed
 ```
 
@@ -429,7 +429,7 @@ After removing Manager role:
 
    ```json
    {
-     "permissions": ["employees.export"],
+     "permissions": ["employees.read_sensitive"],
      "reason": "Audit preparation Q4 2025 - external compliance requirement"
    }
    ```
@@ -486,7 +486,7 @@ After removing Manager role:
 
    ```plaintext
    ❌ BAD:
-   All guards getting employees.export via direct permission
+   All guards getting employees.read_sensitive via direct permission
    → Should modify Guard role instead
 
    ✅ GOOD:
@@ -645,16 +645,16 @@ Option 3: Handle via authorization logic if truly exceptional
 **Fix:**
 
 ```plaintext
-Scenario: 5 managers all have employees.export direct permission
+Scenario: 5 managers all have employees.read_sensitive direct permission
 
 ❌ BAD:
-User 1: [Manager role] + [employees.export direct]
-User 2: [Manager role] + [employees.export direct]
-User 3: [Manager role] + [employees.export direct]
+User 1: [Manager role] + [employees.read_sensitive direct]
+User 2: [Manager role] + [employees.read_sensitive direct]
+User 3: [Manager role] + [employees.read_sensitive direct]
 ...
 
 ✅ GOOD:
-Create "Senior Manager" role with employees.export
+Create "Senior Manager" role with employees.read_sensitive
 Assign Senior Manager to these 5 users
 → Centralized, maintainable, clear pattern
 ```
@@ -670,11 +670,11 @@ use Spatie\Permission\Models\Role;
 
 test('user has direct permission without role', function () {
     $user = User::factory()->create();
-    $permission = Permission::create(['name' => 'employees.export', 'guard_name' => 'sanctum']);
+    $permission = Permission::create(['name' => 'employees.read_sensitive', 'guard_name' => 'sanctum']);
 
-    $user->givePermissionTo('employees.export');
+    $user->givePermissionTo('employees.read_sensitive');
 
-    expect($user->hasPermissionTo('employees.export'))->toBeTrue();
+    expect($user->hasPermissionTo('employees.read_sensitive'))->toBeTrue();
     expect($user->getDirectPermissions())->toHaveCount(1);
     expect($user->roles)->toHaveCount(0);  // No role assigned
 });
@@ -686,13 +686,13 @@ test('user permissions are union of role and direct', function () {
     $role->givePermissionTo(['employees.view', 'employees.create']);
 
     $user->assignRole('manager');
-    $user->givePermissionTo('employees.export');  // Direct permission
+    $user->givePermissionTo('employees.read_sensitive');  // Direct permission
 
     $allPermissions = $user->getAllPermissions()->pluck('name');
 
     expect($allPermissions)->toContain('employees.view');    // From role
     expect($allPermissions)->toContain('employees.create');  // From role
-    expect($allPermissions)->toContain('employees.export');  // Direct
+    expect($allPermissions)->toContain('employees.read_sensitive');  // Direct
     expect($allPermissions)->toHaveCount(3);
 });
 
@@ -703,37 +703,37 @@ test('removing role keeps direct permissions', function () {
     $role->givePermissionTo('employees.view');
 
     $user->assignRole('manager');
-    $user->givePermissionTo('employees.export');  // Direct
+    $user->givePermissionTo('employees.read_sensitive');  // Direct
 
     // Initially has both
     expect($user->hasPermissionTo('employees.view'))->toBeTrue();
-    expect($user->hasPermissionTo('employees.export'))->toBeTrue();
+    expect($user->hasPermissionTo('employees.read_sensitive'))->toBeTrue();
 
     // Remove role
     $user->removeRole('manager');
 
     // Direct permission remains
     expect($user->hasPermissionTo('employees.view'))->toBeFalse();   // Lost with role
-    expect($user->hasPermissionTo('employees.export'))->toBeTrue();  // Still has direct
+    expect($user->hasPermissionTo('employees.read_sensitive'))->toBeTrue();  // Still has direct
 });
 
 test('revoking direct permission does not affect role permission', function () {
     $user = User::factory()->create();
 
     $role = Role::create(['name' => 'manager', 'guard_name' => 'sanctum']);
-    $role->givePermissionTo('employees.export');
+    $role->givePermissionTo('employees.read_sensitive');
 
     $user->assignRole('manager');
-    $user->givePermissionTo('employees.export');  // Also assigned directly
+    $user->givePermissionTo('employees.read_sensitive');  // Also assigned directly
 
     // Has permission from both sources
-    expect($user->hasPermissionTo('employees.export'))->toBeTrue();
+    expect($user->hasPermissionTo('employees.read_sensitive'))->toBeTrue();
 
     // Revoke direct permission
-    $user->revokePermissionTo('employees.export');
+    $user->revokePermissionTo('employees.read_sensitive');
 
     // Still has via role
-    expect($user->hasPermissionTo('employees.export'))->toBeTrue();
+    expect($user->hasPermissionTo('employees.read_sensitive'))->toBeTrue();
     expect($user->getDirectPermissions())->toHaveCount(0);
 });
 ```

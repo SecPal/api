@@ -276,7 +276,7 @@ Examples:
 - employees.update
 - employees.delete
 - employees.read_salary    (special: restricted data)
-- employees.export         (special: data export)
+- employees.read_sensitive         (special: sensitive employee data)
 - shifts.publish           (special: workflow action)
 - shifts.approve_as_br     (special: role-specific)
 ```
@@ -318,7 +318,7 @@ Permissions are grouped by resource in the database and UI:
     "employees.update",
     "employees.delete",
     "employees.read_salary",
-    "employees.export"
+    "employees.read_sensitive"
   ],
   "shifts": [
     "shifts.read",
@@ -350,7 +350,7 @@ $manager->syncPermissions([
 // API: Dynamic role permission changes (Phase 4)
 POST /v1/roles/{id}/permissions
 {
-  "permissions": ["employees.export", "reports.generate"]
+  "permissions": ["employees.read_sensitive", "reports.generate"]
 }
 ```
 
@@ -394,25 +394,25 @@ User Permissions = Role Permissions ∪ Direct Permissions
 Example:
 User "John" has role "Manager":
   - Role "Manager" grants: [employees.read, employees.update, shifts.read]
-  - Direct permissions: [employees.export, reports.generate]
+  - Direct permissions: [employees.read_sensitive, reports.generate]
   - Total permissions: [employees.read, employees.update, shifts.read,
-                        employees.export, reports.generate]
+                        employees.read_sensitive, reports.generate]
 
 If "Manager" role is removed:
-  - Direct permissions remain: [employees.export, reports.generate]
+  - Direct permissions remain: [employees.read_sensitive, reports.generate]
 ```
 
 #### When to Use Direct Permissions
 
 Use direct permissions for **exceptional access** that doesn't fit standard role patterns:
 
-| Scenario                            | Solution                                         | Why Direct Permission?                           |
-| ----------------------------------- | ------------------------------------------------ | ------------------------------------------------ |
-| Guard needs temporary export access | Assign `employees.export` for 1 week             | Don't want to modify Guard role for one-off case |
-| Manager should NOT delete employees | Revoke `employees.delete` directly               | Override role permission for specific user       |
-| Client needs special report access  | Assign `reports.generate`                        | Exceptional permission for VIP client            |
-| Developer debugging production      | Assign `employees.read_all_branches` for 2 hours | Time-limited elevated access                     |
-| Auditor needs read access           | Assign multiple read permissions temporarily     | External access without creating "Auditor" role  |
+| Scenario                              | Solution                                         | Why Direct Permission?                           |
+| ------------------------------------- | ------------------------------------------------ | ------------------------------------------------ |
+| HR reviewer needs time-limited access | Assign `employees.read_sensitive` for 1 week     | Don't want to modify Guard role for one-off case |
+| Manager should NOT delete employees   | Revoke `employees.delete` directly               | Override role permission for specific user       |
+| Client needs special report access    | Assign `reports.generate`                        | Exceptional permission for VIP client            |
+| Developer debugging production        | Assign `employees.read_all_branches` for 2 hours | Time-limited elevated access                     |
+| Auditor needs read access             | Assign multiple read permissions temporarily     | External access without creating "Auditor" role  |
 
 #### When NOT to Use Direct Permissions
 
@@ -430,7 +430,7 @@ Use direct permissions for **exceptional access** that doesn't fit standard role
 ```php
 POST /v1/users/123/permissions
 {
-  "permissions": ["employees.export", "reports.generate"]
+  "permissions": ["employees.read_sensitive", "reports.generate"]
 }
 
 // Response:
@@ -438,7 +438,7 @@ POST /v1/users/123/permissions
   "data": {
     "user_id": 123,
     "direct_permissions": [
-      {"name": "employees.export", "assigned_at": "2025-11-11T10:00:00Z"},
+      {"name": "employees.read_sensitive", "assigned_at": "2025-11-11T10:00:00Z"},
       {"name": "reports.generate", "assigned_at": "2025-11-11T10:00:00Z"}
     ]
   }
@@ -471,13 +471,13 @@ GET /v1/users/123/permissions
       {"name": "shifts.read", "role": "Manager"}
     ],
     "direct": [
-      {"name": "employees.export", "valid_until": null},
+      {"name": "employees.read_sensitive", "valid_until": null},
       {"name": "reports.generate", "valid_until": "2025-11-30T23:59:59Z"}
     ],
     "all": [
       "employees.read",
       "shifts.read",
-      "employees.export",
+      "employees.read_sensitive",
       "reports.generate"
     ]
   }
@@ -487,7 +487,7 @@ GET /v1/users/123/permissions
 **Revoke Direct Permission:**
 
 ```php
-DELETE /v1/users/123/permissions/employees.export
+DELETE /v1/users/123/permissions/employees.read_sensitive
 
 // ✅ Removes direct permission only
 // ℹ️ Role-based permissions remain unchanged
@@ -760,16 +760,16 @@ $managerRole->permissions()->pluck('name');
 // ["employees.read", "employees.update", "shifts.read"]
 
 // John gets ADDITIONAL direct permission:
-$john->givePermissionTo('employees.export');
+$john->givePermissionTo('employees.read_sensitive');
 
 // John's TOTAL permissions:
 $john->getAllPermissions()->pluck('name');
-// ["employees.read", "employees.update", "shifts.read", "employees.export"]
+// ["employees.read", "employees.update", "shifts.read", "employees.read_sensitive"]
 
 // If Manager role is removed:
 $john->removeRole('Manager');
 $john->getAllPermissions()->pluck('name');
-// ["employees.export"]  ← Direct permission remains!
+// ["employees.read_sensitive"]  ← Direct permission remains!
 ```
 
 **Benefits:**
@@ -834,7 +834,7 @@ $user->assignRole('manager', [
 │  │  └────────────┘         │  │  └──────────────┘  │  │
 │  │         │               │  │         │          │  │
 │  │         ▼               │  │         ▼          │  │
-│  │  employees.read         │  │  employees.export  │  │
+│  │  employees.read         │  │  employees.read_sensitive  │  │
 │  │  employees.update       │  │  reports.generate  │  │
 │  │  shifts.read            │  │                    │  │
 │  └─────────────────────────┘  └──────────────────────┘  │
@@ -852,7 +852,7 @@ $user->assignRole('manager', [
 │        │ - employees.read                │              │
 │        │ - employees.update              │              │
 │        │ - shifts.read                   │              │
-│        │ - employees.export              │              │
+│        │ - employees.read_sensitive              │              │
 │        │ - reports.generate              │              │
 │        └─────────────────────────────────┘              │
 └───────────────────────────────────────────────────────────┘
@@ -878,10 +878,10 @@ Result:
 ```php
 User: Sarah
 Role: None
-Direct Permissions: employees.export, reports.generate
+Direct Permissions: employees.read_sensitive, reports.generate
 
 Result:
-✅ employees.export   (direct)
+✅ employees.read_sensitive   (direct)
 ✅ reports.generate   (direct)
 ```
 
@@ -890,13 +890,13 @@ Result:
 ```php
 User: Alex
 Role: Manager
-Direct Permissions: employees.export, reports.generate
+Direct Permissions: employees.read_sensitive, reports.generate
 
 Result:
 ✅ employees.read     (from Manager)
 ✅ employees.update   (from Manager)
 ✅ shifts.read        (from Manager)
-✅ employees.export   (direct)
+✅ employees.read_sensitive   (direct)
 ✅ reports.generate   (direct)
 ```
 
@@ -906,14 +906,14 @@ Result:
 Initial State:
 User: Mike
 Role: Manager
-Direct Permissions: employees.export
+Direct Permissions: employees.read_sensitive
 
-Permissions: [employees.read, employees.update, shifts.read, employees.export]
+Permissions: [employees.read, employees.update, shifts.read, employees.read_sensitive]
 
 After Role Removal:
 $mike->removeRole('Manager');
 
-Permissions: [employees.export]  ← Direct permission remains!
+Permissions: [employees.read_sensitive]  ← Direct permission remains!
 ```
 
 ## Implementation Patterns
@@ -1030,7 +1030,7 @@ POST /v1/users/{id}/permissions
 Content-Type: application/json
 
 {
-  "permissions": ["employees.export", "reports.generate"]
+  "permissions": ["employees.read_sensitive", "reports.generate"]
 }
 ```
 
@@ -1062,7 +1062,7 @@ public function store(User $user, AssignPermissionRequest $request): JsonRespons
 {
   "data": {
     "user_id": 123,
-    "direct_permissions": ["employees.export", "reports.generate"],
+    "direct_permissions": ["employees.read_sensitive", "reports.generate"],
     "assigned_at": "2025-11-11T10:00:00Z"
   }
 }
@@ -1132,8 +1132,8 @@ Route::middleware(['auth:sanctum', 'permission:employees.update|employees.delete
 $allPermissions = auth()->user()->getAllPermissions();
 
 // Check if user has permission (checks both role and direct)
-if (auth()->user()->can('employees.export')) {
-    // Show export button
+if (auth()->user()->can('employees.read_sensitive')) {
+    // Show the protected employee fields
 }
 
 // Get permissions via roles only
@@ -1390,7 +1390,7 @@ resource.read_all_branches → Scope escalation
 ```text
 ❌ John's Special Access       (user-specific)
 ❌ Vacation Coverage Dec 2025  (temporal case)
-❌ Export Only                 (single permission)
+❌ Sensitive Read Only         (single permission)
 ❌ Manager but no delete       (negative permission - use direct revoke instead)
 ```
 
@@ -1436,21 +1436,21 @@ test('direct permission grants access independent of role', function () {
     $user->assignRole('guard');  // Guard normally can't export
 
     // Give direct permission
-    $user->givePermissionTo('employees.export');
+    $user->givePermissionTo('employees.read_sensitive');
 
-    expect($user->can('employees.export'))->toBeTrue();
+    expect($user->can('employees.read_sensitive'))->toBeTrue();
 });
 
 test('direct permission survives role removal', function () {
     $user = User::factory()->create();
     $user->assignRole('manager');
-    $user->givePermissionTo('employees.export');
+    $user->givePermissionTo('employees.read_sensitive');
 
     // Remove role
     $user->removeRole('manager');
 
     // Direct permission remains
-    expect($user->can('employees.export'))->toBeTrue();
+    expect($user->can('employees.read_sensitive'))->toBeTrue();
 });
 ```
 

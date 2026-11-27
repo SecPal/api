@@ -78,6 +78,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- Remove BWR CSV/XML generation, protected download and the obsolete
+  `employees.export` permission. Report dates and authority outcomes are
+  recorded through the existing employee and BWR status endpoints (refs #3117).
+
 - Retire the FrankenPHP API runtime from source, native CI and publication.
   PHP 8.4-FPM and Nginx are the supported API runtime pair (refs #2994).
 

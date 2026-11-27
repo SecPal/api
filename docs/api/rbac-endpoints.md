@@ -622,7 +622,7 @@ Get all permissions for a user, showing role-based, direct, and combined permiss
     ],
     "direct": [
       {
-        "name": "employees.export",
+        "name": "employees.read_sensitive",
         "assigned_at": "2025-11-10T10:00:00Z",
         "assigned_by": 1,
         "valid_from": null,
@@ -639,7 +639,7 @@ Get all permissions for a user, showing role-based, direct, and combined permiss
         "expires_in_days": 15
       }
     ],
-    "all": ["employees.read", "shifts.read", "employees.export", "reports.generate"]
+    "all": ["employees.read", "shifts.read", "employees.read_sensitive", "reports.generate"]
   }
 }
 ```
@@ -675,7 +675,7 @@ Assign one or more permissions directly to a user, bypassing roles.
 
 ```json
 {
-  "permissions": ["employees.export", "reports.generate"]
+  "permissions": ["employees.read_sensitive", "reports.generate"]
 }
 ```
 
@@ -705,7 +705,7 @@ Assign one or more permissions directly to a user, bypassing roles.
     "user_id": 123,
     "permissions": [
       {
-        "name": "employees.export",
+        "name": "employees.read_sensitive",
         "assigned_at": "2025-11-15T10:00:00Z",
         "is_temporal": false
       },
@@ -727,7 +727,7 @@ curl -X POST https://api.secpal.dev/v1/users/123/permissions \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "permissions": ["employees.export", "reports.generate"]
+    "permissions": ["employees.read_sensitive", "reports.generate"]
   }'
 ```
 
@@ -753,7 +753,7 @@ Remove a direct permission from a user. **Does not affect role-based permissions
   "message": "Direct permission revoked successfully",
   "data": {
     "user_id": 123,
-    "permission": "employees.export",
+    "permission": "employees.read_sensitive",
     "revoked_at": "2025-11-15T10:00:00Z"
   }
 }
@@ -764,7 +764,7 @@ Remove a direct permission from a user. **Does not affect role-based permissions
 **cURL Example:**
 
 ```bash
-curl -X DELETE https://api.secpal.dev/v1/users/123/permissions/employees.export \
+curl -X DELETE https://api.secpal.dev/v1/users/123/permissions/employees.read_sensitive \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
@@ -789,8 +789,8 @@ Get only the permissions assigned directly to a user (excludes role-based permis
   "data": [
     {
       "id": 5,
-      "name": "employees.export",
-      "description": "Export employee data",
+      "name": "employees.read_sensitive",
+      "description": "Read sensitive employee data",
       "assigned_at": "2025-11-10T10:00:00Z",
       "assigned_by": 1,
       "valid_from": null,

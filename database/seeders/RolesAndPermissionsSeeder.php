@@ -28,6 +28,7 @@ class RolesAndPermissionsSeeder extends Seeder
         Permission::query()
             ->where('guard_name', 'sanctum')
             ->whereIn('name', [
+                'employees.export',
                 'legal_holds.read',
                 'legal_holds.create',
                 'legal_holds.attach',
@@ -142,7 +143,6 @@ class RolesAndPermissionsSeeder extends Seeder
                 'read_sensitive',
                 'read_salary',
                 'read_all_branches',
-                'export',
             ],
             // Phase 5: Employee Management API
             'employee' => [
@@ -284,7 +284,6 @@ class RolesAndPermissionsSeeder extends Seeder
                     'employees.read_sensitive',
                     'employees.read_salary',
                     'employees.read_all_branches',
-                    'employees.export',
                     'employee.read',
                     'employee.write',
                     'employee.create',

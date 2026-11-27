@@ -49,7 +49,7 @@ Examples:
 ✅ employees.update            - Modify employee data
 ✅ employees.delete            - Remove employees
 ✅ employees.read_salary       - View salary data (special action)
-✅ employees.export            - Export employee data
+✅ employees.read_sensitive            - Read sensitive employee data
 ✅ shifts.publish              - Publish shift plans
 ✅ shifts.approve_as_br        - Works council approval
 ✅ employee_qualification.read - View employee qualifications
@@ -90,13 +90,13 @@ Permissions are grouped by **resource** (domain entity).
 
 Standard CRUD actions used across resources:
 
-| Action   | Description              | Example            |
-| -------- | ------------------------ | ------------------ |
-| `read`   | View/list resources      | `employees.read`   |
-| `create` | Create new resources     | `shifts.create`    |
-| `update` | Modify existing resource | `employees.update` |
-| `delete` | Remove resources         | `role.delete`      |
-| `export` | Export data (CSV/Excel)  | `employees.export` |
+| Action           | Description              | Example                    |
+| ---------------- | ------------------------ | -------------------------- |
+| `read`           | View/list resources      | `employees.read`           |
+| `create`         | Create new resources     | `shifts.create`            |
+| `update`         | Modify existing resource | `employees.update`         |
+| `delete`         | Remove resources         | `role.delete`              |
+| `read_sensitive` | View sensitive fields    | `employees.read_sensitive` |
 
 ---
 
@@ -204,7 +204,7 @@ Representative permissions assigned to predefined roles. There is no predefined 
 
 ```text
 - employees.read / create / update / delete
-- employees.read_sensitive / read_salary / export
+- employees.read_sensitive / read_salary
 - employee.read / write / activate / terminate
 - employee_qualification.read / write
 - employee_document.read / write
@@ -341,11 +341,11 @@ Works Council:
 #### 1. Choose Resource and Action
 
 ```text
-Example: Need permission to export employee data
+Example: Need permission to view sensitive employee data
 
 Resource: employees
-Action: export
-Permission: employees.export
+Action: read_sensitive
+Permission: employees.read_sensitive
 ```
 
 #### 2. Add to the code-owned catalog
@@ -356,7 +356,7 @@ Permission: employees.export
     'create',
     'update',
     'delete',
-    'export',
+    'read_sensitive',
 ],
 ```
 
@@ -376,7 +376,7 @@ curl -X PATCH https://api.secpal.dev/v1/roles/2 \
       "employees.read",
       "employees.create",
       "employees.update",
-      "employees.export"
+      "employees.read_sensitive"
     ]
   }'
 ```
@@ -406,7 +406,7 @@ Permission Created
 ```bash
 PATCH /v1/roles/{id}
 {
-  "permissions": ["employees.read", "employees.export"]
+  "permissions": ["employees.read", "employees.read_sensitive"]
 }
 ```
 
@@ -415,7 +415,7 @@ PATCH /v1/roles/{id}
 ```bash
 POST /v1/users/{id}/permissions
 {
-  "permissions": ["employees.export"]
+  "permissions": ["employees.read_sensitive"]
 }
 ```
 
@@ -429,14 +429,14 @@ POST /v1/users/{id}/permissions
 # Update role with reduced permissions
 PATCH /v1/roles/{id}
 {
-  "permissions": ["employees.read"]  # removed employees.export
+  "permissions": ["employees.read"]  # removed employees.read_sensitive
 }
 ```
 
 **From User (Direct):**
 
 ```bash
-DELETE /v1/users/{id}/permissions/employees.export
+DELETE /v1/users/{id}/permissions/employees.read_sensitive
 ```
 
 ---
@@ -476,7 +476,7 @@ Permission definitions are removed in code, then rolled out through the normal m
 ```text
 ✅ employees.read              - View employees
 ✅ employees.read_salary       - View salary data (more specific)
-✅ employees.export            - Export functionality
+✅ employees.read_sensitive            - View sensitive employee data
 ```
 
 **❌ Too Broad:**
@@ -514,7 +514,7 @@ $employeePermissions = [
     'employees.update',
     'employees.delete',
     'employees.read_salary',
-    'employees.export',
+    'employees.read_sensitive',
 ];
 
 $shiftPermissions = [
@@ -555,9 +555,9 @@ $shiftPermissions = [
 
 ## Examples
 
-### Example 1: Add Export Functionality
+### Example 1: Grant Access to Sensitive Employee Data
 
-**Scenario:** Managers need to export employee data to Excel.
+**Scenario:** An HR reviewer needs access to protected employee fields.
 
 **Steps:**
 
@@ -569,7 +569,7 @@ $shiftPermissions = [
     'create',
     'update',
     'delete',
-    'export',
+    'read_sensitive',
 ],
 ```
 
@@ -582,7 +582,7 @@ PATCH /v1/roles/2
     "employees.read",
     "employees.create",
     "employees.update",
-    "employees.export"
+    "employees.read_sensitive"
   ]
 }
 ```
@@ -591,16 +591,16 @@ PATCH /v1/roles/2
 
 ```php
 // Controller
-public function export(Request $request)
+public function showSensitive(Request $request)
 {
-    $this->authorize('export', Employee::class);
-    // Export logic...
+    $this->authorize('read_sensitive', Employee::class);
+    // Resolve and return authorized fields...
 }
 
 // Policy
-public function export(User $user): bool
+public function read_sensitive(User $user): bool
 {
-    return $user->hasPermissionTo('employees.export');
+    return $user->hasPermissionTo('employees.read_sensitive');
 }
 ```
 

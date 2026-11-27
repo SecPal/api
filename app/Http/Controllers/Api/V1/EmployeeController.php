@@ -5,9 +5,7 @@
 
 namespace App\Http\Controllers\Api\V1;
 
-use App\Exceptions\BewacherregisterExportNotReadyException;
 use App\Http\Controllers\Controller;
-use App\Http\Requests\ExportEmployeeBwrRequest;
 use App\Http\Requests\IndexEmployeeComplianceAlertsRequest;
 use App\Http\Requests\IndexEmployeeRequest;
 use App\Http\Requests\StoreEmployeeRequest;
@@ -20,7 +18,7 @@ use App\Models\EmployeeDocument;
 use App\Models\EmployeeQualification;
 use App\Models\TenantKey;
 use App\Models\User;
-use App\Services\BewacherregisterExportService;
+use App\Services\BwrReportingReadiness;
 use App\Services\DomainAccessService;
 use App\Services\EmployeeComplianceService;
 use App\Services\EmployeeLifecycleService;
@@ -35,7 +33,7 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 
 /**
  * EmployeeController handles Employee resource CRUD operations.
@@ -298,97 +296,9 @@ class EmployeeController extends Controller
     }
 
     /**
-     * Generate a BWR export for an employee and transition the BWR status to pending.
-     */
-    public function exportBwr(ExportEmployeeBwrRequest $request, Employee $employee, BewacherregisterExportService $exportService): JsonResponse
-    {
-        $this->authorize('update', $employee);
-
-        $format = $request->string('format')->toString();
-        if ($format === '') {
-            $format = 'csv';
-        }
-
-        if ($employee->bwr_status !== 'not_registered') {
-            return response()->json([
-                'message' => __('BWR export is only available for employees with status not_registered.'),
-            ], Response::HTTP_UNPROCESSABLE_ENTITY);
-        }
-
-        $user = $request->user();
-
-        if (! $user instanceof User) {
-            abort(Response::HTTP_UNAUTHORIZED);
-        }
-
-        try {
-            $export = $format === 'xml'
-                ? $exportService->exportXml($employee, $user->name)
-                : $exportService->exportCsv($employee, $user->name);
-        } catch (BewacherregisterExportNotReadyException $exception) {
-            return response()->json([
-                'message' => __('Employee is not ready for BWR export.'),
-                'errors' => $exception->errors,
-                'error_messages' => $exception->translatedErrors(),
-            ], Response::HTTP_UNPROCESSABLE_ENTITY);
-        }
-
-        $employee->update([
-            'bwr_status' => 'pending',
-            'bwr_submission_date' => now()->toDateString(),
-        ]);
-
-        activity('employee_changes')
-            ->causedBy($request->user())
-            ->performedOn($employee)
-            ->withProperties([
-                'format' => $format,
-                'file_name' => $export['file_name'],
-                'file_path' => $export['path'],
-                'file_size_bytes' => $export['file_size_bytes'],
-                'old_bwr_status' => 'not_registered',
-                'new_bwr_status' => 'pending',
-            ])
-            ->log('BWR export generated');
-
-        return response()->json([
-            'data' => [
-                'employee_id' => $employee->id,
-                'status' => 'pending',
-                'format' => $format,
-                'download_url' => route('employees.bwr-exports.download', [
-                    'employee' => $employee,
-                    'file' => $export['file_name'],
-                ]),
-            ],
-        ]);
-    }
-
-    /**
-     * Download a previously generated BWR export file.
-     */
-    public function downloadBwrExport(Employee $employee, string $file, BewacherregisterExportService $exportService): Response
-    {
-        $this->authorize('update', $employee);
-
-        $path = $exportService->downloadPath($employee, $file);
-        if (! Storage::disk('local')->exists($path)) {
-            abort(Response::HTTP_NOT_FOUND);
-        }
-
-        $content = Storage::disk('local')->get($path) ?? '';
-        $extension = strtolower(pathinfo($path, PATHINFO_EXTENSION));
-        $contentType = $extension === 'xml' ? 'application/xml; charset=UTF-8' : 'text/csv; charset=UTF-8';
-
-        return response($content)
-            ->header('Content-Type', $contentType)
-            ->header('Content-Disposition', 'attachment; filename="'.basename($path).'"');
-    }
-
-    /**
      * Update the BWR registration status for an employee.
      */
-    public function updateBwrStatus(UpdateEmployeeBwrStatusRequest $request, Employee $employee): JsonResponse
+    public function updateBwrStatus(UpdateEmployeeBwrStatusRequest $request, Employee $employee, BwrReportingReadiness $readiness): JsonResponse
     {
         $this->authorize('update', $employee);
 
@@ -410,6 +320,24 @@ class EmployeeController extends Controller
             return response()->json([
                 'message' => sprintf('BWR status transition from %s to %s is not allowed.', $oldStatus, $newStatus),
             ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        if ($oldStatus !== $newStatus && $newStatus === 'pending') {
+            $errors = $readiness->errors($employee);
+
+            if ($employee->bwr_submission_date === null) {
+                array_unshift($errors, 'bwr_submission_date');
+            }
+
+            if ($errors !== []) {
+                $messages = [];
+
+                foreach ($errors as $error) {
+                    $messages[$error] = __('bwr_reporting.missing_fields.'.$error);
+                }
+
+                throw ValidationException::withMessages($messages);
+            }
         }
 
         $updates = [
@@ -650,6 +578,7 @@ class EmployeeController extends Controller
     private function isAllowedBwrStatusTransition(string $currentStatus, string $newStatus): bool
     {
         $allowedTransitions = [
+            'not_registered' => ['pending'],
             'pending' => ['active', 'suspended', 'revoked'],
             'active' => ['suspended', 'revoked'],
             'suspended' => ['active', 'revoked'],
