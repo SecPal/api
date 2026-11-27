@@ -66,3 +66,19 @@ it('fails closed when the envelope, record, key or authenticated metadata is tam
     expect(fn () => $codec->decrypt($context->reference->id, $envelope, $key))->toThrow(GlobalIdentityKeyException::class)
         ->and(fn () => $codec->decrypt($userId, $envelope, str_repeat("\x06", 32)))->toThrow(GlobalIdentityKeyException::class);
 });
+
+it('rejects an encryption key identifier that the envelope reader could not resolve', function (): void {
+    $codec = new GlobalEmailCodec;
+    $key = str_repeat("\x07", 32);
+    $address = GlobalEmailAddress::parse('test@secpal.app');
+    $userId = '9a7c68db-5f41-414b-805c-76a0f4a79e5a';
+    foreach (['root', '31da8d35-a5ce-480c-ba01-febadec4d4d'] as $invalidId) {
+        $encrypt = fn () => $codec->encrypt(
+            $userId,
+            $address,
+            new GlobalIdentityWorkingKeyContext(Purpose::EmailEncryption, new GlobalIdentityKeyReference($invalidId, 1)),
+            $key,
+        );
+        expect($encrypt)->toThrow(GlobalIdentityKeyException::class);
+    }
+});

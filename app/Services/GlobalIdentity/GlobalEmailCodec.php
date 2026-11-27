@@ -62,7 +62,7 @@ final readonly class GlobalEmailCodec
         $version = $envelope['key_version'] ?? null;
         if (count($envelope) !== 6 || ($envelope['format_version'] ?? null) !== self::FORMAT
             || ($envelope['algorithm'] ?? null) !== self::ALGORITHM
-            || ! is_string($id) || ! Str::isUuid($id) || $id !== strtolower($id) || ! is_int($version) || $version < 1
+            || ! is_string($id) || ! $this->isCanonicalKeyId($id) || ! is_int($version) || $version < 1
             || ! is_string($envelope['nonce'] ?? null) || ! is_string($envelope['ciphertext_and_tag'] ?? null)) {
             throw new GlobalIdentityKeyException('Invalid global email envelope.');
         }
@@ -126,6 +126,7 @@ final readonly class GlobalEmailCodec
     private function aad(string $userId, GlobalIdentityWorkingKeyContext $context, #[SensitiveParameter] string $key): string
     {
         if (! Str::isUuid($userId) || $context->purpose !== GlobalIdentityWorkingKeyPurpose::EmailEncryption
+            || ! $this->isCanonicalKeyId($context->reference->id)
             || strlen($key) !== SODIUM_CRYPTO_AEAD_XCHACHA20POLY1305_IETF_KEYBYTES) {
             throw new GlobalIdentityKeyException('Invalid global email encryption context.');
         }
@@ -140,6 +141,11 @@ final readonly class GlobalEmailCodec
             'email_enc',
             strtolower($userId),
         );
+    }
+
+    private function isCanonicalKeyId(string $id): bool
+    {
+        return $id === strtolower($id) && Str::isUuid($id);
     }
 
     private function decode(#[SensitiveParameter] string $encoded): string
