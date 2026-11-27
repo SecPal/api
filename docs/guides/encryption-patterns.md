@@ -282,6 +282,58 @@ authority. Missing authority fails closed.
 mail. Use a confined SMTP sink for a development preview. Tests may use the
 in-memory array transport in a test environment.
 
+### Global Identity rotation and incident recovery
+
+Run `php artisan identity:rotation OPERATION_UUID ACTION --batch=100` in the
+authorized maintenance context. Its `GlobalIdentityRotationAuthority`
+supplies the exact approved source and target references for each action. It
+validates current backup, recovery, approval and monitoring evidence before
+the API takes database locks. Missing authority stops the command. Production
+custody and the authoritative RecoverySet remain with the deployment owner.
+
+Start creates the durable checkpoint. Advance processes up to the specified
+batch limit and status reports the current phase and count. Pause and resume
+keep the current checkpoint while authorized incident work proceeds. Complete
+requires the verification phase and fresh authority approval. Index completion
+continues with bounded cleanup of the previous projection. Retire requires
+fresh retention approval and zero live references, and keeps the wrapped
+record in the registry. The deployment recovery owner handles root retention.
+
+Root rewrap authenticates each exact old wrapper and wraps the same working key
+under the approved target root with a fresh nonce. Resume a paused root rewrap
+before starting another root rewrap. Keep both versioned root
+files available throughout the transition and for every backup that references
+them. Restore a missing exact authority through its recovery owner. Permanent
+loss of the final required root makes the corresponding data unrecoverable.
+
+During blind-index rotation the registry selects both lookup versions.
+Backfill verifies each old index and stores its new projection before promotion.
+New writes protect both versions and pending reservations retain their claimed
+address. Extend old-only reservations through their authorized operation before
+cleanup, or let the operation expire. Cleanup switches new writes to the active
+version before deleting the remaining old representations in batches.
+Reservation-key activation waits for the previous reservation references to drain.
+
+Delivery compromise fences the affected version immediately, then revokes
+and clears the affected proofs before activating a replacement key. An approved
+reissue uses a fresh operation, verifier and envelope and records its incident
+reference. An approved pending email-change replacement keeps its existing
+address reservation through the revocation and transfers it in the replacement
+transaction. A previously delivered proof can remain usable for confirmed key
+loss without compromise. Recover the exact required key where authorized.
+If exact recovery is unavailable, the approved loss operation clears the
+affected undelivered proofs and can reissue eligible operations.
+The invitation owner revalidates a replacement and supplies the authorized
+recipient through the invitation operation subject.
+
+Account-scoped incident batches take their account fences in stable order,
+then lock the source operations before revalidating their replacement
+checkpoints. Reservation changes take the shared registry lease before
+locking a reservation.
+The same account lifecycle invalidates live proofs and cancels pending
+replacements, including their recipient envelopes and email reservations.
+The invitation domain determines whether each tenant invitation remains current.
+
 ## Pattern 1: Field-Level Encryption with Blind Indexes
 
 **Use when:**

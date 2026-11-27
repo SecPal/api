@@ -241,6 +241,10 @@ class ExpiredEmployeeDeletionService
 
     private function anonymizeLinkedUser(User $user): void
     {
+        app(GlobalIdentity\IdentityLifecycle::class)->replaceProvenAddress(
+            $user, 'deleted-user+'.$user->id.'@secpal.dev',
+        );
+
         $this->userDeviceAccessCleanupService->deletePushRegistrations($user);
 
         $raw = config('permission.table_names.model_has_roles', 'model_has_roles');
@@ -277,10 +281,6 @@ class ExpiredEmployeeDeletionService
 
         $user->tokens()->delete();
         $user->passkeyCredentials()->delete();
-
-        app(GlobalIdentity\IdentityLifecycle::class)->replaceProvenAddress(
-            $user, 'deleted-user+'.$user->id.'@secpal.dev',
-        );
 
         $user->forceFill([
             'name' => 'Deleted User',

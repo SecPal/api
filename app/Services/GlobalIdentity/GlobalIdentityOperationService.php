@@ -12,6 +12,7 @@ use App\Exceptions\GlobalIdentityKeyException;
 use App\Models\GlobalIdentityOperation;
 use Carbon\CarbonImmutable;
 use Closure;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -29,13 +30,68 @@ final readonly class GlobalIdentityOperationService
         private GlobalEmailRepository $email,
     ) {}
 
+    /**
+     * @template T
+     *
+     * @param  Closure(): T  $action
+     * @return T
+     */
+    public function forAccount(string $userId, Closure $action): mixed
+    {
+        return $this->forAccounts([$userId], $action);
+    }
+
+    /**
+     * Incident candidates are discovered without row locks. Acquire every
+     * account fence before locking operations, then revalidate under lock.
+     *
+     * @template T
+     *
+     * @param  Collection<int, GlobalIdentityOperation>  $observed
+     * @param  Closure(Collection<int, GlobalIdentityOperation>): T  $action
+     * @return T
+     */
+    public function forIncidentOperations(Collection $observed, Closure $action): mixed
+    {
+        $accounts = $observed->map(static fn (GlobalIdentityOperation $operation): ?string => $operation->user_id)
+            ->filter(static fn (?string $account): bool => $account !== null)->unique()->values()->all();
+        sort($accounts, SORT_STRING);
+
+        return $this->forAccounts($accounts, static fn (): mixed => $action(
+            GlobalIdentityOperation::query()->whereKey($observed->modelKeys())->orderBy('id')->lockForUpdate()->get(),
+        ));
+    }
+
+    /**
+     * @template T
+     *
+     * @param  list<string>  $accounts
+     * @param  Closure(): T  $action
+     * @return T
+     */
+    private function forAccounts(array $accounts, Closure $action): mixed
+    {
+        return DB::transaction(static function () use ($accounts, $action): mixed {
+            foreach ($accounts as $account) {
+                DB::select('SELECT pg_advisory_xact_lock(hashtextextended(?, 0))', ['global-identity-operation:'.$account]);
+            }
+
+            return $action();
+        });
+    }
+
     public function create(
         GlobalIdentityOperationContext $context,
         CarbonImmutable $expires,
         #[SensitiveParameter] ?string $recipient = null,
+        ?string $incidentId = null,
+        ?string $replaces = null,
     ): void {
         $recipientPurpose = $this->storedRecipientPurpose($context);
-        if (! $expires->isFuture() || ($recipientPurpose === null) !== ($recipient === null)) {
+        if (! $expires->isFuture() || ($recipientPurpose === null) !== ($recipient === null)
+            || ($incidentId === null) !== ($replaces === null)
+            || ($incidentId !== null && ! GlobalIdentityOperationContext::isCanonicalId($incidentId))
+            || ($replaces !== null && (! GlobalIdentityOperationContext::isCanonicalId($replaces) || $replaces === $context->id))) {
             throw new GlobalIdentityKeyException('Invalid global identity operation request.');
         }
 
@@ -43,7 +99,7 @@ final readonly class GlobalIdentityOperationService
         try {
             $this->keys->withActiveKey(
                 GlobalIdentityWorkingKeyPurpose::OperationDeliverySecret,
-                function (#[SensitiveParameter] string $key, GlobalIdentityWorkingKeyContext $workingKey) use ($context, $expires, $recipient, $recipientPurpose, $token): void {
+                function (#[SensitiveParameter] string $key, GlobalIdentityWorkingKeyContext $workingKey) use ($context, $expires, $recipient, $recipientPurpose, $token, $incidentId, $replaces): void {
                     $recipientEnvelope = $recipient === null || $recipientPurpose === null ? null : $this->keys->withActiveKey(
                         $recipientPurpose,
                         fn (#[SensitiveParameter] string $key, GlobalIdentityWorkingKeyContext $reference): array => $this->codec->sealRecipient($context, $recipient, $reference, $key),
@@ -63,6 +119,8 @@ final readonly class GlobalIdentityOperationService
                         'delivery_key_id' => $workingKey->reference->id,
                         'delivery_key_version' => $workingKey->reference->version,
                         'delivery_state' => GlobalIdentityDeliveryState::Pending,
+                        'incident_id' => $incidentId,
+                        'replaces_operation_id' => $replaces,
                     ]);
                     $this->audit($operation, 'created');
                 },
@@ -242,9 +300,44 @@ final readonly class GlobalIdentityOperationService
     public function invalidate(string $id, GlobalIdentityTerminalReason $reason): void
     {
         $this->locked($id, function (GlobalIdentityOperation $operation) use ($reason): void {
-            if ($operation->delivery_state !== GlobalIdentityDeliveryState::Terminal) {
-                $this->terminalize($operation, $reason);
+            if ($operation->delivery_state === GlobalIdentityDeliveryState::Terminal) {
+                $this->cancelPendingReplacement($operation);
+
+                return;
             }
+            $this->terminalize($operation, $reason);
+        });
+    }
+
+    /** @param null|Closure(GlobalIdentityOperation): void $preserveApprovedRecipient */
+    public function revokeForIncident(
+        string $id,
+        GlobalIdentityKeyReference $source,
+        GlobalIdentityTerminalReason $reason,
+        ?Closure $preserveApprovedRecipient,
+    ): void {
+        $this->locked($id, function (GlobalIdentityOperation $operation) use ($source, $reason, $preserveApprovedRecipient): void {
+            if ($operation->delivery_key_id !== $source->id || $operation->delivery_key_version !== $source->version
+                || $this->keys->deliveryBlockReason($source->id, $source->version) !== $reason) {
+                throw new GlobalIdentityKeyException('Delivery incident scope unavailable.');
+            }
+            if ($reason === GlobalIdentityTerminalReason::KeyUnavailable && $operation->delivery_state === GlobalIdentityDeliveryState::Delivered) {
+                return;
+            }
+            if ($operation->delivery_state === GlobalIdentityDeliveryState::Terminal) {
+                $this->clearTerminalResiduals($operation);
+
+                return;
+            }
+            $keepReservation = false;
+            if ($preserveApprovedRecipient !== null && ! $operation->quarantined
+                && $operation->token_hash !== null && $operation->expires_at->isFuture()
+                && ($operation->operation_type === GlobalIdentityOperationType::Invitation
+                    || $this->subject->isCurrent($operation->context()))) {
+                $preserveApprovedRecipient($operation);
+                $keepReservation = $operation->operation_type === GlobalIdentityOperationType::PendingEmailChange;
+            }
+            $this->terminalize($operation, $reason, $keepReservation);
         });
     }
 
@@ -267,6 +360,7 @@ final readonly class GlobalIdentityOperationService
                         ->where('quarantined', true)->lockForUpdate()->first();
                     // Re-encryption can change the key version while preserving operation identity.
                     if ($operation?->delivery_state === GlobalIdentityDeliveryState::Terminal) {
+                        $this->cancelPendingReplacement($operation);
                         $this->clearTerminalResiduals($operation);
                     } elseif ($operation !== null) {
                         $this->terminalize($operation, GlobalIdentityTerminalReason::RestoreTombstone);
@@ -325,10 +419,41 @@ final readonly class GlobalIdentityOperationService
         }
         $envelope = $claim->recipient_enc ?? throw new GlobalIdentityKeyException('Global identity recipient unavailable.');
 
+        return $this->openRecipientEnvelope($context, $envelope);
+    }
+
+    /** @param array<mixed> $envelope */
+    public function openRecipientEnvelope(GlobalIdentityOperationContext $context, #[SensitiveParameter] array $envelope): GlobalEmailAddress
+    {
         return $this->withDeliveryKey(
             $this->codec->recipientReference($context, $envelope),
             fn (#[SensitiveParameter] string $key): GlobalEmailAddress => $this->codec->openRecipient($context, $envelope, $key),
         );
+    }
+
+    public function rotateRecipient(string $id, GlobalIdentityWorkingKeyPurpose $purpose): bool
+    {
+        return $this->locked($id, function (GlobalIdentityOperation $operation) use ($purpose): bool {
+            $context = $operation->context();
+            $envelope = $operation->recipient_enc;
+            if ($envelope === null || $this->storedRecipientPurpose($context) !== $purpose) {
+                return false;
+            }
+            $prior = $this->codec->recipientReference($context, $envelope);
+            $address = $this->openRecipientEnvelope($context, $envelope);
+
+            return $this->keys->withActiveKey(
+                $purpose,
+                function (#[SensitiveParameter] string $key, GlobalIdentityWorkingKeyContext $active) use ($operation, $context, $prior, $address): bool {
+                    if ($prior == $active) {
+                        return false;
+                    }
+                    $this->save($operation, ['recipient_enc' => $this->codec->sealRecipient($context, $address->original(), $active, $key)]);
+
+                    return true;
+                },
+            );
+        }) ?? false;
     }
 
     public function idempotencyKey(#[SensitiveParameter] GlobalIdentityOperation $claim): string
@@ -357,6 +482,11 @@ final readonly class GlobalIdentityOperationService
         if ($operation->quarantined || $operation->delivery_state === GlobalIdentityDeliveryState::Terminal) {
             return false;
         }
+        $block = $this->keys->deliveryBlockReason($operation->delivery_key_id, $operation->delivery_key_version);
+        if ($block === GlobalIdentityTerminalReason::SecurityRevoked
+            || ($block === GlobalIdentityTerminalReason::KeyUnavailable && $operation->delivery_state !== GlobalIdentityDeliveryState::Delivered)) {
+            return false;
+        }
         if (! $operation->expires_at->isFuture()) {
             $this->terminalize($operation, GlobalIdentityTerminalReason::Expired);
 
@@ -366,9 +496,9 @@ final readonly class GlobalIdentityOperationService
         return $operation->token_hash !== null;
     }
 
-    private function terminalize(GlobalIdentityOperation $operation, GlobalIdentityTerminalReason $reason): void
+    private function terminalize(GlobalIdentityOperation $operation, GlobalIdentityTerminalReason $reason, bool $keepReservation = false): void
     {
-        if ($operation->operation_type === GlobalIdentityOperationType::PendingEmailChange) {
+        if ($operation->operation_type === GlobalIdentityOperationType::PendingEmailChange && ! $keepReservation) {
             $this->email->release($operation->id);
         }
         $this->save($operation, [
@@ -392,7 +522,21 @@ final readonly class GlobalIdentityOperationService
         }
 
         $reason = GlobalIdentityTerminalReason::tryFrom($operation->terminal_reason ?? '');
+        $this->cancelPendingReplacement($operation);
         $this->terminalize($operation, $reason ?? GlobalIdentityTerminalReason::IntegrityFailure);
+    }
+
+    /** The caller holds the source operation row through this transaction. */
+    private function cancelPendingReplacement(GlobalIdentityOperation $operation): void
+    {
+        $cancelled = DB::table(GlobalIdentityOperation::REISSUES_TABLE)->where('operation_id', $operation->id)->delete();
+        if ($cancelled === 0) {
+            return;
+        }
+        if ($operation->operation_type === GlobalIdentityOperationType::PendingEmailChange) {
+            $this->email->release($operation->id);
+        }
+        $this->audit($operation, 'replacement_cancelled');
     }
 
     private function expireLease(GlobalIdentityOperation $operation): void
@@ -546,6 +690,10 @@ final readonly class GlobalIdentityOperationService
             'state' => $operation->delivery_state->value,
             'event' => $event,
         ];
+        if ($operation->incident_id !== null) {
+            $fields['incident_id'] = $operation->incident_id;
+            $fields['replaces_operation_id'] = $operation->replaces_operation_id;
+        }
         DB::afterCommit(static fn () => Log::info('Global identity operation.', $fields));
     }
 }

@@ -9,6 +9,7 @@ namespace App\Services\GlobalIdentity;
 
 use App\Exceptions\GlobalIdentityKeyException;
 use App\Models\User;
+use Closure;
 use SensitiveParameter;
 
 final readonly class GlobalIdentityAccounts
@@ -22,10 +23,13 @@ final readonly class GlobalIdentityAccounts
         } catch (GlobalIdentityKeyException) {
             return null;
         }
-        $identity = $this->email->findUserIdentity($address, $this->versions());
 
-        return $identity === null ? null : User::query()->where('email_version', $identity['email_version'])
-            ->find($identity['id']);
+        return $this->withLookupVersions(function (GlobalEmailLookupVersions $versions) use ($address): ?User {
+            $identity = $this->email->findUserIdentity($address, $versions);
+
+            return $identity === null ? null : User::query()->where('email_version', $identity['email_version'])
+                ->find($identity['id']);
+        });
     }
 
     public function throttleDigest(#[SensitiveParameter] string $address): string
@@ -44,14 +48,19 @@ final readonly class GlobalIdentityAccounts
 
     public function create(#[SensitiveParameter] User $user, #[SensitiveParameter] string $address): User
     {
-        return User::query()->findOrFail($this->email->create($user, $address, $this->versions()));
+        return $this->withLookupVersions(
+            fn (GlobalEmailLookupVersions $versions): User => User::query()->findOrFail($this->email->create($user, $address, $versions)),
+        );
     }
 
-    public function versions(): GlobalEmailLookupVersions
+    /**
+     * @template T
+     *
+     * @param  Closure(GlobalEmailLookupVersions): T  $use
+     * @return T
+     */
+    public function withLookupVersions(Closure $use): mixed
     {
-        return new GlobalEmailLookupVersions(
-            config()->integer('global_identity.lookup.write'),
-            config()->array('global_identity.lookup.accepted'),
-        );
+        return $this->keys->withLookupVersions($use);
     }
 }

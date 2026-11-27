@@ -12,7 +12,6 @@ use App\Jobs\DeliverGlobalIdentityOperation;
 use App\Models\GlobalIdentityOperation;
 use App\Models\User;
 use App\Services\ActivityLogService;
-use Closure;
 use Illuminate\Auth\Events\Verified;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -33,7 +32,7 @@ final readonly class IdentityLifecycle
 
     public function request(User $user, GlobalIdentityOperationType $type, #[SensitiveParameter] ?string $candidate = null): void
     {
-        $this->forAccount($user->id, function () use ($user, $type, $candidate): void {
+        $this->operations->forAccount($user->id, function () use ($user, $type, $candidate): void {
             GlobalIdentityOperation::query()->where('user_id', $user->id)->where('operation_type', $type->value)
                 ->orderBy('id')->lockForUpdate()->get(['id']);
             $current = User::query()->lockForUpdate()->find($user->id);
@@ -46,7 +45,9 @@ final readonly class IdentityLifecycle
 
             $id = (string) Str::uuid();
             if ($candidate !== null) {
-                $this->email->reserve($id, $candidate, $this->accounts->versions());
+                $this->accounts->withLookupVersions(
+                    fn (GlobalEmailLookupVersions $versions) => $this->email->reserve($id, $candidate, $versions),
+                );
             }
             $context = new GlobalIdentityOperationContext($type, $id, $user->id, $user->email_version);
             $this->operations->create($context, now()->toImmutable()->addHour(), $candidate);
@@ -68,7 +69,7 @@ final readonly class IdentityLifecycle
             return false;
         }
 
-        return $this->forAccount($userId, function () use ($id, $proof, $type, $userId, $password): bool {
+        return $this->operations->forAccount($userId, function () use ($id, $proof, $type, $userId, $password): bool {
             // Lock operations before users, in the same order as the dispatch fence.
             GlobalIdentityOperation::query()->where('user_id', $userId)->orderBy('id')->lockForUpdate()->get(['id']);
 
@@ -106,7 +107,7 @@ final readonly class IdentityLifecycle
 
     public function revokeForDeletedAccount(string $userId): void
     {
-        $this->forAccount($userId, fn () => $this->invalidate(
+        $this->operations->forAccount($userId, fn () => $this->invalidate(
             $userId,
             [GlobalIdentityOperationType::PasswordReset, GlobalIdentityOperationType::EmailVerification, GlobalIdentityOperationType::PendingEmailChange],
             GlobalIdentityTerminalReason::Revoked,
@@ -115,7 +116,7 @@ final readonly class IdentityLifecycle
 
     public function replaceProvenAddress(User $user, #[SensitiveParameter] string $address): void
     {
-        $this->forAccount($user->id, function () use ($user, $address): void {
+        $this->operations->forAccount($user->id, function () use ($user, $address): void {
             $expected = $user->email_version;
             if ($this->accounts->find($address)?->id === $user->id) {
                 return;
@@ -123,9 +124,10 @@ final readonly class IdentityLifecycle
 
             $this->revokeForDeletedAccount($user->id);
             $operationId = (string) Str::uuid();
-            $versions = $this->accounts->versions();
-            $this->email->reserve($operationId, $address, $versions);
-            $this->email->activate($user->id, $expected, $operationId, $address, $versions);
+            $this->accounts->withLookupVersions(function (GlobalEmailLookupVersions $versions) use ($user, $expected, $operationId, $address): void {
+                $this->email->reserve($operationId, $address, $versions);
+                $this->email->activate($user->id, $expected, $operationId, $address, $versions);
+            });
             $user->refresh();
             $user->forceFill(['remember_token' => null])->save();
             $user->tokens()->delete();
@@ -138,7 +140,7 @@ final readonly class IdentityLifecycle
     {
         $operations = GlobalIdentityOperation::query()->where('user_id', $userId)
             ->whereIn('operation_type', array_column($types, 'value'))
-            ->where('delivery_state', '!=', GlobalIdentityDeliveryState::Terminal->value)
+            ->outstanding()
             ->when($except !== null, fn ($query) => $query->where('id', '!=', $except))
             ->orderBy('id')->lockForUpdate()->get();
         foreach ($operations as $operation) {
@@ -151,7 +153,9 @@ final readonly class IdentityLifecycle
         $candidate = $this->operations->openRecipient($operation)
             ?? throw new GlobalIdentityKeyException('Pending email change is unavailable.');
         $this->email->withEmail($user->id, $user->email_version, true, function (#[SensitiveParameter] string $previous) use ($operation, $user, $candidate): void {
-            $this->email->activate($user->id, $user->email_version, $operation->id, $candidate->original(), $this->accounts->versions());
+            $this->accounts->withLookupVersions(
+                fn (GlobalEmailLookupVersions $versions): int => $this->email->activate($user->id, $user->email_version, $operation->id, $candidate->original(), $versions),
+            );
             DB::afterCommit(function () use ($previous, $user): void {
                 try {
                     $this->mail->send($previous, __('The email address for your SecPal account was changed.'), null);
@@ -159,21 +163,6 @@ final readonly class IdentityLifecycle
                     Log::warning('Identity change notification failed.', ['user_id' => $user->id]);
                 }
             });
-        });
-    }
-
-    /**
-     * @template T
-     *
-     * @param  Closure(): T  $action
-     * @return T
-     */
-    private function forAccount(string $userId, Closure $action): mixed
-    {
-        return DB::transaction(static function () use ($userId, $action): mixed {
-            DB::select('SELECT pg_advisory_xact_lock(hashtextextended(?, 0))', ['global-identity-operation:'.$userId]);
-
-            return $action();
         });
     }
 }

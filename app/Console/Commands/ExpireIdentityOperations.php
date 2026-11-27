@@ -8,7 +8,6 @@ declare(strict_types=1);
 namespace App\Console\Commands;
 
 use App\Models\GlobalIdentityOperation;
-use App\Services\GlobalIdentity\GlobalIdentityDeliveryState;
 use App\Services\GlobalIdentity\GlobalIdentityOperationService;
 use App\Services\GlobalIdentity\GlobalIdentityOperationType;
 use App\Services\GlobalIdentity\GlobalIdentityTerminalReason;
@@ -23,7 +22,7 @@ final class ExpireIdentityOperations extends Command
     public function handle(GlobalIdentityOperationService $operations): int
     {
         GlobalIdentityOperation::query()->where('expires_at', '<=', now())
-            ->where('delivery_state', '!=', GlobalIdentityDeliveryState::Terminal)
+            ->outstanding()
             ->where('operation_type', '!=', GlobalIdentityOperationType::Invitation)
             ->lazyById()->each(static function (GlobalIdentityOperation $operation) use ($operations): void {
                 $operations->invalidate($operation->id, GlobalIdentityTerminalReason::Expired);

@@ -128,7 +128,7 @@ final readonly class GlobalEmailRepository
                     ]);
                 }
                 // Concurrent reuse of an operation ID for a different address also fails.
-                $this->verifyReservation($operationId, $reservations, $reservationVersion, required: true);
+                $this->verifyReservation($operationId, $reservations, $reservationVersion, required: true, complete: true);
             }, $operationId);
         });
     }
@@ -137,7 +137,7 @@ final readonly class GlobalEmailRepository
     {
         $operationId = $this->uuid($operationId);
         $this->checked('release', function () use ($operationId): void {
-            DB::transaction(function () use ($operationId): void {
+            $this->keys->withReadLease(function () use ($operationId): void {
                 $this->lockReservationOperation($operationId);
                 $this->reservations($operationId)->delete();
             });
@@ -191,6 +191,144 @@ final readonly class GlobalEmailRepository
             ->sharedLock()->value('email_version') === $expectedVersion);
     }
 
+    public function reencrypt(string $userId): bool
+    {
+        $userId = $this->uuid($userId);
+
+        return $this->checked('reencrypt', fn (): bool => DB::transaction(function () use ($userId): bool {
+            $user = DB::table('users')->where('id', $userId);
+            $row = (clone $user)->lockForUpdate()->first(['email_enc']);
+            if ($row === null) {
+                return false;
+            }
+            if (! is_string($row->email_enc)) {
+                $this->reject('reencrypt', 'invalid_envelope');
+            }
+            [$address, $previous] = $this->openEmail($userId, $row->email_enc);
+
+            return $this->keys->withActiveKey(
+                GlobalIdentityWorkingKeyPurpose::EmailEncryption,
+                function (#[SensitiveParameter] string $key, GlobalIdentityWorkingKeyContext $active) use ($user, $userId, $address, $previous): bool {
+                    if ($active == $previous) {
+                        return false;
+                    }
+                    $next = $this->codec->encrypt($userId, $address, $active, $key);
+                    if ($user->update(['email_enc' => json_encode($next, JSON_THROW_ON_ERROR)]) !== 1) {
+                        $this->reject('reencrypt', 'write_failed');
+                    }
+
+                    return true;
+                },
+            );
+        }));
+    }
+
+    public function completeLookupRotation(GlobalIdentityWorkingKeyContext $target, int $limit): bool
+    {
+        if ($limit < 1 || $limit > 500) {
+            $this->reject('complete_lookup', 'invalid_batch_size');
+        }
+
+        return $this->checked('complete_lookup', fn (): bool => $this->keys->completeLookupRotation(
+            $target,
+            function (int $prior, int $current): void {
+                $reservationKey = $this->keys->activeReference(GlobalIdentityWorkingKeyPurpose::UserEmailReservation);
+                $this->requireStoredVersions(new GlobalEmailLookupVersions($current, [$prior, $current]), $reservationKey->version);
+                $reservations = DB::table(GlobalEmailSchema::RESERVATIONS.' AS r')->where('r.index_key_version', $prior);
+                if (DB::table('users')->where('email_idx_key_version', '!=', $current)->exists()
+                    || (clone $reservations)->whereNotExists(function (Builder $query) use ($current): void {
+                        $query->from(GlobalEmailSchema::RESERVATIONS.' AS next')
+                            ->whereColumn('next.operation_id', 'r.operation_id')
+                            ->whereColumn('next.normalization_version', 'r.normalization_version')
+                            ->whereColumn('next.reservation_key_version', 'r.reservation_key_version')
+                            ->where('next.index_key_version', $current);
+                    })->exists()) {
+                    $this->reject('complete_lookup', 'incomplete_projection');
+                }
+            },
+            function (int $prior, int $current) use ($limit): bool {
+                $reservations = DB::table(GlobalEmailSchema::RESERVATIONS)->where('index_key_version', $prior);
+                $sidecars = DB::table(GlobalEmailSchema::ROTATION_INDEXES)->where('index_key_version', $prior);
+                $users = (clone $sidecars)->orderBy('user_id')->limit($limit)->pluck('user_id')->all();
+                $sidecars->whereIn('user_id', $users)->delete();
+                $left = $limit - count($users);
+                if ($left > 0) {
+                    $ids = (clone $reservations)->orderBy('operation_id')->limit($left)->pluck('operation_id')->all();
+                    $reservations->whereIn('operation_id', $ids)->delete();
+                }
+
+                return ! DB::table(GlobalEmailSchema::ROTATION_INDEXES)->exists()
+                    && ! DB::table(GlobalEmailSchema::RESERVATIONS)->where('index_key_version', '!=', $current)->exists();
+            },
+        ));
+    }
+
+    public function rotateIndex(string $userId, bool $promote): bool
+    {
+        $userId = $this->uuid($userId);
+
+        return $this->checked('rotate_index', fn (): bool => DB::transaction(function () use ($userId, $promote): bool {
+            $user = DB::table('users')->where('id', $userId);
+            $row = (clone $user)->selectRaw("email_enc, email_normalization_version, email_idx_key_version, encode(email_idx, 'hex') AS idx")
+                ->lockForUpdate()->first();
+            if ($row === null) {
+                return false;
+            }
+            if (! is_string($row->email_enc) || ! is_int($row->email_idx_key_version) || ! is_string($row->idx)
+                || $row->email_normalization_version !== self::NORMALIZATION) {
+                $this->reject('rotate_index', 'invalid_identity');
+            }
+            [$address] = $this->openEmail($userId, $row->email_enc);
+
+            return $this->keys->withLookupVersions(function (GlobalEmailLookupVersions $versions) use ($userId, $user, $row, $address, $promote): bool {
+                if (count($versions->accepted) !== 2) {
+                    $this->reject('rotate_index', 'rotation_inactive');
+                }
+                $current = $row->email_idx_key_version;
+
+                return $this->write($address, $versions, function (array $indexes) use ($versions, $current, $row, $userId, $user, $promote): bool {
+                    if (! isset($indexes[$current]) || ! hash_equals(bin2hex($indexes[$current]), $row->idx)
+                        || $this->matchingUsers($indexes) !== [$userId]) {
+                        $this->reject('rotate_index', 'identity_mismatch');
+                    }
+                    if ($current === $versions->write) {
+                        return false;
+                    }
+                    $next = $indexes[$versions->write];
+                    $exists = $this->verifiedRotationIndex($userId, $versions->write, $next);
+                    if ($promote) {
+                        if (! $exists) {
+                            $this->reject('rotate_index', 'missing_verified_index');
+                        }
+                        if ($user->update(['email_idx' => self::bytea($next), 'email_idx_key_version' => $versions->write]) !== 1) {
+                            $this->reject('rotate_index', 'write_failed');
+                        }
+                    } elseif ($exists) {
+                        return false;
+                    }
+                    $this->storeRotationIndexes($userId, $indexes, $promote ? $versions->write : $current);
+
+                    return true;
+                }, null);
+            });
+        }));
+    }
+
+    private function verifiedRotationIndex(string $userId, int $version, #[SensitiveParameter] string $digest): bool
+    {
+        $stored = DB::table(GlobalEmailSchema::ROTATION_INDEXES)
+            ->where('user_id', $userId)->where('normalization_version', self::NORMALIZATION)
+            ->where('index_key_version', $version)->selectRaw("encode(email_idx, 'hex') AS idx")->value('idx');
+        if ($stored === null) {
+            return false;
+        }
+        if (! is_string($stored) || ! hash_equals(bin2hex($digest), $stored)) {
+            $this->reject('rotate_index', 'sidecar_mismatch');
+        }
+
+        return true;
+    }
+
     /**
      * The caller authorizes display or revalidates the claimed mail operation.
      * Mark the callback parameter sensitive and apply the protocol's final fence
@@ -209,19 +347,7 @@ final readonly class GlobalEmailRepository
         if (! is_string($json)) {
             $this->reject('read', 'stale_version');
         }
-
-        try {
-            $envelope = json_decode($json, true, flags: JSON_THROW_ON_ERROR);
-            if (! is_array($envelope)) {
-                $this->reject('read', 'malformed_envelope');
-            }
-            $address = $this->keys->withKey(
-                $this->codec->reference($envelope),
-                fn (#[SensitiveParameter] string $key): GlobalEmailAddress => $this->codec->decrypt($userId, $envelope, $key),
-            );
-        } catch (GlobalIdentityKeyException|JsonException|QueryException) {
-            $this->reject('read', 'invalid_envelope');
-        }
+        [$address] = $this->openEmail($userId, $json);
 
         $email = $forTransport ? $address->transport() : $address->original();
         try {
@@ -229,6 +355,26 @@ final readonly class GlobalEmailRepository
         } finally {
             sodium_memzero($email);
         }
+    }
+
+    /** @return array{GlobalEmailAddress, GlobalIdentityWorkingKeyContext} */
+    private function openEmail(string $userId, #[SensitiveParameter] string $json): array
+    {
+        try {
+            $envelope = json_decode($json, true, flags: JSON_THROW_ON_ERROR);
+            if (! is_array($envelope)) {
+                $this->reject('read', 'malformed_envelope');
+            }
+            $context = $this->codec->reference($envelope);
+            $address = $this->keys->withKey(
+                $context,
+                fn (#[SensitiveParameter] string $key): GlobalEmailAddress => $this->codec->decrypt($userId, $envelope, $key),
+            );
+        } catch (GlobalIdentityKeyException|JsonException|QueryException) {
+            $this->reject('read', 'invalid_envelope');
+        }
+
+        return [$address, $context];
     }
 
     /**
@@ -250,6 +396,10 @@ final readonly class GlobalEmailRepository
                 if ($active->reference->version !== $versions->write) {
                     $this->reject('write', 'stale_write_version');
                 }
+                $cleanup = $this->keys->lookupCleanupVersion();
+                if ($cleanup !== null && $versions->accepted !== [$versions->write]) {
+                    $this->reject('write', 'stale_write_version');
+                }
                 if ($operationId !== null) {
                     $this->lockReservationOperation($operationId);
                 }
@@ -257,9 +407,9 @@ final readonly class GlobalEmailRepository
 
                 return $this->keys->withActiveKey(
                     GlobalIdentityWorkingKeyPurpose::UserEmailReservation,
-                    function (#[SensitiveParameter] string $reservationKey, GlobalIdentityWorkingKeyContext $reservation) use ($address, $versions, $indexes, $use): mixed {
+                    function (#[SensitiveParameter] string $reservationKey, GlobalIdentityWorkingKeyContext $reservation) use ($address, $versions, $indexes, $use, $cleanup, $operationId): mixed {
                         $version = $reservation->reference->version;
-                        $this->requireStoredVersions($versions, $version);
+                        $this->requireStoredVersions($versions, $version, $cleanup);
                         $reservations = [];
                         $locks = [];
                         foreach ($indexes as $keyVersion => $index) {
@@ -286,6 +436,12 @@ final readonly class GlobalEmailRepository
                         foreach (array_unique($locks) as $lock) {
                             DB::select('SELECT pg_advisory_xact_lock(CAST(? AS bigint))', [$lock]);
                         }
+                        if ($cleanup !== null && $operationId !== null) {
+                            $claim = $this->reservations($operationId);
+                            if ((clone $claim)->where('index_key_version', $versions->write)->exists()) {
+                                $claim->where('index_key_version', $cleanup)->delete();
+                            }
+                        }
 
                         return $use($indexes, $reservations, $version);
                     },
@@ -306,13 +462,14 @@ final readonly class GlobalEmailRepository
         DB::select('SELECT pg_advisory_xact_lock(?, ?)', [self::RESERVATION_LOCK_NAMESPACE, $signedLock]);
     }
 
-    private function requireStoredVersions(GlobalEmailLookupVersions $versions, int $reservationVersion): void
+    private function requireStoredVersions(GlobalEmailLookupVersions $versions, int $reservationVersion, ?int $cleanup = null): void
     {
         $accepted = array_map(static fn (int $version): array => [self::NORMALIZATION, $version], $versions->accepted);
-        $reservationTuples = array_map(static fn (array $pair): array => [...$pair, $reservationVersion], $accepted);
+        $persisted = $cleanup === null ? $accepted : [...$accepted, [self::NORMALIZATION, $cleanup]];
+        $reservationTuples = array_map(static fn (array $pair): array => [...$pair, $reservationVersion], $persisted);
 
         if (! $this->hasOnlyVersionTuples('users', ['email_normalization_version', 'email_idx_key_version'], $accepted)
-            || ! $this->hasOnlyVersionTuples(GlobalEmailSchema::ROTATION_INDEXES, ['normalization_version', 'index_key_version'], $accepted)
+            || ! $this->hasOnlyVersionTuples(GlobalEmailSchema::ROTATION_INDEXES, ['normalization_version', 'index_key_version'], $persisted)
             || ! $this->hasOnlyVersionTuples(GlobalEmailSchema::RESERVATIONS, ['normalization_version', 'index_key_version', 'reservation_key_version'], $reservationTuples)) {
             $this->reject('write', 'unaccepted_stored_version');
         }
@@ -435,14 +592,19 @@ final readonly class GlobalEmailRepository
     }
 
     /** @param array<int, string> $digests */
-    private function verifyReservation(string $operationId, #[SensitiveParameter] array $digests, int $version, bool $required): void
-    {
+    private function verifyReservation(
+        string $operationId,
+        #[SensitiveParameter] array $digests,
+        int $version,
+        bool $required,
+        bool $complete = false,
+    ): void {
         $rows = $this->reservations($operationId)->selectRaw("normalization_version, index_key_version, reservation_key_version, encode(digest, 'hex') AS digest_hex")
             ->lockForUpdate()->get();
         if ($rows->isEmpty() && ! $required) {
             return;
         }
-        if ($rows->count() !== count($digests)) {
+        if ($rows->isEmpty() || $rows->count() > count($digests) || ($complete && $rows->count() !== count($digests))) {
             $this->conflict();
         }
         foreach ($rows as $row) {

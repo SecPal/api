@@ -17,4 +17,6 @@ enum GlobalIdentityTerminalReason: string
     case IntegrityFailure = 'integrity_failure';
     case TransportRejected = 'transport_rejected';
     case RestoreTombstone = 'restore_tombstone';
+    case SecurityRevoked = 'security_revoked';
+    case KeyUnavailable = 'key_unavailable';
 }
