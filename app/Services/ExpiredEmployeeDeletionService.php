@@ -278,15 +278,12 @@ class ExpiredEmployeeDeletionService
         $user->tokens()->delete();
         $user->passkeyCredentials()->delete();
 
-        // Clear password reset tokens for the current (pre-anonymization) email to prevent
-        // token reuse if the address is later registered again.
-        DB::table('password_reset_tokens')
-            ->where('email', $user->email)
-            ->delete();
+        app(GlobalIdentity\IdentityLifecycle::class)->replaceProvenAddress(
+            $user, 'deleted-user+'.$user->id.'@secpal.dev',
+        );
 
         $user->forceFill([
             'name' => 'Deleted User',
-            'email' => 'deleted-user+'.$user->id.'@secpal.dev',
             'email_verified_at' => null,
             'password' => Hash::make(Str::random(64)),
             'remember_token' => null,

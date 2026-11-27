@@ -78,7 +78,7 @@ class OrganizationalScopeController extends Controller
             $data['user'] = [
                 'id' => $user->id,
                 'name' => $user->name,
-                'email' => $user->email,
+                'email' => $user->emailForDisplay(),
             ];
         }
 
@@ -93,7 +93,7 @@ class OrganizationalScopeController extends Controller
         $this->authorize('manageScopes', $organizational_unit);
 
         $scopes = UserInternalOrganizationalScope::where('organizational_unit_id', $organizational_unit->id)
-            ->with('user:id,name,email')
+            ->with('user:id,name,email_version')
             ->get();
 
         return response()->json([

@@ -83,6 +83,15 @@ abstract class TestCase extends BaseTestCase
         parent::setUp();
         self::normalizeParallelWorkerDatabaseConfiguration($this->app);
         $this->app->setLocale(self::TEST_LOCALE);
+        $traits = class_uses_recursive(static::class);
+        if (! isset($traits[Support\ManagesGlobalIdentityFixture::class])
+            && array_intersect($traits, [
+                \Illuminate\Foundation\Testing\RefreshDatabase::class,
+                \Illuminate\Foundation\Testing\DatabaseMigrations::class,
+                \Illuminate\Foundation\Testing\DatabaseTruncation::class,
+            ]) !== []) {
+            Support\GlobalIdentityTestFixture::prepare();
+        }
 
         // Prevent real network calls to HIBP so Password::uncompromised() always
         // passes for test passwords without coupling tests to an external service.

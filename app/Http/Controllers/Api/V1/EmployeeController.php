@@ -25,6 +25,7 @@ use App\Services\DomainAccessService;
 use App\Services\EmployeeComplianceService;
 use App\Services\EmployeeLifecycleService;
 use App\Services\EmployeeOnboardingInvitationService;
+use App\Services\GlobalIdentity\IdentityDisplay;
 use App\Support\LikePattern;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -43,7 +44,10 @@ use Illuminate\Support\Facades\Storage;
  */
 class EmployeeController extends Controller
 {
-    public function __construct(private readonly DomainAccessService $domainAccess) {}
+    public function __construct(
+        private readonly DomainAccessService $domainAccess,
+        private readonly IdentityDisplay $identityDisplay,
+    ) {}
 
     /**
      * Display a listing of employees.
@@ -63,6 +67,8 @@ class EmployeeController extends Controller
         $employees = $this->buildEmployeeIndexQuery($request)
             ->with(['user', 'legalEntity', 'establishment'])
             ->paginate($request->integer('per_page', 15));
+
+        $this->identityDisplay->prepare($employees, 'user');
 
         return EmployeeResource::collection($employees);
     }
@@ -101,6 +107,8 @@ class EmployeeController extends Controller
                 'query' => $request->query(),
             ]
         );
+
+        $this->identityDisplay->prepare($paginatedEmployees, 'user');
 
         return EmployeeResource::collection($paginatedEmployees);
     }
@@ -201,6 +209,8 @@ class EmployeeController extends Controller
         $freshEmployee = $employee->fresh();
         $freshEmployee->load(['user', 'legalEntity', 'establishment', 'addresses']);
 
+        $this->identityDisplay->prepare($freshEmployee, 'user');
+
         return response()->json([
             'data' => new EmployeeResource($freshEmployee),
         ], Response::HTTP_CREATED);
@@ -232,6 +242,8 @@ class EmployeeController extends Controller
         }
 
         $employee->load($relations);
+
+        $this->identityDisplay->prepare($employee, 'user', 'documents.uploader', 'employeeQualifications.employee.user');
 
         return response()->json([
             'data' => new EmployeeResource($employee),
@@ -277,6 +289,8 @@ class EmployeeController extends Controller
         /** @var Employee $freshEmployee */
         $freshEmployee = $employee->fresh();
         $freshEmployee->load(['user', 'legalEntity', 'establishment', 'addresses']);
+
+        $this->identityDisplay->prepare($freshEmployee, 'user');
 
         return response()->json([
             'data' => new EmployeeResource($freshEmployee),
@@ -431,6 +445,8 @@ class EmployeeController extends Controller
         $freshEmployee = $employee->fresh();
         $freshEmployee->load(['user', 'legalEntity', 'establishment', 'addresses']);
 
+        $this->identityDisplay->prepare($freshEmployee, 'user');
+
         return response()->json([
             'data' => new EmployeeResource($freshEmployee),
         ]);
@@ -476,6 +492,8 @@ class EmployeeController extends Controller
         /** @var Employee $freshEmployee */
         $freshEmployee = app(EmployeeLifecycleService::class)->activate($employee);
 
+        $this->identityDisplay->prepare($freshEmployee, 'user');
+
         return response()->json([
             'data' => new EmployeeResource($freshEmployee),
         ]);
@@ -497,6 +515,8 @@ class EmployeeController extends Controller
         /** @var Employee $freshEmployee */
         $freshEmployee = app(EmployeeLifecycleService::class)->placeOnLeave($employee);
 
+        $this->identityDisplay->prepare($freshEmployee, 'user');
+
         return response()->json([
             'data' => new EmployeeResource($freshEmployee),
         ]);
@@ -517,6 +537,8 @@ class EmployeeController extends Controller
 
         /** @var Employee $freshEmployee */
         $freshEmployee = app(EmployeeLifecycleService::class)->returnFromLeave($employee);
+
+        $this->identityDisplay->prepare($freshEmployee, 'user');
 
         return response()->json([
             'data' => new EmployeeResource($freshEmployee),
@@ -542,6 +564,8 @@ class EmployeeController extends Controller
 
         /** @var Employee $freshEmployee */
         $freshEmployee = app(EmployeeLifecycleService::class)->terminate($employee);
+
+        $this->identityDisplay->prepare($freshEmployee, 'user');
 
         return response()->json([
             'data' => new EmployeeResource($freshEmployee),

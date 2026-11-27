@@ -18,6 +18,7 @@ use App\Models\EmployeeOnboardingToken;
 use App\Models\OnboardingFormSubmission;
 use App\Models\OnboardingFormTemplate;
 use App\Models\OnboardingSubmissionFile;
+use App\Services\GlobalIdentity\IdentityDisplay;
 use App\Services\OnboardingCompletionService;
 use App\Services\OnboardingFormDataSchemaValidationService;
 use App\Services\OnboardingResidentialAddressHistorySyncService;
@@ -83,6 +84,7 @@ class OnboardingController extends Controller
         private readonly OnboardingCompletionService $onboardingCompletionService,
         private readonly OnboardingResidentialAddressHistorySyncService $onboardingResidentialAddressHistorySyncService,
         private readonly OnboardingTaxIdentificationSyncService $onboardingTaxIdentificationSyncService,
+        private readonly IdentityDisplay $identityDisplay,
     ) {}
 
     /**
@@ -368,14 +370,11 @@ class OnboardingController extends Controller
                 throw new \RuntimeException(__('User account not found for employee.'));
             }
 
+            // Align the proven address before the first User write so dispatch keeps its lock order.
+            app(\App\Services\GlobalIdentity\IdentityLifecycle::class)->replaceProvenAddress($user, $onboardingEmail);
             $user->password = Hash::make($password);
             // Sync user name with employee name so it displays correctly after login
             $user->name = $firstName.' '.$lastName;
-            // The onboarding invite proves control over employee.email; keep the user login email aligned.
-            if ($user->email !== $onboardingEmail) {
-                $user->email = $onboardingEmail;
-                $user->email_verified_at = null;
-            }
             $user->save();
             // Consuming a valid onboarding magic link proves mailbox control.
             if ($user->markEmailAsVerified()) {
@@ -421,7 +420,7 @@ class OnboardingController extends Controller
             'data' => [
                 'user' => [
                     'id' => $user->id,
-                    'email' => $user->email,
+                    'email' => $user->emailForDisplay(),
                     'name' => $user->name,
                     'email_verified' => $user->hasVerifiedEmail(),
                 ],
@@ -1037,6 +1036,8 @@ class OnboardingController extends Controller
 
         $this->prepareLocalizedSubmissionTemplate($fresh, $this->resolveTemplateLocale($request));
 
+        $this->identityDisplay->prepare($fresh, 'reviewer');
+
         return response()->json([
             'data' => new OnboardingFormSubmissionResource($fresh),
         ]);
@@ -1090,6 +1091,8 @@ class OnboardingController extends Controller
         $fresh->load(['formTemplate', 'reviewer']);
 
         $this->prepareLocalizedSubmissionTemplate($fresh, $this->resolveTemplateLocale($request));
+
+        $this->identityDisplay->prepare($fresh, 'reviewer');
 
         return response()->json([
             'data' => new OnboardingFormSubmissionResource($fresh),
@@ -1540,6 +1543,8 @@ class OnboardingController extends Controller
 
             return $lockedEmployee;
         });
+
+        $this->identityDisplay->prepare($freshEmployee, 'user');
 
         return response()->json([
             'data' => new EmployeeResource($freshEmployee),

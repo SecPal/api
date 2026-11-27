@@ -5,4 +5,9 @@
 
 return [
     'root_directory' => env('GLOBAL_IDENTITY_ROOT_DIRECTORY', ''),
+    'mailer' => env('GLOBAL_IDENTITY_MAILER', 'smtp'),
+    'lookup' => [
+        'write' => 1,
+        'accepted' => [1],
+    ],
 ];

@@ -15,6 +15,9 @@ Artisan::command('inspire', function () {
 // remains durable authority, so missed ticks are recovered without a scheduler lock.
 Schedule::command('roles:expire')->everyMinute()->name('role-expiration');
 
+// SAFE_PARALLEL: operation rows serialize proof deletion and reservation release.
+Schedule::command('identity:expire-operations')->everyMinute()->name('identity-operation-expiration');
+
 // DURABLE_DUE_WORK_DISPATCHER: persisted contract dates are scanned with <= and
 // lifecycle transactions revalidate state. One launch avoids duplicate notices.
 Schedule::command('employees:update-status')

@@ -223,7 +223,7 @@ describe('Passkey Authentication', function () {
                     'mfa_completed' => true,
                 ],
                 'user' => [
-                    'email' => $user->email,
+                    'email' => $user->emailForDisplay(),
                 ],
             ]);
 
@@ -231,7 +231,7 @@ describe('Passkey Authentication', function () {
             ->getJson('/v1/me')
             ->assertOk()
             ->assertJson([
-                'email' => $user->email,
+                'email' => $user->emailForDisplay(),
             ]);
     });
 
@@ -279,7 +279,7 @@ describe('Passkey Authentication', function () {
                     'mfa_completed' => true,
                 ],
                 'user' => [
-                    'email' => $user->email,
+                    'email' => $user->emailForDisplay(),
                 ],
             ]);
 
@@ -289,7 +289,7 @@ describe('Passkey Authentication', function () {
             ->getJson('/v1/me')
             ->assertOk()
             ->assertJson([
-                'email' => $user->email,
+                'email' => $user->emailForDisplay(),
             ]);
     });
 
@@ -744,7 +744,7 @@ describe('Passkey Management', function () {
             ],
             'user' => [
                 'id' => $user->id,
-                'name' => $user->email,
+                'name' => $user->emailForDisplay(),
                 'display_name' => $user->name,
             ],
             'pub_key_cred_params' => [
@@ -795,7 +795,7 @@ describe('Passkey Management', function () {
         $challenge = app(PasskeyChallengeService::class)->createRegistrationChallenge($user, [
             'challenge' => 'test-registration-challenge',
             'rp' => ['id' => 'app.secpal.dev', 'name' => 'SecPal'],
-            'user' => ['id' => $user->id, 'name' => $user->email, 'display_name' => $user->name],
+            'user' => ['id' => $user->id, 'name' => $user->emailForDisplay(), 'display_name' => $user->name],
             'pub_key_cred_params' => [['type' => 'public-key', 'alg' => -7]],
             'timeout' => 60000,
             'exclude_credentials' => [],
@@ -838,7 +838,7 @@ describe('Passkey Management', function () {
         $challenge = app(PasskeyChallengeService::class)->createRegistrationChallenge($user, [
             'challenge' => 'test-registration-challenge',
             'rp' => ['id' => 'app.secpal.dev', 'name' => 'SecPal'],
-            'user' => ['id' => $user->id, 'name' => $user->email, 'display_name' => $user->name],
+            'user' => ['id' => $user->id, 'name' => $user->emailForDisplay(), 'display_name' => $user->name],
             'pub_key_cred_params' => [['type' => 'public-key', 'alg' => -7]],
             'timeout' => 60000,
             'exclude_credentials' => [],
@@ -911,7 +911,7 @@ describe('Passkey Management', function () {
         $challenge = app(PasskeyChallengeService::class)->createRegistrationChallenge($user, [
             'challenge' => 'test-registration-challenge',
             'rp' => ['id' => 'app.secpal.dev', 'name' => 'SecPal'],
-            'user' => ['id' => $user->id, 'name' => $user->email, 'display_name' => $user->name],
+            'user' => ['id' => $user->id, 'name' => $user->emailForDisplay(), 'display_name' => $user->name],
             'pub_key_cred_params' => [['type' => 'public-key', 'alg' => -7]],
             'timeout' => 60000,
             'exclude_credentials' => [],
@@ -985,7 +985,7 @@ describe('Passkey Management', function () {
         $challengeOptions = [
             'challenge' => 'test-registration-challenge',
             'rp' => ['id' => 'app.secpal.dev', 'name' => 'SecPal'],
-            'user' => ['id' => $user->id, 'name' => $user->email, 'display_name' => $user->name],
+            'user' => ['id' => $user->id, 'name' => $user->emailForDisplay(), 'display_name' => $user->name],
             'pub_key_cred_params' => [['type' => 'public-key', 'alg' => -7]],
             'timeout' => 60000,
             'exclude_credentials' => [],
@@ -1044,7 +1044,7 @@ describe('Passkey Management', function () {
         $challengeOptions = [
             'challenge' => 'test-registration-challenge',
             'rp' => ['id' => 'app.secpal.dev', 'name' => 'SecPal'],
-            'user' => ['id' => $user->id, 'name' => $user->email, 'display_name' => $user->name],
+            'user' => ['id' => $user->id, 'name' => $user->emailForDisplay(), 'display_name' => $user->name],
             'pub_key_cred_params' => [['type' => 'public-key', 'alg' => -7]],
             'timeout' => 60000,
             'exclude_credentials' => [],
@@ -1097,7 +1097,7 @@ describe('Passkey Management', function () {
         $challenge = app(PasskeyChallengeService::class)->createRegistrationChallenge($user, [
             'challenge' => 'test-registration-challenge',
             'rp' => ['id' => 'app.secpal.dev', 'name' => 'SecPal'],
-            'user' => ['id' => $user->id, 'name' => $user->email, 'display_name' => $user->name],
+            'user' => ['id' => $user->id, 'name' => $user->emailForDisplay(), 'display_name' => $user->name],
             'pub_key_cred_params' => [['type' => 'public-key', 'alg' => -7]],
             'timeout' => 60000,
             'exclude_credentials' => [],

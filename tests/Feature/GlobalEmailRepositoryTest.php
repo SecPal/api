@@ -22,7 +22,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
-uses(RefreshDatabase::class);
+uses(RefreshDatabase::class, Tests\Support\ManagesGlobalIdentityFixture::class);
 
 beforeEach(function (): void {
     $this->rootDirectory = sys_get_temp_dir().'/secpal-email-'.bin2hex(random_bytes(12));
@@ -46,14 +46,13 @@ function sealedEmailUser(int $tenantId): User
     return new User(['name' => 'Synthetic User', 'password' => 'test-password', 'tenant_id' => $tenantId]);
 }
 
-it('leaves the ordinary migration and user factory on the active baseline', function (): void {
-    expect(Schema::hasColumn('users', 'email'))->toBeTrue()
-        ->and(Schema::hasColumn('users', 'email_enc'))->toBeFalse()
-        ->and(User::factory()->create(['tenant_id' => $this->tenant->id])->email)->toBeString();
+it('uses the authoritative encrypted schema in ordinary migrations and factories', function (): void {
+    expect(Schema::hasColumn('users', 'email'))->toBeFalse()
+        ->and(Schema::hasColumn('users', 'email_enc'))->toBeTrue()
+        ->and(User::factory()->create(['tenant_id' => $this->tenant->id])->emailForDisplay())->toBeString();
 });
 
 it('applies the authoritative schema and preserves original, lookup and delivery semantics', function (): void {
-    (new GlobalEmailSchema)->apply();
     $userId = $this->repository->create(sealedEmailUser($this->tenant->id), 'Lo.Cal+Tag@Faß.DE', $this->versions);
     $row = DB::table('users')->where('id', $userId)->selectRaw(
         "email_enc::text AS envelope, encode(email_idx, 'hex') AS index_hex, pg_typeof(email_idx)::text AS index_type, email_version",
@@ -87,7 +86,6 @@ it('applies the authoritative schema and preserves original, lookup and delivery
 });
 
 it('reserves every accepted pair and keeps duplicate and rolled-back writes neutral', function (): void {
-    (new GlobalEmailSchema)->apply();
     $original = $this->repository->create(sealedEmailUser($this->tenant->id), 'original@secpal.app', $this->versions);
     $this->registry->activate($this->registry->stage(Purpose::UserEmailLookup));
     $versions = new GlobalEmailLookupVersions(2, [1, 2]);
@@ -111,7 +109,6 @@ it('reserves every accepted pair and keeps duplicate and rolled-back writes neut
 });
 
 it('rejects stale delivery and authenticated envelopes moved to a different user', function (): void {
-    (new GlobalEmailSchema)->apply();
     $first = $this->repository->create(sealedEmailUser($this->tenant->id), 'source@secpal.app', $this->versions);
     $second = $this->repository->create(sealedEmailUser($this->tenant->id), 'target@secpal.app', $this->versions);
     DB::table('users')->where('id', $second)->update([
@@ -129,7 +126,6 @@ it('rejects stale delivery and authenticated envelopes moved to a different user
 });
 
 it('retains exact historical encryption and atomically activates a reserved address', function (): void {
-    (new GlobalEmailSchema)->apply();
     $userId = $this->repository->create(sealedEmailUser($this->tenant->id), 'source@secpal.app', $this->versions);
     $this->registry->activate($this->registry->stage(Purpose::EmailEncryption));
     $operation = (string) Str::uuid();
@@ -152,7 +148,6 @@ it('retains exact historical encryption and atomically activates a reserved addr
 });
 
 it('rejects stale write policies with bounded indexed version seeks', function (): void {
-    (new GlobalEmailSchema)->apply();
     $this->repository->create(sealedEmailUser($this->tenant->id), 'source@secpal.app', $this->versions);
     $this->registry->activate($this->registry->stage(Purpose::UserEmailLookup));
     $operation = (string) Str::uuid();

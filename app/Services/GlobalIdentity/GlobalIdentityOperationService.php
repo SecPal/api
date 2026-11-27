@@ -26,6 +26,7 @@ final readonly class GlobalIdentityOperationService
         private GlobalIdentityWorkingKeyRegistry $keys,
         private GlobalIdentityOperationCodec $codec,
         private GlobalIdentityOperationSubject $subject,
+        private GlobalEmailRepository $email,
     ) {}
 
     public function create(
@@ -277,7 +278,8 @@ final readonly class GlobalIdentityOperationService
         }
     }
 
-    public function consume(string $id, #[SensitiveParameter] string $token): bool
+    /** @param null|Closure(GlobalIdentityOperation): void $apply */
+    public function consume(string $id, #[SensitiveParameter] string $token, ?Closure $apply = null): bool
     {
         try {
             $hash = GlobalIdentityOperationCodec::hashToken($token);
@@ -285,7 +287,7 @@ final readonly class GlobalIdentityOperationService
             return false;
         }
 
-        return $this->locked($id, function (GlobalIdentityOperation $operation) use ($hash): bool {
+        return $this->locked($id, function (GlobalIdentityOperation $operation) use ($hash, $apply): bool {
             if (! $this->active($operation) || $operation->token_hash === null || ! hash_equals($operation->token_hash, $hash)) {
                 return false;
             }
@@ -294,6 +296,7 @@ final readonly class GlobalIdentityOperationService
 
                 return false;
             }
+            $apply?->__invoke($operation);
             $this->terminalize($operation, GlobalIdentityTerminalReason::Consumed);
 
             return true;
@@ -365,6 +368,9 @@ final readonly class GlobalIdentityOperationService
 
     private function terminalize(GlobalIdentityOperation $operation, GlobalIdentityTerminalReason $reason): void
     {
+        if ($operation->operation_type === GlobalIdentityOperationType::PendingEmailChange) {
+            $this->email->release($operation->id);
+        }
         $this->save($operation, [
             ...$this->clearAttempt(),
             'delivery_state' => GlobalIdentityDeliveryState::Terminal,
@@ -408,7 +414,9 @@ final readonly class GlobalIdentityOperationService
             'delivery_state' => GlobalIdentityDeliveryState::Delivered,
             'delivered_at' => now(),
             'delivery_token_enc' => null,
-            'recipient_enc' => null,
+            'recipient_enc' => $operation->operation_type === GlobalIdentityOperationType::PendingEmailChange
+                ? $operation->recipient_enc
+                : null,
             'provider_message_reference' => $reference,
         ]);
         $this->audit($operation, 'delivered');

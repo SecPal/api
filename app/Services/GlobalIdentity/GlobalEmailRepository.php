@@ -85,6 +85,31 @@ final readonly class GlobalEmailRepository
         });
     }
 
+    /** @return array{id: string, email_version: int}|null */
+    public function findUserIdentity(#[SensitiveParameter] string $email, GlobalEmailLookupVersions $versions): ?array
+    {
+        $address = $this->address($email, 'lookup');
+
+        return $this->checked('lookup', function () use ($address, $versions): ?array {
+            $matches = DB::query()
+                ->fromSub($this->lookupProjection($this->lookupIndexes($address, $versions)), 'matches')
+                ->join('users', 'users.id', '=', 'matches.user_id')
+                ->limit(2)->get(['users.id', 'users.email_version']);
+            if ($matches->count() > 1) {
+                $this->reject('lookup', 'conflicting_index');
+            }
+            $match = $matches->first();
+            if ($match === null) {
+                return null;
+            }
+            if (! is_string($match->id) || ! is_int($match->email_version)) {
+                $this->reject('lookup', 'invalid_identifier');
+            }
+
+            return ['id' => $match->id, 'email_version' => $match->email_version];
+        });
+    }
+
     public function reserve(string $operationId, #[SensitiveParameter] string $email, GlobalEmailLookupVersions $versions): void
     {
         $operationId = $this->uuid($operationId);
@@ -345,6 +370,20 @@ final readonly class GlobalEmailRepository
      */
     private function matchingUsers(#[SensitiveParameter] array $indexes): array
     {
+        $matches = [];
+        foreach ($this->lookupProjection($indexes)->limit(2)->pluck('user_id') as $id) {
+            if (! is_string($id)) {
+                $this->reject('lookup', 'invalid_identifier');
+            }
+            $matches[] = $id;
+        }
+
+        return $matches;
+    }
+
+    /** @param array<int, string> $indexes */
+    private function lookupProjection(#[SensitiveParameter] array $indexes): Builder
+    {
         $users = DB::table('users')->selectRaw('id AS user_id');
         $rotation = DB::table(GlobalEmailSchema::ROTATION_INDEXES)->select('user_id');
         foreach ($indexes as $version => $index) {
@@ -360,15 +399,7 @@ final readonly class GlobalEmailRepository
             ]));
         }
 
-        $matches = [];
-        foreach ($users->union($rotation)->limit(2)->pluck('user_id') as $id) {
-            if (! is_string($id)) {
-                $this->reject('lookup', 'invalid_identifier');
-            }
-            $matches[] = $id;
-        }
-
-        return $matches;
+        return $users->union($rotation);
     }
 
     /**

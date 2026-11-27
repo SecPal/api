@@ -36,7 +36,7 @@ use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
 use Symfony\Component\Process\Process;
 
-uses(DatabaseTruncation::class)->group('serial');
+uses(DatabaseTruncation::class, Tests\Support\ManagesGlobalIdentityFixture::class)->group('serial');
 
 beforeEach(function (): void {
     $this->directory = sys_get_temp_dir().'/secpal-delivery-'.bin2hex(random_bytes(12));
@@ -50,6 +50,7 @@ beforeEach(function (): void {
         app(GlobalIdentityWorkingKeyRegistry::class),
         app(App\Services\GlobalIdentity\GlobalIdentityOperationCodec::class),
         $this->subject,
+        app(App\Services\GlobalIdentity\GlobalEmailRepository::class),
     );
     $this->transport = new SyntheticIdentityTransport;
     $this->renderer = new SyntheticIdentityRenderer;

@@ -65,7 +65,7 @@ test('create employee addresses migration applies on sqlite-backed setups', func
     }
 });
 
-test('sqlite-backed migrate:fresh stops at the PostgreSQL-only domain migration', function (): void {
+test('sqlite-backed migrate:fresh stops at the encrypted identity migration', function (): void {
     $databasePath = createRemoveAdminAccessLevelTemporarySqliteDatabase('sqlite-migrate-fresh');
 
     try {
@@ -80,7 +80,7 @@ test('sqlite-backed migrate:fresh stops at the PostgreSQL-only domain migration'
 
         expect($process->isSuccessful())->toBeFalse($output)
             ->and($output)->not->toContain('android_enrollment')
-            ->and($output)->toContain('2026_07_17_120000_create_legal_entity_domain_model')
+            ->and($output)->toContain('0001_01_01_000000_create_users_table')
             ->and($output)->toContain('requires PostgreSQL');
     } finally {
         if (is_file($databasePath)) {

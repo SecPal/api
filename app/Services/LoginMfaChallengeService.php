@@ -30,6 +30,7 @@ class LoginMfaChallengeService
 
         $this->cache()->put($this->cacheKey($id), [
             'user_id' => $user->id,
+            'account_binding' => $this->accountBinding($user),
             'login_context' => $loginContext,
             'device_name' => $deviceName,
         ], $expiresAt);
@@ -47,7 +48,7 @@ class LoginMfaChallengeService
     /**
      * Retrieve a stored pending MFA login challenge.
      *
-     * @return array{user_id: string, login_context: string, device_name: string|null}|null
+     * @return array{user_id: string, account_binding: string, login_context: string, device_name: string|null}|null
      */
     public function find(string $challengeId): ?array
     {
@@ -58,18 +59,25 @@ class LoginMfaChallengeService
         }
 
         $userId = $challenge['user_id'] ?? null;
+        $binding = $challenge['account_binding'] ?? null;
         $loginContext = $challenge['login_context'] ?? null;
         $deviceName = $challenge['device_name'] ?? null;
 
-        if (! is_string($userId) || ! is_string($loginContext) || ($deviceName !== null && ! is_string($deviceName))) {
+        if (! is_string($userId) || ! is_string($binding) || ! is_string($loginContext) || ($deviceName !== null && ! is_string($deviceName))) {
             return null;
         }
 
         return [
             'user_id' => $userId,
+            'account_binding' => $binding,
             'login_context' => $loginContext,
             'device_name' => $deviceName,
         ];
+    }
+
+    public function accountBinding(User $user): string
+    {
+        return hash('sha256', $user->email_version.':'.$user->password);
     }
 
     /**

@@ -29,6 +29,9 @@ final readonly class GlobalIdentityWorkingKeyRegistry
         DB::transaction(function () use ($root): void {
             DB::select('SELECT pg_advisory_xact_lock(?, ?)', self::LOCK);
             $initialized = GlobalIdentityWorkingKey::query()->exists();
+            if (! $initialized && (DB::table('users')->exists() || DB::table('global_identity_operations')->exists())) {
+                throw new GlobalIdentityKeyException('Existing identity state requires its original working-key registry.');
+            }
 
             foreach (GlobalIdentityWorkingKeyPurpose::cases() as $purpose) {
                 if ($initialized) {

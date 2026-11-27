@@ -15,7 +15,7 @@ use Illuminate\Foundation\Testing\DatabaseTruncation;
 use Illuminate\Support\Facades\DB;
 use Symfony\Component\Process\Process;
 
-uses(DatabaseTruncation::class)->group('serial');
+uses(DatabaseTruncation::class, Tests\Support\ManagesGlobalIdentityFixture::class)->group('serial');
 
 it('serializes competing bootstraps and delays activation until the active writer commits', function (): void {
     $directory = sys_get_temp_dir().'/secpal-key-concurrency-'.bin2hex(random_bytes(12));

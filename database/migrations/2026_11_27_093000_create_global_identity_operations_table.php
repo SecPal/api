@@ -45,6 +45,7 @@ return new class extends Migration
             $table->boolean('quarantined')->default(false);
             $table->timestampsTz();
             $table->index(['delivery_state', 'lease_expires_at'], 'global_identity_delivery_lease');
+            $table->index('expires_at');
         });
         DB::statement(<<<'SQL'
             ALTER TABLE global_identity_operations

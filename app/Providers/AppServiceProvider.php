@@ -78,6 +78,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
+        $this->app->scoped(\App\Services\GlobalIdentity\IdentityDisplay::class);
+        $this->app->bind(\App\Services\GlobalIdentity\GlobalIdentityOperationSubject::class, \App\Services\GlobalIdentity\IdentityOperationSubject::class);
+        $this->app->bind(\App\Services\GlobalIdentity\GlobalIdentityDeliveryRenderer::class, \App\Services\GlobalIdentity\IdentityLinkRenderer::class);
+        $this->app->bind(\App\Services\GlobalIdentity\GlobalIdentityDeliveryTransport::class, \App\Services\GlobalIdentity\IdentityMailDelivery::class);
         $this->app->bind(GlobalIdentityKeyWrapper::class, FileGlobalIdentityKeyWrapper::class);
         $this->app->bind(FileGlobalIdentityRootProvider::class, static fn (): FileGlobalIdentityRootProvider => new FileGlobalIdentityRootProvider(
             config()->string('global_identity.root_directory'),
@@ -120,14 +124,12 @@ class AppServiceProvider extends ServiceProvider
             return Limit::perMinutes(60, 5)
                 ->by($request->ip())
                 ->response(function (Request $request, array $headers): JsonResponse {
-                    $phase = $request->is('v1/auth/password/reset-request') ? 'request' : 'confirmation';
-                    $email = $request->input('email');
+                    $phase = $request->is('v1/auth/password-reset-requests') ? 'request' : 'confirmation';
 
                     app(SecurityEventRecorder::class)->record(
                         $request,
                         SecurityEventName::PasswordResetRateLimited,
                         ['reset_phase' => $phase],
-                        is_string($email) ? strtolower(trim($email)) : null,
                     );
 
                     /** @var array<string, mixed> $headers */
@@ -433,9 +435,11 @@ class AppServiceProvider extends ServiceProvider
             return ['login|ip|'.$request->ip()];
         }
 
+        $digest = app(\App\Services\GlobalIdentity\GlobalIdentityAccounts::class)->throttleDigest($email);
+
         return [
-            'login|account|'.$email,
-            'login|credential|'.$request->ip().'|'.$email,
+            'login|account|'.$digest,
+            'login|credential|'.$request->ip().'|'.$digest,
         ];
     }
 

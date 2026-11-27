@@ -65,7 +65,7 @@ test('OnboardingDemoUserSeeder creates pre-contract employee at SecPal Holding',
     artisan('db:seed', ['--class' => OrganizationalUnitSeeder::class]);
     artisan('db:seed', ['--class' => OnboardingDemoUserSeeder::class]);
 
-    $user = User::query()->where('email', 'onboarding@example.com')->first();
+    $user = app(App\Services\GlobalIdentity\GlobalIdentityAccounts::class)->find('onboarding@example.com');
     expect($user)->not->toBeNull()
         ->and($user->name)->toBe('John Doe')
         ->and(Hash::check('password', (string) $user->password))->toBeTrue()
@@ -90,7 +90,7 @@ test('OnboardingDemoUserSeeder is idempotent', function (): void {
     artisan('db:seed', ['--class' => OnboardingDemoUserSeeder::class]);
 
     expect(Employee::query()->where('email', 'onboarding@example.com')->count())->toBe(1)
-        ->and(User::query()->where('email', 'onboarding@example.com')->count())->toBe(1);
+        ->and(app(App\Services\GlobalIdentity\GlobalIdentityAccounts::class)->find('onboarding@example.com'))->toBeInstanceOf(User::class);
 });
 
 test('DatabaseSeeder keeps child seeders inside WithoutModelEvents by default', function (): void {

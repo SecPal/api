@@ -53,13 +53,14 @@ class EmployeeOnboardingInvitationService
                 'onboarding_invitation_token_created_at' => $tokenCreatedAt,
             ]);
 
-            Mail::to($email)->send(new OnboardingInvitationMail($employee, $user, $tokenData['plain']));
-        } catch (Throwable $throwable) {
+            $mailer = app(GlobalIdentity\IdentityMailDelivery::class)->mailerName();
+            Mail::mailer($mailer)->to(GlobalIdentity\GlobalEmailAddress::parse($email)->transport())
+                ->send(new OnboardingInvitationMail($employee, $user, $tokenData['plain']));
+        } catch (Throwable) {
             Log::error('Employee onboarding invitation delivery failed', [
                 'employee_id' => $employee->id,
                 'user_id' => $user->id,
                 'token_created' => $tokenCreatedAt !== null,
-                'error' => $throwable->getMessage(),
             ]);
 
             if ($tokenCreatedAt instanceof Carbon) {

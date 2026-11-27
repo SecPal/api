@@ -38,17 +38,26 @@ afterEach(function (): void {
     DB::statement('DROP SCHEMA '.$this->schema.' CASCADE');
 });
 
-it('runs the ordinary clean migrations and seeders before the identity cutover', function (): void {
+it('seeds encrypted identities after ordinary migrations and explicit bootstrap', function (): void {
     config(['address_data.import_on_setup' => false]);
-    expect(Artisan::call('migrate:fresh', ['--seed' => true, '--force' => true]))->toBe(0);
-    expect(Schema::hasColumn('users', 'email'))->toBeTrue()
-        ->and(Schema::hasColumn('users', 'email_idx'))->toBeFalse()
-        ->and(DB::table('users')->whereNotNull('email')->count())->toBeGreaterThan(0);
+    expect(Artisan::call('migrate', ['--force' => true]))->toBe(0);
+    $directory = sys_get_temp_dir().'/secpal-seed-root-'.bin2hex(random_bytes(12));
+    mkdir($directory, 0700);
+    try {
+        $root = new GlobalIdentityKeyReference('root', 1);
+        (new FileGlobalIdentityRootProvider($directory))->provision($root);
+        config(['global_identity.root_directory' => $directory]);
+        expect(Artisan::call('identity:bootstrap', ['root-id' => 'root', 'root-version' => '1', '--force' => true]))->toBe(0)
+            ->and(Artisan::call('db:seed', ['--force' => true]))->toBe(0)
+            ->and(Schema::hasColumn('users', 'email'))->toBeFalse()
+            ->and(DB::table('users')->whereNotNull('email_idx')->count())->toBeGreaterThan(0);
+    } finally {
+        (new Filesystem)->deleteDirectory($directory);
+    }
 });
 
 it('serializes concurrent user creation and reservations under two accepted key versions', function (): void {
     expect(Artisan::call('migrate', ['--force' => true]))->toBe(0);
-    (new GlobalEmailSchema)->apply();
     $directory = sys_get_temp_dir().'/secpal-email-workers-'.bin2hex(random_bytes(12));
     mkdir($directory, 0700);
     $workers = [];
