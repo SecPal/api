@@ -88,7 +88,7 @@ final readonly class FileGlobalIdentityKeyWrapper implements GlobalIdentityKeyWr
 
     private function associatedData(GlobalIdentityWorkingKeyContext $workingKey, GlobalIdentityKeyReference $root): string
     {
-        $fields = [
+        return GlobalIdentityCanonicalEncoding::encode(
             (string) self::FORMAT_VERSION,
             self::ALGORITHM,
             $workingKey->purpose->value,
@@ -96,13 +96,6 @@ final readonly class FileGlobalIdentityKeyWrapper implements GlobalIdentityKeyWr
             (string) $workingKey->reference->version,
             $root->id,
             (string) $root->version,
-        ];
-
-        $encoded = '';
-        foreach ($fields as $field) {
-            $encoded .= pack('N', strlen($field)).$field;
-        }
-
-        return $encoded;
+        );
     }
 }

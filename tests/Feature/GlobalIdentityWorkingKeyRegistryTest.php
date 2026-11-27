@@ -48,6 +48,7 @@ it('initializes each required purpose once and stores only authenticated wrapped
     $purposes = [
         'secpal/global-identity/email-encryption/v1',
         'secpal/global-identity/user-email-lookup/v1',
+        'secpal/global-identity/user-email-reservation/v1',
         'secpal/global-identity/operation-delivery-secret/v1',
         'secpal/global-identity/invitation-address-encryption/v1',
         'secpal/global-identity/pending-email-change-encryption/v1',

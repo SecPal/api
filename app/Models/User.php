@@ -92,6 +92,11 @@ class User extends Authenticatable implements MustVerifyEmailContract, TwoFactor
     protected $hidden = [
         'password',
         'remember_token',
+        'email_enc',
+        'email_idx',
+        'email_normalization_version',
+        'email_idx_key_version',
+        'email_version',
     ];
 
     /**

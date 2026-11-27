@@ -143,6 +143,35 @@ final readonly class GlobalIdentityWorkingKeyRegistry
     public function withKey(GlobalIdentityWorkingKeyContext $context, Closure $use): mixed
     {
         $record = $this->exactRecord($context, 'resolve');
+
+        return $this->withReadableRecord($record, $context, $use);
+    }
+
+    /**
+     * Resolve a purpose for which the stored reference is the uniquely indexed version.
+     *
+     * @template T
+     *
+     * @param  Closure(string, GlobalIdentityWorkingKeyContext): T  $use
+     * @return T
+     */
+    public function withPurposeVersion(GlobalIdentityWorkingKeyPurpose $purpose, int $version, Closure $use): mixed
+    {
+        $record = GlobalIdentityWorkingKey::envelopeQuery()->where('purpose', $purpose->value)
+            ->where('key_version', $version)->first()
+            ?? $this->reject('resolve', 'missing_version', $purpose);
+
+        return $this->withReadableRecord($record, $this->context($purpose, $record), $use);
+    }
+
+    /**
+     * @template T
+     *
+     * @param  Closure(string, GlobalIdentityWorkingKeyContext): T  $use
+     * @return T
+     */
+    private function withReadableRecord(GlobalIdentityWorkingKey $record, GlobalIdentityWorkingKeyContext $context, Closure $use): mixed
+    {
         if (! in_array($record->state, [GlobalIdentityWorkingKey::WRITE_ACTIVE, GlobalIdentityWorkingKey::DECRYPT_ONLY], true)) {
             $this->reject('resolve', 'unreadable_state', $context->purpose);
         }
