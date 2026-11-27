@@ -23,6 +23,8 @@ final readonly class GlobalEmailRepository
 {
     private const NORMALIZATION = GlobalEmailAddress::NORMALIZATION_VERSION;
 
+    private const RESERVATION_LOCK_NAMESPACE = 0x47494552;
+
     public function __construct(
         private GlobalIdentityWorkingKeyRegistry $keys,
         private GlobalEmailCodec $codec,
@@ -64,7 +66,7 @@ final readonly class GlobalEmailRepository
                 }
 
                 return $userId;
-            });
+            }, $reservationId);
         });
     }
 
@@ -102,13 +104,19 @@ final readonly class GlobalEmailRepository
                 }
                 // Concurrent reuse of an operation ID for a different address also fails.
                 $this->verifyReservation($operationId, $reservations, $reservationVersion, required: true);
-            });
+            }, $operationId);
         });
     }
 
     public function release(string $operationId): void
     {
-        $this->checked('release', fn () => $this->reservations($operationId)->delete());
+        $operationId = $this->uuid($operationId);
+        $this->checked('release', function () use ($operationId): void {
+            DB::transaction(function () use ($operationId): void {
+                $this->lockReservationOperation($operationId);
+                $this->reservations($operationId)->delete();
+            });
+        });
     }
 
     public function activate(
@@ -140,8 +148,22 @@ final readonly class GlobalEmailRepository
                 $this->reservations($operationId)->delete();
 
                 return $expectedVersion + 1;
-            });
+            }, $operationId);
         });
+    }
+
+    /**
+     * Recheck the User within the operation protocol's final transaction.
+     * A concurrent activation cannot change the version before that transaction commits.
+     */
+    public function checkEmailVersionForDispatch(string $userId, int $expectedVersion): bool
+    {
+        if (DB::transactionLevel() === 0) {
+            $this->reject('dispatch_version', 'missing_transaction');
+        }
+
+        return $this->checked('dispatch_version', fn () => DB::table('users')->where('id', $this->uuid($userId))
+            ->sharedLock()->value('email_version') === $expectedVersion);
     }
 
     /**
@@ -190,14 +212,21 @@ final readonly class GlobalEmailRepository
      * @param  Closure(array<int, string>, array<int, string>, int): T  $use
      * @return T
      */
-    private function write(#[SensitiveParameter] GlobalEmailAddress $address, GlobalEmailLookupVersions $versions, Closure $use): mixed
-    {
+    private function write(
+        #[SensitiveParameter] GlobalEmailAddress $address,
+        GlobalEmailLookupVersions $versions,
+        Closure $use,
+        ?string $operationId,
+    ): mixed {
         // The registry lease keeps activation off this transaction's write path.
         return $this->keys->withActiveKey(
             GlobalIdentityWorkingKeyPurpose::UserEmailLookup,
-            function (#[SensitiveParameter] string $writeKey, GlobalIdentityWorkingKeyContext $active) use ($address, $versions, $use): mixed {
+            function (#[SensitiveParameter] string $writeKey, GlobalIdentityWorkingKeyContext $active) use ($address, $versions, $use, $operationId): mixed {
                 if ($active->reference->version !== $versions->write) {
                     $this->reject('write', 'stale_write_version');
+                }
+                if ($operationId !== null) {
+                    $this->lockReservationOperation($operationId);
                 }
                 $indexes = $this->lookupIndexes($address, $versions, $writeKey);
 
@@ -238,6 +267,18 @@ final readonly class GlobalEmailRepository
                 );
             },
         );
+    }
+
+    private function lockReservationOperation(string $operationId): void
+    {
+        $digest = hash('sha256', $operationId, true);
+        $lock = unpack('Nlock', $digest)['lock'] ?? null;
+        if (! is_int($lock)) {
+            $this->reject('reserve', 'invalid_lock');
+        }
+        // PostgreSQL's two-int namespace requires a signed 32-bit argument.
+        $signedLock = $lock > 0x7FFFFFFF ? $lock - 0x100000000 : $lock;
+        DB::select('SELECT pg_advisory_xact_lock(?, ?)', [self::RESERVATION_LOCK_NAMESPACE, $signedLock]);
     }
 
     private function requireStoredVersions(GlobalEmailLookupVersions $versions, int $reservationVersion): void

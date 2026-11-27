@@ -145,6 +145,8 @@ it('retains exact historical encryption and atomically activates a reserved addr
         ->and($this->repository->findUserId('next@secpal.app', $this->versions))->toBeNull()
         ->and($this->repository->activate($userId, 1, strtoupper($operation), 'next@secpal.app', $this->versions))->toBe(2)
         ->and($this->repository->withEmail($userId, 2, true, $deliver))->toBe('next@secpal.app')
+        ->and($this->repository->checkEmailVersionForDispatch($userId, 1))->toBeFalse()
+        ->and($this->repository->checkEmailVersionForDispatch($userId, 2))->toBeTrue()
         ->and(fn () => $this->repository->withEmail($userId, 1, true, $deliver))->toThrow(GlobalIdentityKeyException::class)
         ->and(DB::table(GlobalEmailSchema::RESERVATIONS)->count())->toBe(0);
 });

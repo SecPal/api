@@ -5,6 +5,7 @@
 
 declare(strict_types=1);
 
+use App\Exceptions\GlobalIdentityKeyException;
 use App\Models\TenantKey;
 use App\Models\User;
 use App\Services\GlobalIdentity\FileGlobalIdentityRootProvider;
@@ -86,6 +87,31 @@ it('serializes concurrent user creation and reservations under two accepted key 
             ->and(DB::table('users')->count())->toBe(1)
             ->and(DB::table(GlobalEmailSchema::RESERVATIONS)->pluck('operation_id')->all())->toBe([$operation, $operation])
             ->and(DB::table(GlobalEmailSchema::ROTATION_INDEXES)->pluck('index_key_version')->all())->toBe([1]);
+
+        $cancelled = (string) Str::uuid();
+        $release = globalEmailWorker($directory, $this->schema, $tenantId, 'release', $cancelled);
+        $workers[] = $release;
+        DB::transaction(function () use ($repository, $versions, $cancelled, $release): void {
+            $repository->reserve($cancelled, 'cancelled@secpal.app', $versions);
+            assertEmailWorkerBlocked($release);
+        });
+        expect($release->wait())->toBe(0)
+            ->and(DB::table(GlobalEmailSchema::RESERVATIONS)->where('operation_id', $cancelled)->exists())->toBeFalse();
+
+        $userId = $repository->findUserId('first@secpal.app', $versions);
+        expect($userId)->toBeString();
+        $change = (string) Str::uuid();
+        $repository->reserve($change, 'next@secpal.app', $versions);
+        $activate = globalEmailWorker($directory, $this->schema, $tenantId, 'activate', 'next@secpal.app', [$userId, $change]);
+        $workers[] = $activate;
+        expect(fn () => $repository->checkEmailVersionForDispatch($userId, 1))->toThrow(GlobalIdentityKeyException::class);
+        DB::transaction(function () use ($repository, $userId, $activate): void {
+            expect($repository->checkEmailVersionForDispatch($userId, 1))->toBeTrue();
+            assertEmailWorkerBlocked($activate);
+            expect($repository->checkEmailVersionForDispatch($userId, 1))->toBeTrue();
+        });
+        expect($activate->wait())->toBe(0);
+        expect(DB::transaction(fn () => $repository->checkEmailVersionForDispatch($userId, 1)))->toBeFalse();
     } finally {
         foreach ($workers as $worker) {
             $worker->stop();
@@ -111,7 +137,8 @@ function assertEmailWorkerBlocked(Process $worker): void
     expect($blocked)->toBeTrue();
 }
 
-function globalEmailWorker(string $root, string $schema, int $tenantId, string $operation, string $email): Process
+/** @param list<string> $arguments */
+function globalEmailWorker(string $root, string $schema, int $tenantId, string $operation, string $email, array $arguments = []): Process
 {
     $code = <<<'PHP'
         require 'vendor/autoload.php';
@@ -121,7 +148,15 @@ function globalEmailWorker(string $root, string $schema, int $tenantId, string $
         $db->statement("SET statement_timeout = '10s'");
         echo $db->scalar('SELECT pg_backend_pid()').PHP_EOL;
         $repository = $app->make(App\Services\GlobalIdentity\GlobalEmailRepository::class);
+        if ($argv[2] === 'release') {
+            $repository->release($argv[3]);
+            exit(0);
+        }
         $versions = new App\Services\GlobalIdentity\GlobalEmailLookupVersions(2, [2, 1]);
+        if ($argv[2] === 'activate') {
+            $repository->activate($argv[4], 1, $argv[5], $argv[3], $versions);
+            exit(0);
+        }
         try {
             if ($argv[2] === 'create') {
                 $user = new App\Models\User(['name' => 'Fixture', 'password' => 'test-password', 'tenant_id' => (int) $argv[1]]);
@@ -136,7 +171,7 @@ function globalEmailWorker(string $root, string $schema, int $tenantId, string $
         PHP;
 
     return new Process(
-        [PHP_BINARY, '-r', $code, (string) $tenantId, $operation, $email],
+        [PHP_BINARY, '-r', $code, (string) $tenantId, $operation, $email, ...$arguments],
         base_path(),
         [
             'APP_ENV' => 'testing',

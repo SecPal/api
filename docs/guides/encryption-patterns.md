@@ -188,6 +188,9 @@ authenticated envelope. Exact lookup returns the User ID from the binary
 HMAC and its normalization and key versions. Display and delivery use a
 callback for an explicitly authorized User ID and expected email version.
 Delivery converts the domain to ASCII A-labels and preserves local-part case.
+The delivery protocol uses `checkEmailVersionForDispatch` in its final
+transaction before committing permission to send. That check locks the
+version row until commitment. Transport runs after the transaction commits.
 
 The write policy supplies an explicit set of accepted lookup key versions for
 normalization V1 and identifies the write version. Writes hold the registry
