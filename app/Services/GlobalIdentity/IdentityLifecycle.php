@@ -11,6 +11,7 @@ use App\Exceptions\GlobalIdentityKeyException;
 use App\Jobs\DeliverGlobalIdentityOperation;
 use App\Models\GlobalIdentityOperation;
 use App\Models\User;
+use App\Services\ActivityLogService;
 use Closure;
 use Illuminate\Auth\Events\Verified;
 use Illuminate\Support\Facades\DB;
@@ -26,6 +27,7 @@ final readonly class IdentityLifecycle
         private GlobalEmailRepository $email,
         private GlobalIdentityAccounts $accounts,
         private IdentityMailDelivery $mail,
+        private ActivityLogService $activityLog,
     ) {}
 
     public function request(User $user, GlobalIdentityOperationType $type, #[SensitiveParameter] ?string $candidate = null): void
@@ -87,10 +89,13 @@ final readonly class IdentityLifecycle
                 $user->tokens()->delete();
                 DB::table('sessions')->where('user_id', $userId)->delete();
                 $this->invalidate($userId, $type === GlobalIdentityOperationType::PasswordReset
-                    ? [$type]
+                    ? [$type, GlobalIdentityOperationType::PendingEmailChange]
                     : [GlobalIdentityOperationType::PasswordReset, GlobalIdentityOperationType::EmailVerification, $type],
                     GlobalIdentityTerminalReason::Revoked,
                     $operation->id);
+                if ($type === GlobalIdentityOperationType::PasswordReset) {
+                    $this->activityLog->logPasswordReset($user);
+                }
             });
         });
     }

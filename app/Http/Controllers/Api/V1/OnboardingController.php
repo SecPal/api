@@ -18,6 +18,7 @@ use App\Models\EmployeeOnboardingToken;
 use App\Models\OnboardingFormSubmission;
 use App\Models\OnboardingFormTemplate;
 use App\Models\OnboardingSubmissionFile;
+use App\Services\GlobalIdentity\IdentityDisplay;
 use App\Services\OnboardingCompletionService;
 use App\Services\OnboardingFormDataSchemaValidationService;
 use App\Services\OnboardingResidentialAddressHistorySyncService;
@@ -83,6 +84,7 @@ class OnboardingController extends Controller
         private readonly OnboardingCompletionService $onboardingCompletionService,
         private readonly OnboardingResidentialAddressHistorySyncService $onboardingResidentialAddressHistorySyncService,
         private readonly OnboardingTaxIdentificationSyncService $onboardingTaxIdentificationSyncService,
+        private readonly IdentityDisplay $identityDisplay,
     ) {}
 
     /**
@@ -1034,6 +1036,8 @@ class OnboardingController extends Controller
 
         $this->prepareLocalizedSubmissionTemplate($fresh, $this->resolveTemplateLocale($request));
 
+        $this->identityDisplay->prepare($fresh, 'reviewer');
+
         return response()->json([
             'data' => new OnboardingFormSubmissionResource($fresh),
         ]);
@@ -1087,6 +1091,8 @@ class OnboardingController extends Controller
         $fresh->load(['formTemplate', 'reviewer']);
 
         $this->prepareLocalizedSubmissionTemplate($fresh, $this->resolveTemplateLocale($request));
+
+        $this->identityDisplay->prepare($fresh, 'reviewer');
 
         return response()->json([
             'data' => new OnboardingFormSubmissionResource($fresh),
@@ -1537,6 +1543,8 @@ class OnboardingController extends Controller
 
             return $lockedEmployee;
         });
+
+        $this->identityDisplay->prepare($freshEmployee, 'user');
 
         return response()->json([
             'data' => new EmployeeResource($freshEmployee),

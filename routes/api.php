@@ -89,19 +89,21 @@ Route::prefix('v1')->group(function () {
         ->middleware('throttle:mfa-challenge');
     Route::post('/auth/password-reset-requests', [AuthController::class, 'passwordResetRequest'])
         ->middleware('throttle:password-reset');
-    Route::post('/auth/password-reset-requests/{operationId}/consume', [AuthController::class, 'passwordReset'])
-        ->middleware('throttle:password-reset');
 
-    Route::post('/auth/email/verifications/{operationId}/consume', [AuthController::class, 'verifyEmail'])
-        ->withoutMiddleware([
-            EnsureFrontendRequestsAreStateful::class,
-            RestoreSessionFromRememberToken::class,
-            SetLocaleFromHeader::class,
-            InjectTenantId::class,
-        ])
-        ->middleware('throttle:email-verification');
-    Route::post('/auth/email-change-requests/{operationId}/consume', [IdentityEmailChangeController::class, 'consume'])
-        ->middleware('throttle:email-verification');
+    // Mailbox proofs supply their own authorization. Browser sessions are unnecessary.
+    Route::withoutMiddleware([
+        EnsureFrontendRequestsAreStateful::class,
+        RestoreSessionFromRememberToken::class,
+        SetLocaleFromHeader::class,
+        InjectTenantId::class,
+    ])->group(function (): void {
+        Route::post('/auth/password-reset-requests/{operationId}/consume', [AuthController::class, 'passwordReset'])
+            ->middleware('throttle:password-reset');
+        Route::post('/auth/email/verifications/{operationId}/consume', [AuthController::class, 'verifyEmail'])
+            ->middleware('throttle:email-verification');
+        Route::post('/auth/email-change-requests/{operationId}/consume', [IdentityEmailChangeController::class, 'consume'])
+            ->middleware('throttle:email-verification');
+    });
 
     // Token validation is public and stateless: token + email are the complete
     // authorization context, so browser identity/session middleware must not run.

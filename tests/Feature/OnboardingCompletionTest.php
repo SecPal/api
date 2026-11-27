@@ -97,6 +97,7 @@ test('completes onboarding with valid token', function () {
 
 test('completes onboarding by syncing and verifying the invited employee email on the linked user account', function () {
     Notification::fake();
+    Event::fake([Verified::class]);
 
     /** @var User $user */
     $user = User::factory()->unverified()->create([
@@ -129,6 +130,7 @@ test('completes onboarding by syncing and verifying the invited employee email o
     $user->refresh();
     expect($user->emailForDisplay())->toBe($employee->email)
         ->and($user->hasVerifiedEmail())->toBeTrue();
+    Event::assertDispatched(Verified::class, fn (Verified $event): bool => $event->user->is($user));
     Notification::assertNothingSent();
 });
 

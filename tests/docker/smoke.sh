@@ -370,6 +370,14 @@ podman exec "$client" php -r '
         && str_contains($headers, "secure") && str_contains($headers, "samesite=lax"), "secure-csrf-cookie");
     [$status] = probe("/v1/auth/login", "POST", $browser, "{}");
     requireSmoke($status === 419, "login-csrf-rejection");
+    foreach ([
+        "password-reset" => "password-reset-requests",
+        "email-verification" => "email/verifications",
+        "email-change" => "email-change-requests",
+    ] as $operation => $path) {
+        [$status, $body] = probe("/v1/auth/".$path."/00000000-0000-4000-8000-000000000001/consume", "POST", $browser, "{}");
+        requireSmoke($status === 422 && isset(json_decode($body, true)["errors"]["token"]), $operation."-stateless-validation");
+    }
     [$status] = probe("/v1/auth/token", "POST", [], str_repeat("x", 12*1024*1024+1));
     requireSmoke($status === 413, "request-size-limit");
     // Real multipart upload, encrypted private storage and chunked client reads

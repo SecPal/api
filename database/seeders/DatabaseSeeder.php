@@ -36,10 +36,6 @@ class DatabaseSeeder extends Seeder
             $this->call(AddressDataSeeder::class);
             $this->call(OnboardingDemoUserSeeder::class);
         }
-
-        if (app()->environment('local', 'testing', 'demo')) {
-            $this->seedPreviewAccount('password');
-        }
     }
 
     public function seedPreviewAccount(#[\SensitiveParameter] string $password): void

@@ -16,6 +16,7 @@ use App\Models\Establishment;
 use App\Models\User;
 use App\Repositories\CustomerEstablishmentRepository;
 use App\Repositories\CustomerRepository;
+use App\Services\GlobalIdentity\IdentityDisplay;
 use App\Support\CustomerRepresentationETag;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\Collection;
@@ -34,6 +35,7 @@ final class CustomerTransactionalEditService
         private readonly CustomerService $customerService,
         private readonly DomainAccessService $domainAccess,
         private readonly CustomerTransactionalEditRequest $requestContract,
+        private readonly IdentityDisplay $identityDisplay,
     ) {}
 
     public function ensureOperationAuthorized(User $user, int $tenantId): void
@@ -162,6 +164,7 @@ final class CustomerTransactionalEditService
     {
         $currentRepresentation = $this->customerService
             ->loadCompleteCustomerRepresentation($customer);
+        $this->identityDisplay->prepare($currentRepresentation, 'assignments.user');
         $currentBody = [
             'data' => (new CustomerResource($currentRepresentation))->resolve(),
         ];

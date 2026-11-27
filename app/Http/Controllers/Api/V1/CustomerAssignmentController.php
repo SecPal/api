@@ -15,6 +15,7 @@ use App\Models\Customer;
 use App\Models\CustomerAssignment;
 use App\Models\User;
 use App\Services\EmployeeComplianceService;
+use App\Services\GlobalIdentity\IdentityDisplay;
 use Illuminate\Http\JsonResponse;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -31,6 +32,8 @@ use Symfony\Component\HttpFoundation\Response;
  */
 class CustomerAssignmentController extends AssignmentController
 {
+    public function __construct(private readonly IdentityDisplay $identityDisplay) {}
+
     /**
      * List assignments for a customer.
      *
@@ -56,6 +59,8 @@ class CustomerAssignmentController extends AssignmentController
             ->when(is_string($role), fn ($q) => $q->where('role', $role))
             ->when($request->boolean('active_only'), fn ($q) => $q->currentlyActive())
             ->get();
+
+        $this->identityDisplay->prepare($assignments, 'user');
 
         return response()->json([
             'data' => CustomerAssignmentResource::collection($assignments),
@@ -103,8 +108,11 @@ class CustomerAssignmentController extends AssignmentController
 
         $assignment = CustomerAssignment::create($validated);
 
+        $assignment->load(['user', 'customer']);
+        $this->identityDisplay->prepare($assignment, 'user');
+
         return response()->json([
-            'data' => new CustomerAssignmentResource($assignment->load(['user', 'customer'])),
+            'data' => new CustomerAssignmentResource($assignment),
         ], Response::HTTP_CREATED);
     }
 
@@ -122,8 +130,11 @@ class CustomerAssignmentController extends AssignmentController
 
         $customerAssignment->update($request->validated());
 
+        $assignment = $customerAssignment->fresh(['user', 'customer']);
+        $this->identityDisplay->prepare($assignment, 'user');
+
         return response()->json([
-            'data' => new CustomerAssignmentResource($customerAssignment->fresh(['user', 'customer'])),
+            'data' => new CustomerAssignmentResource($assignment),
         ]);
     }
 

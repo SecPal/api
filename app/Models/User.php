@@ -27,6 +27,8 @@ use Laragear\TwoFactor\Contracts\TwoFactorAuthenticatable;
 use Laragear\TwoFactor\TwoFactorAuthentication;
 use Laravel\Sanctum\HasApiTokens;
 use Laravel\Sanctum\NewAccessToken;
+use LogicException;
+use SensitiveParameter;
 use Spatie\Permission\Contracts\Permission as PermissionContract;
 use Spatie\Permission\Models\Permission as SpatiePermission;
 use Spatie\Permission\Models\Role as SpatieRole;
@@ -73,6 +75,9 @@ class User extends Authenticatable implements MustVerifyEmailContract, TwoFactor
 
     public const API_ACCESS_ABILITY = 'api-access';
 
+    /** Response-only data. Never an Eloquent attribute or relation. */
+    private ?string $preparedDisplayEmail = null;
+
     /**
      * The attributes that are mass assignable.
      *
@@ -117,6 +122,16 @@ class User extends Authenticatable implements MustVerifyEmailContract, TwoFactor
     public function emailForDisplay(): string
     {
         return app(IdentityDisplay::class)->address($this->id, $this->email_version);
+    }
+
+    public function prepareDisplayEmail(#[SensitiveParameter] string $email): void
+    {
+        $this->preparedDisplayEmail = $email;
+    }
+
+    public function preparedDisplayEmail(): string
+    {
+        return $this->preparedDisplayEmail ?? throw new LogicException('User email display data was not prepared.');
     }
 
     public function getEmailForVerification(): string

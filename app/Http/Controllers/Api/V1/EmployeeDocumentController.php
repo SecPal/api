@@ -12,6 +12,7 @@ use App\Http\Resources\EmployeeDocumentResource;
 use App\Models\Employee;
 use App\Models\EmployeeDocument;
 use App\Services\EmployeeDocumentStorageService;
+use App\Services\GlobalIdentity\IdentityDisplay;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -25,7 +26,8 @@ use Illuminate\Http\Response;
 class EmployeeDocumentController extends Controller
 {
     public function __construct(
-        private readonly EmployeeDocumentStorageService $storageService
+        private readonly EmployeeDocumentStorageService $storageService,
+        private readonly IdentityDisplay $identityDisplay,
     ) {}
 
     /**
@@ -50,6 +52,8 @@ class EmployeeDocumentController extends Controller
         }
 
         $documents = $query->with('uploader')->get();
+
+        $this->identityDisplay->prepare($documents, 'uploader');
 
         return response()->json([
             'data' => EmployeeDocumentResource::collection($documents),
@@ -94,6 +98,8 @@ class EmployeeDocumentController extends Controller
 
         $document->load('uploader');
 
+        $this->identityDisplay->prepare($document, 'uploader');
+
         return response()->json([
             'data' => new EmployeeDocumentResource($document),
         ], Response::HTTP_CREATED);
@@ -109,6 +115,8 @@ class EmployeeDocumentController extends Controller
         $this->authorize('view', $document);
 
         $document->load('uploader');
+
+        $this->identityDisplay->prepare($document, 'uploader');
 
         return response()->json([
             'data' => new EmployeeDocumentResource($document),

@@ -15,6 +15,7 @@ use App\Models\Site;
 use App\Models\SiteAssignment;
 use App\Models\User;
 use App\Services\EmployeeComplianceService;
+use App\Services\GlobalIdentity\IdentityDisplay;
 use App\Services\OrganizationalUnitAssignmentService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Validation\ValidationException;
@@ -33,6 +34,8 @@ use Symfony\Component\HttpFoundation\Response;
  */
 class SiteAssignmentController extends AssignmentController
 {
+    public function __construct(private readonly IdentityDisplay $identityDisplay) {}
+
     /**
      * List assignments for a site.
      *
@@ -58,6 +61,8 @@ class SiteAssignmentController extends AssignmentController
             ->when(is_string($role), fn ($q) => $q->where('role', $role))
             ->when($request->boolean('active_only'), fn ($q) => $q->currentlyActive())
             ->get();
+
+        $this->identityDisplay->prepare($assignments, 'user');
 
         return response()->json([
             'data' => SiteAssignmentResource::collection($assignments),
@@ -113,8 +118,11 @@ class SiteAssignmentController extends AssignmentController
 
         $assignment = SiteAssignment::create($validated);
 
+        $assignment->load(['user', 'site']);
+        $this->identityDisplay->prepare($assignment, 'user');
+
         return response()->json([
-            'data' => new SiteAssignmentResource($assignment->load(['user', 'site'])),
+            'data' => new SiteAssignmentResource($assignment),
         ], Response::HTTP_CREATED);
     }
 
@@ -146,8 +154,11 @@ class SiteAssignmentController extends AssignmentController
 
         $siteAssignment->update($validated);
 
+        $assignment = $siteAssignment->fresh(['user', 'site']);
+        $this->identityDisplay->prepare($assignment, 'user');
+
         return response()->json([
-            'data' => new SiteAssignmentResource($siteAssignment->fresh(['user', 'site'])),
+            'data' => new SiteAssignmentResource($assignment),
         ]);
     }
 

@@ -31,8 +31,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The clean PostgreSQL installation now creates encrypted User email fields
   and replaces the legacy reset and email-verification endpoints with the
-  OpenAPI identity-operation endpoints. Development fixtures require explicit
-  Global Identity bootstrap before seeding (refs #3102).
+  OpenAPI identity-operation endpoints. Mailbox proof consumption is independent
+  of browser sessions, and successful password resets revoke pending address
+  changes. The preview login requires explicit Global Identity bootstrap and
+  the preview fixture command (refs #3102).
 
 - Store customer and site house numbers in `house_number` separately from the
   street name. Site address display and customer duplicate detection include

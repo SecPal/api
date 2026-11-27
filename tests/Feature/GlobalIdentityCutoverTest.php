@@ -5,11 +5,15 @@
 
 declare(strict_types=1);
 
+use App\Http\Resources\Api\V1\UserResource as V1UserResource;
+use App\Http\Resources\UserResource;
 use App\Jobs\DeliverGlobalIdentityOperation;
+use App\Models\Employee;
 use App\Models\GlobalIdentityOperation;
 use App\Models\User;
 use App\Services\GlobalIdentity\GlobalIdentityAccounts;
 use App\Services\GlobalIdentity\GlobalIdentityOperationService;
+use App\Services\GlobalIdentity\IdentityDisplay;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
@@ -32,6 +36,31 @@ it('creates the fixture identity through exact index lookup and keeps model seri
     expect(app(GlobalIdentityAccounts::class)->find('sample+test@SECPAL.dev')?->id)->toBe($user->id)
         ->and($user->emailForDisplay())->toBe('Sample+Test@secpal.dev')
         ->and($user->toJson())->not->toContain('email_enc', 'email_idx', 'Sample+Test');
+});
+
+it('serializes prepared identity display data without looking up keys or email', function (): void {
+    $user = User::factory()->create(['email' => 'Display@secpal.dev']);
+    $employee = new Employee;
+    $employee->setRelation('user', $user);
+    app(IdentityDisplay::class)->prepare($employee, 'user');
+
+    config(['global_identity.root_directory' => '']);
+    app()->forgetInstance(IdentityDisplay::class);
+    DB::enableQueryLog();
+    try {
+        expect((new UserResource($user))->resolve()['email'])->toBe('Display@secpal.dev')
+            ->and((new V1UserResource($user))->resolve()['email'])->toBe('Display@secpal.dev')
+            ->and($user->toJson())->not->toContain('Display@secpal.dev')
+            ->and(DB::getQueryLog())->toBe([]);
+    } finally {
+        DB::disableQueryLog();
+    }
+});
+
+it('keeps the preview login out of ordinary database seeding', function (): void {
+    $this->seed();
+
+    expect(app(GlobalIdentityAccounts::class)->find('test@example.com'))->toBeNull();
 });
 
 it('accepts a neutral password reset and consumes its operation only once', function (): void {
