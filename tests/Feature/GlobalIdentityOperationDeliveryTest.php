@@ -32,6 +32,7 @@ use Illuminate\Filesystem\Filesystem;
 use Illuminate\Foundation\Testing\DatabaseTruncation;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
 use Symfony\Component\Process\Process;
 
@@ -100,6 +101,29 @@ it('stops the transport when the dispatch write is rejected', function (): void 
     }
     expect($this->transport->sentKeys)->toBe([])
         ->and(GlobalIdentityOperation::query()->findOrFail($this->context->id)->delivery_state)->toBe(State::Claimed);
+});
+
+it('runs the operation through the database queue after commit with injected adapters', function (): void {
+    app()->instance(GlobalIdentityOperationSubject::class, $this->subject);
+    app()->instance(GlobalIdentityDeliveryRenderer::class, $this->renderer);
+    app()->instance(GlobalIdentityDeliveryTransport::class, $this->transport);
+    $queue = Queue::connection('database');
+    $name = 'synthetic-identity';
+
+    DB::transaction(function () use ($queue, $name): void {
+        $this->operations->create($this->context, now()->toImmutable()->addMinutes(10));
+        $queue->push(new DeliverGlobalIdentityOperation($this->context->id), queue: $name);
+        expect(DB::table('jobs')->where('queue', $name)->exists())->toBeFalse();
+    });
+
+    $payload = DB::table('jobs')->where('queue', $name)->value('payload');
+    expect($payload)->toBeString()->toContain($this->context->id)
+        ->not->toContain('source@secpal.app', 'https://', 'delivery_token_enc');
+    $job = $queue->pop($name);
+    expect($job)->not->toBeNull();
+    $job->fire();
+    expect($this->transport->sentKeys)->toHaveCount(1)
+        ->and(DB::table('jobs')->where('queue', $name)->exists())->toBeFalse();
 });
 
 it('retains the protected token for controlled retry when the exact custody key is unavailable', function (): void {
@@ -337,6 +361,32 @@ it('cleans residual protected material on a terminal row without consulting the 
         ->and($row->getAttribute('terminal_reason'))->toBe('cancelled')
         ->and($this->transport->lookups)->toBe([])
         ->and($this->transport->sentKeys)->toBe([]);
+});
+
+it('preserves committed dispatch metadata when releasing an attempt', function (): void {
+    $this->operations->create($this->context, now()->toImmutable()->addMinutes(10));
+    $claim = $this->operations->claim($this->context->id, 'fixture');
+    expect($claim)->not->toBeNull()->and($this->operations->commitDispatch($claim, true))->toBeTrue();
+    $persisted = GlobalIdentityOperation::query()->findOrFail($this->context->id);
+    $clear = [
+        'delivery_attempt_id' => null,
+        'transport_identity' => null,
+        'transport_idempotency_key' => null,
+        'uses_idempotency_key' => false,
+    ];
+    $query = DB::table('global_identity_operations')->where('id', $this->context->id);
+    expect(fn () => $query->update($clear))->toThrow(QueryException::class);
+    expect(fn () => $query->update([
+        ...$clear,
+        'delivery_state' => State::Delivered->value,
+        'dispatch_committed_at' => null,
+    ]))->toThrow(QueryException::class);
+
+    $this->operations->recordResult($claim, new GlobalIdentityDeliveryResult(Outcome::Accepted));
+    $row = GlobalIdentityOperation::query()->findOrFail($this->context->id);
+    expect($row->delivery_state)->toBe(State::Delivered)
+        ->and($row->delivery_attempt_id)->toBeNull()
+        ->and($row->dispatch_committed_at?->getTimestamp())->toBe($persisted->dispatch_committed_at?->getTimestamp());
 });
 
 it('admits one claim across separate PostgreSQL sessions and keeps its attempt binding immutable', function (): void {

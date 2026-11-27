@@ -79,6 +79,12 @@ return new class extends Migration
                 THEN
                     RAISE EXCEPTION 'Global identity attempt binding is immutable' USING ERRCODE = '23514';
                 END IF;
+                IF OLD.delivery_attempt_id IS NOT NULL AND NEW.delivery_attempt_id IS NULL
+                    AND (NEW.delivery_state NOT IN ('delivered', 'retryable_failed', 'terminal')
+                        OR NEW.dispatch_committed_at IS DISTINCT FROM OLD.dispatch_committed_at)
+                THEN
+                    RAISE EXCEPTION 'Global identity attempt release is invalid' USING ERRCODE = '23514';
+                END IF;
                 RETURN NEW;
             END
             $$;
