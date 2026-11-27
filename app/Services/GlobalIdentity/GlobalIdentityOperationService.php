@@ -12,6 +12,7 @@ use App\Exceptions\GlobalIdentityKeyException;
 use App\Models\GlobalIdentityOperation;
 use Carbon\CarbonImmutable;
 use Closure;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -37,8 +38,43 @@ final readonly class GlobalIdentityOperationService
      */
     public function forAccount(string $userId, Closure $action): mixed
     {
-        return DB::transaction(static function () use ($userId, $action): mixed {
-            DB::select('SELECT pg_advisory_xact_lock(hashtextextended(?, 0))', ['global-identity-operation:'.$userId]);
+        return $this->forAccounts([$userId], $action);
+    }
+
+    /**
+     * Incident candidates are discovered without row locks. Acquire every
+     * account fence before locking operations, then revalidate under lock.
+     *
+     * @template T
+     *
+     * @param  Collection<int, GlobalIdentityOperation>  $observed
+     * @param  Closure(Collection<int, GlobalIdentityOperation>): T  $action
+     * @return T
+     */
+    public function forIncidentOperations(Collection $observed, Closure $action): mixed
+    {
+        $accounts = $observed->map(static fn (GlobalIdentityOperation $operation): ?string => $operation->user_id)
+            ->filter(static fn (?string $account): bool => $account !== null)->unique()->values()->all();
+        sort($accounts, SORT_STRING);
+
+        return $this->forAccounts($accounts, static fn (): mixed => $action(
+            GlobalIdentityOperation::query()->whereKey($observed->modelKeys())->orderBy('id')->lockForUpdate()->get(),
+        ));
+    }
+
+    /**
+     * @template T
+     *
+     * @param  list<string>  $accounts
+     * @param  Closure(): T  $action
+     * @return T
+     */
+    private function forAccounts(array $accounts, Closure $action): mixed
+    {
+        return DB::transaction(static function () use ($accounts, $action): mixed {
+            foreach ($accounts as $account) {
+                DB::select('SELECT pg_advisory_xact_lock(hashtextextended(?, 0))', ['global-identity-operation:'.$account]);
+            }
 
             return $action();
         });
@@ -264,9 +300,12 @@ final readonly class GlobalIdentityOperationService
     public function invalidate(string $id, GlobalIdentityTerminalReason $reason): void
     {
         $this->locked($id, function (GlobalIdentityOperation $operation) use ($reason): void {
-            if ($operation->delivery_state !== GlobalIdentityDeliveryState::Terminal) {
-                $this->terminalize($operation, $reason);
+            if ($operation->delivery_state === GlobalIdentityDeliveryState::Terminal) {
+                $this->cancelPendingReplacement($operation);
+
+                return;
             }
+            $this->terminalize($operation, $reason);
         });
     }
 
@@ -285,9 +324,14 @@ final readonly class GlobalIdentityOperationService
             if ($reason === GlobalIdentityTerminalReason::KeyUnavailable && $operation->delivery_state === GlobalIdentityDeliveryState::Delivered) {
                 return;
             }
+            if ($operation->delivery_state === GlobalIdentityDeliveryState::Terminal) {
+                $this->clearTerminalResiduals($operation);
+
+                return;
+            }
             $keepReservation = false;
-            if ($preserveApprovedRecipient !== null && $operation->delivery_state !== GlobalIdentityDeliveryState::Terminal
-                && ! $operation->quarantined && $operation->token_hash !== null && $operation->expires_at->isFuture()
+            if ($preserveApprovedRecipient !== null && ! $operation->quarantined
+                && $operation->token_hash !== null && $operation->expires_at->isFuture()
                 && ($operation->operation_type === GlobalIdentityOperationType::Invitation
                     || $this->subject->isCurrent($operation->context()))) {
                 $preserveApprovedRecipient($operation);
@@ -316,6 +360,7 @@ final readonly class GlobalIdentityOperationService
                         ->where('quarantined', true)->lockForUpdate()->first();
                     // Re-encryption can change the key version while preserving operation identity.
                     if ($operation?->delivery_state === GlobalIdentityDeliveryState::Terminal) {
+                        $this->cancelPendingReplacement($operation);
                         $this->clearTerminalResiduals($operation);
                     } elseif ($operation !== null) {
                         $this->terminalize($operation, GlobalIdentityTerminalReason::RestoreTombstone);
@@ -477,7 +522,21 @@ final readonly class GlobalIdentityOperationService
         }
 
         $reason = GlobalIdentityTerminalReason::tryFrom($operation->terminal_reason ?? '');
+        $this->cancelPendingReplacement($operation);
         $this->terminalize($operation, $reason ?? GlobalIdentityTerminalReason::IntegrityFailure);
+    }
+
+    /** The caller holds the source operation row through this transaction. */
+    private function cancelPendingReplacement(GlobalIdentityOperation $operation): void
+    {
+        $cancelled = DB::table(GlobalIdentityOperation::REISSUES_TABLE)->where('operation_id', $operation->id)->delete();
+        if ($cancelled === 0) {
+            return;
+        }
+        if ($operation->operation_type === GlobalIdentityOperationType::PendingEmailChange) {
+            $this->email->release($operation->id);
+        }
+        $this->audit($operation, 'replacement_cancelled');
     }
 
     private function expireLease(GlobalIdentityOperation $operation): void

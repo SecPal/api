@@ -140,7 +140,10 @@ final readonly class GlobalIdentityRotationCoordinator
 
     private function advance(GlobalIdentityRotation $checkpoint, GlobalIdentityRotationPlan $plan, int $limit): void
     {
-        $this->requireActiveTarget($plan, $checkpoint->phase);
+        // Replacement verifies its target under the account and operation fences.
+        if ($checkpoint->phase !== 'replace') {
+            $this->requireActiveTarget($plan, $checkpoint->phase);
+        }
         switch ($checkpoint->phase) {
             case 'rewrap':
                 $changed = $this->keys->rewrapRootBatch($plan->from, $plan->to, $limit);

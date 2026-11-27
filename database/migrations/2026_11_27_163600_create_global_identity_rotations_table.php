@@ -34,7 +34,7 @@ return new class extends Migration
         DB::statement("CREATE UNIQUE INDEX global_identity_single_rotation ON global_identity_rotations ((true)) WHERE phase NOT IN ('complete', 'paused')");
         Schema::create('global_identity_rotation_reissues', function (Blueprint $table): void {
             $table->foreignUuid('rotation_id')->constrained('global_identity_rotations');
-            $table->foreignUuid('operation_id')->constrained('global_identity_operations');
+            $table->foreignUuid('operation_id')->unique()->constrained('global_identity_operations');
             $table->jsonb('recipient_enc')->nullable();
             $table->primary(['rotation_id', 'operation_id']);
         });

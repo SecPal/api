@@ -12,14 +12,13 @@ use App\Jobs\DeliverGlobalIdentityOperation;
 use App\Models\GlobalIdentityOperation;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use SensitiveParameter;
 
 final readonly class GlobalIdentityDeliveryIncident
 {
-    private const REISSUES = 'global_identity_rotation_reissues';
-
     public function __construct(
         private GlobalIdentityWorkingKeyRegistry $keys,
         private GlobalIdentityOperationService $operations,
@@ -35,18 +34,19 @@ final readonly class GlobalIdentityDeliveryIncident
     public function revokeAffected(GlobalIdentityRotationPlan $plan, int $limit): int
     {
         $reason = $this->reason($plan);
-        $rows = $this->affected($plan)->orderBy('id')->limit($limit)->get(['id']);
-        foreach ($rows as $row) {
-            $id = $row->id;
-            $this->operations->revokeForIncident(
-                $id,
-                $plan->from,
-                $reason,
-                in_array($id, $plan->replacementOperations, true)
-                    ? fn (GlobalIdentityOperation $operation) => $this->preserveRecipient($plan, $operation)
-                    : null,
-            );
-        }
+        $rows = $this->affected($plan)->orderBy('id')->limit($limit)->get(['id', 'user_id']);
+        $this->operations->forIncidentOperations($rows, function (Collection $sources) use ($plan, $reason): void {
+            foreach ($sources as $source) {
+                $this->operations->revokeForIncident(
+                    $source->id,
+                    $plan->from,
+                    $reason,
+                    in_array($source->id, $plan->replacementOperations, true)
+                        ? fn (GlobalIdentityOperation $operation) => $this->preserveRecipient($plan, $operation)
+                        : null,
+                );
+            }
+        });
 
         return $rows->count();
     }
@@ -69,47 +69,52 @@ final readonly class GlobalIdentityDeliveryIncident
 
     public function replaceApproved(GlobalIdentityRotationPlan $plan, int $limit): int
     {
-        $pending = DB::table(self::REISSUES)->where('rotation_id', $plan->operationId);
-        $rows = (clone $pending)->orderBy('operation_id')->limit($limit)->lockForUpdate()->get();
-        foreach ($rows as $row) {
-            $recipient = $row->recipient_enc;
-            if (! is_string($row->operation_id) || ($recipient !== null && ! is_string($recipient))) {
-                throw new GlobalIdentityKeyException('Invalid delivery incident checkpoint.');
+        $pending = DB::table(GlobalIdentityOperation::REISSUES_TABLE)->where('rotation_id', $plan->operationId);
+        $rows = GlobalIdentityOperation::query()->whereIn('id', (clone $pending)->select('operation_id'))
+            ->orderBy('id')->limit($limit)->get(['id', 'user_id']);
+        $this->operations->forIncidentOperations($rows, function (Collection $sources) use ($pending, $plan): void {
+            $checkpoints = (clone $pending)->whereIn('operation_id', $sources->modelKeys())
+                ->orderBy('operation_id')->lockForUpdate()->get()->keyBy('operation_id');
+            if ($this->keys->activeReference(GlobalIdentityWorkingKeyPurpose::OperationDeliverySecret) != $plan->to) {
+                throw new GlobalIdentityKeyException('Replacement delivery key unavailable.');
             }
-            $source = GlobalIdentityOperation::query()->findOrFail($row->operation_id);
-            $replace = function () use ($plan, $source, $recipient): void {
-                $current = GlobalIdentityOperation::query()->lockForUpdate()->findOrFail($source->id);
-                if ($current->operation_type === GlobalIdentityOperationType::PendingEmailChange) {
-                    $this->email->release($current->id);
+            foreach ($sources as $source) {
+                $checkpoint = $checkpoints->get($source->id);
+                if ($checkpoint === null) {
+                    // An authoritative transition won the account fence.
+                    continue;
                 }
-                if ($this->stillRequired($current)) {
-                    $this->reissue($plan, $current, $recipient);
+                $recipient = $checkpoint->recipient_enc;
+                if ($recipient !== null && ! is_string($recipient)) {
+                    throw new GlobalIdentityKeyException('Invalid delivery incident checkpoint.');
                 }
-            };
-            if ($source->user_id !== null) {
-                $this->operations->forAccount($source->user_id, $replace);
-            } else {
-                $replace();
+                if ($source->operation_type === GlobalIdentityOperationType::PendingEmailChange) {
+                    $this->email->release($source->id);
+                }
+                if ($this->stillRequired($source)) {
+                    $this->reissue($plan, $source, $recipient);
+                }
+                (clone $pending)->where('operation_id', $source->id)->delete();
             }
-            (clone $pending)->where('operation_id', $source->id)->delete();
-        }
+        });
 
         return $rows->count();
     }
 
     private function stillRequired(#[SensitiveParameter] GlobalIdentityOperation $source): bool
     {
-        if (! $source->expires_at->isFuture()) {
+        if ($source->quarantined || ! $source->expires_at->isFuture()) {
             return false;
         }
-        if ($source->operation_type === GlobalIdentityOperationType::Invitation && ! $this->subject instanceof GlobalIdentityInvitationReissue) {
-            throw new GlobalIdentityKeyException('Invitation replacement authority unavailable.');
+        if ($source->operation_type === GlobalIdentityOperationType::Invitation) {
+            if (! $this->subject instanceof GlobalIdentityInvitationReissue) {
+                throw new GlobalIdentityKeyException('Invitation replacement authority unavailable.');
+            }
+
+            return $this->subject->isCurrent($source->context());
         }
         if (! $this->subject->isCurrent($source->context())) {
             return false;
-        }
-        if ($source->user_id === null) {
-            return true;
         }
         if ($source->operation_type === GlobalIdentityOperationType::EmailVerification
             && User::query()->whereKey($source->user_id)->whereNotNull('email_verified_at')->exists()) {
@@ -145,7 +150,7 @@ final readonly class GlobalIdentityDeliveryIncident
     private function preserveRecipient(GlobalIdentityRotationPlan $plan, #[SensitiveParameter] GlobalIdentityOperation $source): void
     {
         $envelope = $source->operation_type === GlobalIdentityOperationType::PendingEmailChange ? $source->recipient_enc : null;
-        DB::table(self::REISSUES)->insert([
+        DB::table(GlobalIdentityOperation::REISSUES_TABLE)->insert([
             'rotation_id' => $plan->operationId,
             'operation_id' => $source->id,
             'recipient_enc' => $envelope === null ? null : json_encode($envelope, JSON_THROW_ON_ERROR),
@@ -157,9 +162,6 @@ final readonly class GlobalIdentityDeliveryIncident
         #[SensitiveParameter] GlobalIdentityOperation $source,
         #[SensitiveParameter] ?string $sealedRecipient,
     ): void {
-        if ($this->keys->activeReference(GlobalIdentityWorkingKeyPurpose::OperationDeliverySecret) != $plan->to) {
-            throw new GlobalIdentityKeyException('Replacement delivery key unavailable.');
-        }
         $id = (string) Str::uuid();
         $old = $source->context();
         $next = new GlobalIdentityOperationContext(

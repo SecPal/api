@@ -17,6 +17,7 @@ use App\Services\GlobalIdentity\GlobalEmailSchema;
 use App\Services\GlobalIdentity\GlobalIdentityAccounts;
 use App\Services\GlobalIdentity\GlobalIdentityDeliveryOutcome;
 use App\Services\GlobalIdentity\GlobalIdentityDeliveryResult;
+use App\Services\GlobalIdentity\GlobalIdentityDeliveryState;
 use App\Services\GlobalIdentity\GlobalIdentityEnvelopeCodec;
 use App\Services\GlobalIdentity\GlobalIdentityInvitationReissue;
 use App\Services\GlobalIdentity\GlobalIdentityKeyReference;
@@ -28,6 +29,7 @@ use App\Services\GlobalIdentity\GlobalIdentityOperationType;
 use App\Services\GlobalIdentity\GlobalIdentityRotationCoordinator;
 use App\Services\GlobalIdentity\GlobalIdentityRotationKind;
 use App\Services\GlobalIdentity\GlobalIdentityRotationPlan;
+use App\Services\GlobalIdentity\GlobalIdentityTerminalJournalEntry;
 use App\Services\GlobalIdentity\GlobalIdentityTerminalReason;
 use App\Services\GlobalIdentity\GlobalIdentityWorkingKeyPurpose;
 use App\Services\GlobalIdentity\GlobalIdentityWorkingKeyRegistry;
@@ -282,6 +284,223 @@ it('keeps the approved email-change reservation fenced until its incident replac
     expect(DB::table(GlobalEmailSchema::RESERVATIONS)->pluck('operation_id')->all())->toBe([$new->id])
         ->and(app(GlobalIdentityOperationService::class)->openRecipient($new)?->original())->toBe($address);
 });
+
+it('preserves password reset revocation in either commit order with incident replacement', function (bool $replaceFirst): void {
+    Queue::fake();
+    $user = User::factory()->create();
+    $lifecycle = app(IdentityLifecycle::class);
+    $operations = app(GlobalIdentityOperationService::class);
+    $pending = GlobalIdentityOperationType::PendingEmailChange;
+    $reset = GlobalIdentityOperationType::PasswordReset;
+    $address = 'Reset+Incident@secpal.dev';
+    $lifecycle->request($user, $pending, $address);
+    $old = GlobalIdentityOperation::query()->sole();
+    [$rotation, $incident] = prepareIdentityIncident([$old->id]);
+    $lifecycle->request($user, $reset);
+    $resetOperation = GlobalIdentityOperation::query()->where('operation_type', $reset)->sole();
+    $proof = $operations->openToken($resetOperation);
+    if ($replaceFirst) {
+        $rotation->execute($incident, 'advance', 10);
+    }
+    expect($lifecycle->consume($resetOperation->id, $reset, $proof, 'Synthetic-reset-password-641!'))->toBeTrue();
+    expect(DB::table('global_identity_rotation_reissues')->where('operation_id', $old->id)->exists())->toBeFalse()
+        ->and(DB::table(GlobalEmailSchema::RESERVATIONS)->count())->toBe(0);
+
+    $rotation->execute($incident, 'advance', 10);
+    $rotation->execute($incident, 'complete', 10);
+    $replacements = GlobalIdentityOperation::query()->where('replaces_operation_id', $old->id)->get();
+    expect($replacements)->toHaveCount($replaceFirst ? 1 : 0)
+        ->and($old->refresh()->terminal_reason)->toBe('security_revoked')
+        ->and($user->refresh()->email_version)->toBe($old->email_version);
+    if ($replaceFirst) {
+        $replacement = $replacements->sole();
+        expect($replacement->terminal_reason)->toBe('revoked')
+            ->and($replacement->token_hash)->toBeNull()
+            ->and($operations->claim($replacement->id, 'fixture'))->toBeNull();
+    }
+    expect(User::factory()->create(['email' => $address])->id)->not->toBe($user->id);
+})->with([false, true]);
+
+it('cancels a retained incident reservation when the authoritative lifecycle invalidates its source', function (string $transition): void {
+    Queue::fake();
+    $user = User::factory()->create();
+    $lifecycle = app(IdentityLifecycle::class);
+    $pending = GlobalIdentityOperationType::PendingEmailChange;
+    $address = 'Cancel+Incident@secpal.dev';
+    $lifecycle->request($user, $pending, $address);
+    $old = GlobalIdentityOperation::query()->sole();
+    [$rotation, $incident] = prepareIdentityIncident([$old->id]);
+    match ($transition) {
+        'supersede' => $lifecycle->request($user, $pending, $address),
+        'delete' => $lifecycle->revokeForDeletedAccount($user->id),
+        'replace_address' => $lifecycle->replaceProvenAddress($user, $address),
+        'expire' => $this->travel(2)->hours(),
+        'restore_tombstone' => replayIncidentTombstone($old),
+    };
+    if ($transition === 'expire') {
+        $this->artisan('identity:expire-operations')->assertSuccessful();
+    }
+    expect(DB::table('global_identity_rotation_reissues')->count())->toBe(0)
+        ->and(DB::table(GlobalEmailSchema::RESERVATIONS)->where('operation_id', $old->id)->exists())->toBeFalse();
+    $rotation->execute($incident, 'advance', 10);
+    expect(GlobalIdentityOperation::query()->where('replaces_operation_id', $old->id)->exists())->toBeFalse()
+        ->and($old->refresh()->terminal_reason)->toBe('security_revoked');
+})->with(['supersede', 'delete', 'replace_address', 'expire', 'restore_tombstone']);
+
+function replayIncidentTombstone(GlobalIdentityOperation $source): void
+{
+    $operations = app(GlobalIdentityOperationService::class);
+    $operations->quarantineRestoredOperations();
+    $operations->applyRestoreTombstones([new GlobalIdentityTerminalJournalEntry(
+        1, $source->id, GlobalIdentityDeliveryState::Terminal,
+        new GlobalIdentityKeyReference($source->delivery_key_id, $source->delivery_key_version), now()->timestamp,
+    )]);
+}
+
+it('rolls back replacement and dispatch on checkpoint interruption and safely resumes once', function (): void {
+    config(['queue.default' => 'database']);
+    $user = User::factory()->create();
+    app(IdentityLifecycle::class)->request($user, GlobalIdentityOperationType::PendingEmailChange, 'Interrupted+Incident@secpal.dev');
+    $old = GlobalIdentityOperation::query()->sole();
+    [$rotation, $incident] = prepareIdentityIncident([$old->id]);
+    DB::table('jobs')->delete();
+    DB::unprepared(<<<'SQL'
+        CREATE FUNCTION pg_temp.stop_reissue_delete() RETURNS trigger LANGUAGE plpgsql AS $$
+        BEGIN
+            RAISE EXCEPTION 'Synthetic checkpoint interruption' USING ERRCODE = '23514';
+        END
+        $$;
+        CREATE TRIGGER interrupt_reissue BEFORE DELETE ON global_identity_rotation_reissues
+        FOR EACH ROW EXECUTE FUNCTION pg_temp.stop_reissue_delete();
+        SQL);
+    try {
+        expect(fn () => $rotation->execute($incident, 'advance', 10))->toThrow(GlobalIdentityKeyException::class)
+            ->and($rotation->execute($incident, 'status', 10)['phase'])->toBe('replace')
+            ->and(GlobalIdentityOperation::query()->where('replaces_operation_id', $old->id)->count())->toBe(0)
+            ->and(DB::table('global_identity_rotation_reissues')->where('operation_id', $old->id)->whereNotNull('recipient_enc')->exists())->toBeTrue()
+            ->and(DB::table(GlobalEmailSchema::RESERVATIONS)->pluck('operation_id')->all())->toBe([$old->id])
+            ->and(DB::table('jobs')->count())->toBe(0);
+    } finally {
+        DB::statement('DROP TRIGGER interrupt_reissue ON global_identity_rotation_reissues');
+    }
+
+    $rotation->execute($incident, 'advance', 10);
+    $rotation->execute($incident, 'advance', 10);
+    $replacement = GlobalIdentityOperation::query()->where('replaces_operation_id', $old->id)->sole();
+    expect(DB::table('global_identity_rotation_reissues')->count())->toBe(0)
+        ->and(DB::table(GlobalEmailSchema::RESERVATIONS)->pluck('operation_id')->all())->toBe([$replacement->id])
+        ->and(DB::table('jobs')->count())->toBe(1);
+});
+
+it('delegates current invitation replacements independently to the tenant domain', function (): void {
+    Queue::fake();
+    $user = User::factory()->create();
+    $other = User::factory()->create();
+    $statuses = [];
+    $subject = Mockery::mock(GlobalIdentityInvitationReissue::class);
+    $subject->shouldReceive('isCurrent')->andReturnUsing(function (GlobalIdentityOperationContext $context) use (&$statuses): bool {
+        return ($statuses[$context->id] ?? null) === 'current';
+    });
+    $subject->shouldReceive('authorizeReplacement')->twice()->andReturnUsing(function (GlobalIdentityOperationContext $prior, GlobalIdentityOperationContext $next) use (&$statuses): ?string {
+        expect($statuses[$prior->id])->toBe('current')
+            ->and($next->tenantId)->toBe($prior->tenantId)
+            ->and($next->userId)->toBe($prior->userId)
+            ->and($next->invitationId)->not->toBe($prior->invitationId);
+
+        return null;
+    });
+    app()->instance(GlobalIdentityOperationSubject::class, $subject);
+    $operations = app(GlobalIdentityOperationService::class);
+    foreach ([[$user->tenant_id, 'current'], [$other->tenant_id, 'current'], [$user->tenant_id, 'revoked'],
+        [$other->tenant_id, 'superseded'], [$other->tenant_id, 'expired'], [$other->tenant_id, 'proof_expired']] as [$tenantId, $status]) {
+        $source = (string) Str::uuid();
+        $statuses[$source] = $status;
+        $context = new GlobalIdentityOperationContext(GlobalIdentityOperationType::Invitation, $source, $user->id, null, $source, $tenantId);
+        $operations->create($context, now()->toImmutable()->addMinutes($status === 'proof_expired' ? 1 : 10));
+    }
+    [$rotation, $incident] = prepareIdentityIncident(array_keys($statuses));
+    $this->travel(2)->minutes();
+    $rotation->execute($incident, 'advance', 10);
+    $rotation->execute($incident, 'advance', 10);
+    $replacements = GlobalIdentityOperation::query()->where('incident_id', $incident)->get();
+    expect($replacements->pluck('tenant_id')->all())->toEqualCanonicalizing([$user->tenant_id, $other->tenant_id])
+        ->and($replacements->pluck('replaces_operation_id')->all())->toEqualCanonicalizing(array_keys($statuses, 'current'))
+        ->and(DB::table('global_identity_rotation_reissues')->count())->toBe(0);
+    Queue::assertPushed(DeliverGlobalIdentityOperation::class, 2);
+});
+
+it('preserves the invitation checkpoint when the owning domain is unavailable', function (): void {
+    Queue::fake();
+    $tenant = User::factory()->create()->tenant_id;
+    $id = (string) Str::uuid();
+    $context = new GlobalIdentityOperationContext(GlobalIdentityOperationType::Invitation, $id, null, null, $id, $tenant);
+    app(GlobalIdentityOperationService::class)->create($context, now()->toImmutable()->addMinutes(10), 'Pending+Domain@secpal.dev');
+    [$rotation, $incident] = prepareIdentityIncident([$id]);
+    expect(fn () => $rotation->execute($incident, 'advance', 10))->toThrow(GlobalIdentityKeyException::class)
+        ->and($rotation->execute($incident, 'status', 10)['phase'])->toBe('replace')
+        ->and(DB::table('global_identity_rotation_reissues')->where('operation_id', $id)->exists())->toBeTrue()
+        ->and(GlobalIdentityOperation::query()->where('incident_id', $incident)->exists())->toBeFalse();
+    Queue::assertNothingPushed();
+});
+
+it('admits the exact active replacement for a historical incident and rejects an invalid active-key plan before fencing', function (): void {
+    Queue::fake();
+    $user = User::factory()->create();
+    $operations = app(GlobalIdentityOperationService::class);
+    $keys = app(GlobalIdentityWorkingKeyRegistry::class);
+    $purpose = GlobalIdentityWorkingKeyPurpose::OperationDeliverySecret;
+    $historical = $keys->activeReference($purpose);
+    $source = (string) Str::uuid();
+    $context = new GlobalIdentityOperationContext(GlobalIdentityOperationType::PasswordReset, $source, $user->id, $user->email_version);
+    $operations->create($context, now()->toImmutable()->addMinutes(10));
+    $keys->activate($keys->stage($purpose));
+    $keys->activate($keys->stage($purpose));
+    $active = $keys->activeReference($purpose);
+    $badId = (string) Str::uuid();
+    $incident = (string) Str::uuid();
+    expect(fn () => app(GlobalIdentityRotationCoordinator::class)->execute($badId, 'start', 10))
+        ->toThrow(GlobalIdentityKeyException::class, 'authority_unavailable')
+        ->and(DB::table('global_identity_rotations')->count())->toBe(0);
+    $invalid = new GlobalIdentityRotationPlan($badId, GlobalIdentityRotationKind::DeliveryCompromise, $active,
+        new GlobalIdentityKeyReference($active->id, $active->version + 2), $purpose);
+    $valid = new GlobalIdentityRotationPlan($incident, GlobalIdentityRotationKind::DeliveryCompromise, $historical, $active, $purpose, [$source]);
+    $authority = Mockery::mock(GlobalIdentityRotationAuthority::class);
+    $authority->shouldReceive('approvedPlan')->with($badId, 'start')->once()->andReturn($invalid);
+    $authority->shouldReceive('approvedPlan')->with($incident, Mockery::type('string'))->andReturn($valid);
+    app()->instance(GlobalIdentityRotationAuthority::class, $authority);
+    $rotation = app(GlobalIdentityRotationCoordinator::class);
+    expect(fn () => $rotation->execute($badId, 'start', 10))->toThrow(GlobalIdentityKeyException::class)
+        ->and(DB::table('global_identity_rotations')->count())->toBe(0)
+        ->and($keys->deliveryBlockReason($active->id, $active->version))->toBeNull();
+
+    expect($rotation->execute($incident, 'start', 10)['phase'])->toBe('revoke')
+        ->and($rotation->execute($incident, 'advance', 10)['phase'])->toBe('activate')
+        ->and($rotation->execute($incident, 'advance', 10)['phase'])->toBe('replace')
+        ->and($rotation->execute($incident, 'advance', 10)['phase'])->toBe('verify')
+        ->and($rotation->execute($incident, 'complete', 10)['phase'])->toBe('complete');
+    $replacement = GlobalIdentityOperation::query()->where('replaces_operation_id', $source)->sole();
+    expect($replacement->delivery_key_version)->toBe($active->version)
+        ->and($keys->activeReference($purpose))->toEqual($active);
+});
+
+/** @param list<string> $approved */
+function prepareIdentityIncident(array $approved): array
+{
+    $purpose = GlobalIdentityWorkingKeyPurpose::OperationDeliverySecret;
+    $from = app(GlobalIdentityWorkingKeyRegistry::class)->activeReference($purpose);
+    $id = (string) Str::uuid();
+    $plan = new GlobalIdentityRotationPlan($id, GlobalIdentityRotationKind::DeliveryCompromise, $from,
+        new GlobalIdentityKeyReference($from->id, $from->version + 1), $purpose, $approved);
+    $authority = Mockery::mock(GlobalIdentityRotationAuthority::class);
+    $authority->shouldReceive('approvedPlan')->with($id, Mockery::type('string'))->andReturn($plan);
+    app()->instance(GlobalIdentityRotationAuthority::class, $authority);
+    $rotation = app(GlobalIdentityRotationCoordinator::class);
+    expect($rotation->execute($id, 'start', 10)['phase'])->toBe('revoke')
+        ->and($rotation->execute($id, 'advance', 10)['phase'])->toBe('activate')
+        ->and($rotation->execute($id, 'advance', 10)['phase'])->toBe('replace');
+
+    return [$rotation, $id];
+}
 
 it('fences an MFA write prepared before activation and preserves the enrolled credential', function (): void {
     $user = User::factory()->create();

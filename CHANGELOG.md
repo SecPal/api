@@ -31,7 +31,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Add approved, resumable Global Identity rotations for root and working keys,
   including dual-version lookup, incident revocation and controlled replacement
-  of delivery proofs (refs #3116).
+  of delivery proofs. Account lifecycle revocation cancels pending replacements,
+  and replacement eligibility for tenant invitations follows the invitation
+  domain (refs #3116).
 
 - The clean PostgreSQL installation now creates encrypted User email fields
   and replaces the legacy reset and email-verification endpoints with the

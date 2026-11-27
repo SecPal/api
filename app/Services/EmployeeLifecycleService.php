@@ -463,6 +463,8 @@ class EmployeeLifecycleService
 
     private function deprovisionUserAccount(User $user, int $tenantId, bool $deleteUser = false): void
     {
+        app(GlobalIdentity\IdentityLifecycle::class)->revokeForDeletedAccount($user->id);
+
         $this->clearRuntimeAccess($user, $tenantId);
 
         DB::table('user_internal_organizational_scopes')
@@ -480,8 +482,6 @@ class EmployeeLifecycleService
             ->where('authenticatable_type', User::class)
             ->where('authenticatable_id', $user->id)
             ->delete();
-
-        app(GlobalIdentity\IdentityLifecycle::class)->revokeForDeletedAccount($user->id);
 
         DB::table('push_device_registrations')
             ->where('user_id', $user->id)

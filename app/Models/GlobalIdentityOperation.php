@@ -11,7 +11,9 @@ use App\Services\GlobalIdentity\GlobalIdentityDeliveryState;
 use App\Services\GlobalIdentity\GlobalIdentityOperationContext;
 use App\Services\GlobalIdentity\GlobalIdentityOperationType;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Query\Builder as QueryBuilder;
 
 /**
  * @property string $id
@@ -42,6 +44,8 @@ use Illuminate\Database\Eloquent\Model;
  */
 final class GlobalIdentityOperation extends Model
 {
+    public const REISSUES_TABLE = 'global_identity_rotation_reissues';
+
     public $incrementing = false;
 
     protected $keyType = 'string';
@@ -79,5 +83,17 @@ final class GlobalIdentityOperation extends Model
             $this->invitation_id,
             $this->tenant_id,
         );
+    }
+
+    /** @param Builder<self> $query */
+    public function scopeOutstanding(Builder $query): void
+    {
+        $query->where(static function (Builder $operations): void {
+            $operations->where('delivery_state', '!=', GlobalIdentityDeliveryState::Terminal)
+                ->orWhereExists(static function (QueryBuilder $replacement): void {
+                    $replacement->from(self::REISSUES_TABLE)
+                        ->whereColumn('operation_id', 'global_identity_operations.id');
+                });
+        });
     }
 }

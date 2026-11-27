@@ -140,7 +140,7 @@ final readonly class IdentityLifecycle
     {
         $operations = GlobalIdentityOperation::query()->where('user_id', $userId)
             ->whereIn('operation_type', array_column($types, 'value'))
-            ->where('delivery_state', '!=', GlobalIdentityDeliveryState::Terminal->value)
+            ->outstanding()
             ->when($except !== null, fn ($query) => $query->where('id', '!=', $except))
             ->orderBy('id')->lockForUpdate()->get();
         foreach ($operations as $operation) {

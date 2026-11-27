@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace App\Services\GlobalIdentity;
 
 use App\Exceptions\GlobalIdentityKeyException;
+use App\Models\GlobalIdentityOperation;
 use App\Models\GlobalIdentityWorkingKey;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
@@ -33,7 +34,7 @@ final class GlobalIdentityKeyReferences
                     ->whereNotNull('token_hash')->where('expires_at', '>', now())
                     ->exists(),
             GlobalIdentityWorkingKeyPurpose::PendingEmailChangeEncryption => $this->operationRecipient(GlobalIdentityOperationType::PendingEmailChange, $key)
-                || $this->envelope(DB::table('global_identity_rotation_reissues'), 'recipient_enc', $key),
+                || $this->envelope(DB::table(GlobalIdentityOperation::REISSUES_TABLE), 'recipient_enc', $key),
             GlobalIdentityWorkingKeyPurpose::InvitationAddressEncryption => $this->operationRecipient(GlobalIdentityOperationType::Invitation, $key),
             GlobalIdentityWorkingKeyPurpose::MfaCredentials => $this->envelope(DB::table('two_factor_authentications'), 'shared_secret', $key)
                 || $this->envelope(DB::table('two_factor_authentications'), 'recovery_codes', $key),

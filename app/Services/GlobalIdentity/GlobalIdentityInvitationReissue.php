@@ -10,6 +10,12 @@ namespace App\Services\GlobalIdentity;
 interface GlobalIdentityInvitationReissue extends GlobalIdentityOperationSubject
 {
     /**
+     * The owning domain checks tenant, invitation identity, revocation,
+     * expiration and supersession before a replacement is considered.
+     */
+    public function isCurrent(GlobalIdentityOperationContext $operation): bool;
+
+    /**
      * Revalidate and establish the replacement invitation in the owning domain
      * using the current database transaction. Return its authorized address
      * for a new invitee, or null for an existing user-bound invitation.

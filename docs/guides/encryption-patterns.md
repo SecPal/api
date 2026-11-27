@@ -326,6 +326,14 @@ affected undelivered proofs and can reissue eligible operations.
 The invitation owner revalidates a replacement and supplies the authorized
 recipient through the invitation operation subject.
 
+Account-scoped incident batches take their account fences in stable order,
+then lock the source operations before revalidating their replacement
+checkpoints. Reservation changes take the shared registry lease before
+locking a reservation.
+The same account lifecycle invalidates live proofs and cancels pending
+replacements, including their recipient envelopes and email reservations.
+The invitation domain determines whether each tenant invitation remains current.
+
 ## Pattern 1: Field-Level Encryption with Blind Indexes
 
 **Use when:**
