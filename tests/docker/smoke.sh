@@ -87,8 +87,17 @@ assert_http() {
     path=$1
     expected_status=$2
     expected_fragment=${3:-}
+    request_json=${4:-}
     podman exec "$client" php -r '
-    $context = stream_context_create(["http" => ["ignore_errors" => true, "timeout" => 3, "follow_location" => 0]]);
+    $options = ["ignore_errors" => true, "timeout" => 3, "follow_location" => 0];
+    if ($argv[4] !== "") {
+        $options += [
+            "method" => "POST",
+            "header" => "Accept: application/json\r\nContent-Type: application/json\r\n",
+            "content" => $argv[4],
+        ];
+    }
+    $context = stream_context_create(["http" => $options]);
     $body = @file_get_contents($argv[1], false, $context);
     $statusLine = $http_response_header[0] ?? "";
     preg_match("/\s(\d{3})\s/", $statusLine, $matches);
@@ -97,7 +106,7 @@ assert_http() {
         fwrite(STDERR, "Unexpected HTTP status or body contract (status {$status})\n");
         exit(1);
     }
-    ' "http://${api}:8080${path}" "$expected_status" "$expected_fragment"
+    ' "http://${api}:8080${path}" "$expected_status" "$expected_fragment" "$request_json"
 }
 wait_for_http() {
     attempt=0
@@ -438,12 +447,13 @@ log_marker="container-log-probe-${suffix}"
 email_domain=secpal.app
 operation='http-onboarding-query-redaction-probe'
 assert_http "/v1/onboarding/validate-token?token=${log_marker}&email=${log_marker}%40${email_domain}" 422
-operation='http-verification-query-redaction-probe'
-assert_http "/v1/auth/email/verify/00000000-0000-4000-8000-000000000001/synthetic-hash?expires=2000000000&signature=${log_marker}" 403
+operation='http-verification-body-redaction-probe'
+assert_http '/v1/auth/email/verifications/00000000-0000-4000-8000-000000000001/consume' 409 \
+    'IDENTITY_OPERATION_UNAVAILABLE' "{\"token\":\"${log_marker}\"}"
 operation='nginx-log-redaction'
 podman logs "$api" >"${tmp_dir}/api.log" 2>&1
 if grep -q "$log_marker" "${tmp_dir}/api.log"; then
-    echo "Sensitive query credentials were not redacted from access logs" >&2
+    echo "Sensitive request credentials were not redacted from access logs" >&2
     exit 1
 fi
 operation='nginx-upstream-telemetry'
