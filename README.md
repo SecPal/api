@@ -84,18 +84,18 @@ validation, and pull-request requirements.
 
 ## Documentation
 
-| Intent                                                   | Authority                                                                                           |
-| -------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| Public API contract and reference                        | [SecPal/contracts](https://github.com/SecPal/contracts)                                             |
-| Authentication                                           | [Authentication API documentation](docs/api/authentication.md)                                      |
-| Authorization and RBAC                                   | [RBAC architecture](docs/rbac-architecture.md) and [RBAC API reference](docs/api/rbac-endpoints.md) |
-| Encryption implementation patterns                       | [Encryption patterns](docs/guides/encryption-patterns.md)                                           |
-| Activity integrity and operations                        | [Activity logging admin guide](docs/ACTIVITY_LOGGING_ADMIN_GUIDE.md)                                |
-| Application security-event output                        | [Security-event contract](docs/security-events.md)                                                  |
-| BewachV and manual BWR reporting                         | [BewachV compliance documentation](docs/BEWACHV_COMPLIANCE.md)                                      |
-| Local development and contribution                       | [Contributing](CONTRIBUTING.md)                                                                     |
-| API image and application runtime contract               | [API container](docs/containers.md) and [production boundary](docs/deployment.md)                   |
-| Self-hosting, host, edge, database, backup, and recovery | [SecPal/deployment](https://github.com/SecPal/deployment)                                           |
+| Intent                                                   | Authority                                                                         |
+| -------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| Public API contract and reference                        | [SecPal/contracts](https://github.com/SecPal/contracts)                           |
+| Authentication                                           | [Authentication API documentation](docs/api/authentication.md)                    |
+| Authorization and RBAC                                   | [API access and authorization](docs/guides/permission-system.md)                  |
+| Encryption implementation patterns                       | [Encryption patterns](docs/guides/encryption-patterns.md)                         |
+| Activity integrity and operations                        | [Activity logging admin guide](docs/ACTIVITY_LOGGING_ADMIN_GUIDE.md)              |
+| Application security-event output                        | [Security-event contract](docs/security-events.md)                                |
+| BewachV and manual BWR reporting                         | [BewachV compliance documentation](docs/BEWACHV_COMPLIANCE.md)                    |
+| Local development and contribution                       | [Contributing](CONTRIBUTING.md)                                                   |
+| API image and application runtime contract               | [API container](docs/containers.md) and [production boundary](docs/deployment.md) |
+| Self-hosting, host, edge, database, backup, and recovery | [SecPal/deployment](https://github.com/SecPal/deployment)                         |
 
 ## Related repositories
 
