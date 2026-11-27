@@ -100,7 +100,10 @@ final readonly class GlobalIdentityDeliveryWorker
             }
             $this->requireOutsideTransaction();
             try {
-                $result = $this->transport->send($recipient, $message, $key);
+                $firstCommit = $claim->dispatch_committed_at;
+                $result = $firstCommit !== null && ! $this->transport->permitsReplay($firstCommit)
+                    ? new GlobalIdentityDeliveryResult(GlobalIdentityDeliveryOutcome::Unknown)
+                    : $this->transport->send($recipient, $message, $key);
             } catch (Throwable) {
                 $result = new GlobalIdentityDeliveryResult(GlobalIdentityDeliveryOutcome::Unknown);
             }

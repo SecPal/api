@@ -200,6 +200,29 @@ it('prefers provider-reference reconciliation and preserves ambiguity for unsupp
         ->and(GlobalIdentityOperation::query()->findOrFail($unsupported->id)->delivery_state)->toBe(State::Unknown);
 });
 
+it('keeps the attempt unknown when the provider replay window closes during preparation', function (): void {
+    $this->freezeTime();
+    $this->operations->create($this->context, now()->toImmutable()->addMinutes(10));
+    $this->transport->idempotencyWindowSeconds = 30;
+    $this->transport->sendOutcome = Outcome::Unknown;
+    $this->worker->deliver($this->context->id);
+    $original = GlobalIdentityOperation::query()->findOrFail($this->context->id);
+
+    $this->travel(29)->seconds();
+    $this->transport->lookupOutcome = Outcome::Absent;
+    $this->transport->sendOutcome = Outcome::Accepted;
+    $this->renderer->beforeReturn = fn () => $this->travel(1)->seconds();
+    $this->worker->reconcile($this->context->id);
+
+    $row = GlobalIdentityOperation::query()->findOrFail($this->context->id);
+    expect($this->transport->lookups)->toBe(['key'])
+        ->and($this->transport->sentKeys)->toHaveCount(1)
+        ->and($row->delivery_state)->toBe(State::Unknown)
+        ->and($row->delivery_attempt_id)->toBe($original->delivery_attempt_id)
+        ->and($row->dispatch_committed_at?->getTimestamp())->toBe($original->dispatch_committed_at?->getTimestamp());
+    $this->travelBack();
+});
+
 it('never infers absence from another provider or from a key omitted on the first dispatch', function (bool $sameProvider, bool $initialKey): void {
     $this->operations->create($this->context, now()->toImmutable()->addMinutes(10));
     $this->transport->sendOutcome = Outcome::Unknown;
@@ -371,6 +394,18 @@ it('admits one claim across separate PostgreSQL sessions and keeps its attempt b
         'transport_identity' => 'different-provider',
     ]))->toThrow(QueryException::class);
     expect(fn () => DB::table('global_identity_operations')->where('id', $this->context->id)->update([
+        'delivery_attempt_id' => (string) Str::uuid(),
+        'transport_identity' => 'different-provider',
+        'transport_idempotency_key' => '\\x'.bin2hex(random_bytes(32)),
+    ]))->toThrow(QueryException::class);
+    expect(fn () => DB::table('global_identity_operations')->where('id', $this->context->id)->update([
+        'delivery_attempt_id' => null,
+    ]))->toThrow(QueryException::class);
+    expect($this->operations->commitDispatch($operation))->toBeTrue();
+    expect(fn () => DB::table('global_identity_operations')->where('id', $this->context->id)->update([
+        'uses_idempotency_key' => true,
+    ]))->toThrow(QueryException::class);
+    expect(fn () => DB::table('global_identity_operations')->where('id', $this->context->id)->update([
         'email_version' => 2,
     ]))->toThrow(QueryException::class);
 });
@@ -393,6 +428,8 @@ it('requires a fresh authenticated contiguous terminal journal before applying r
     $this->operations->create($ambiguous, now()->toImmutable()->addMinutes(10));
     $claim = $this->operations->claim($ambiguous->id, 'fixture');
     expect($claim)->not->toBeNull()->and($this->operations->commitDispatch($claim))->toBeTrue();
+    $pendingInBackup = new GlobalIdentityOperationContext(Operation::EmailVerification, (string) Str::uuid(), $this->context->userId, 1);
+    $this->operations->create($pendingInBackup, now()->toImmutable()->addMinutes(10));
 
     $pair = sodium_crypto_sign_keypair();
     $secret = sodium_crypto_sign_secretkey($pair);
@@ -409,7 +446,8 @@ it('requires a fresh authenticated contiguous terminal journal before applying r
     $restore->quarantine();
     $epoch = (string) Str::uuid();
     $source = GlobalIdentityOperation::query()->findOrFail($this->context->id);
-    $key = new GlobalIdentityKeyReference($source->delivery_key_id, $source->delivery_key_version);
+    // A terminal event may follow a planned re-encryption of the same operation.
+    $key = new GlobalIdentityKeyReference((string) Str::uuid(), $source->delivery_key_version + 1);
     $terminal = new GlobalIdentityTerminalJournalEntry(11, $source->id, State::Terminal, $key, now()->getTimestamp());
     $gap = new GlobalIdentityTerminalJournalEntry(12, $source->id, State::Terminal, $key, now()->getTimestamp());
     $signed = static function (int $end, array $entries) use ($epoch, $secret): GlobalIdentityJournalInterval {
@@ -428,8 +466,10 @@ it('requires a fresh authenticated contiguous terminal journal before applying r
     expect($restore->reconcile($epoch, 10, 11, $signed(11, [$terminal])))->toBeTrue();
     expect($source->fresh()->delivery_state)->toBe(State::Terminal)
         ->and($source->fresh()->delivery_token_enc)->toBeNull()
-        ->and(GlobalIdentityOperation::query()->findOrFail($ambiguous->id)->quarantined)->toBeTrue();
+        ->and(GlobalIdentityOperation::query()->findOrFail($ambiguous->id)->quarantined)->toBeTrue()
+        ->and(GlobalIdentityOperation::query()->findOrFail($pendingInBackup->id)->quarantined)->toBeTrue();
     $this->worker->reconcile($ambiguous->id);
+    $this->worker->deliver($pendingInBackup->id);
     expect($this->transport->sentKeys)->toBe([]);
     sodium_memzero($secret);
 });
@@ -483,6 +523,8 @@ final class SyntheticIdentityTransport implements GlobalIdentityDeliveryTranspor
 
     public bool $keyAccepted = true;
 
+    public ?int $idempotencyWindowSeconds = null;
+
     public string $providerIdentity = 'fixture';
 
     /** @var list<string> */
@@ -507,7 +549,10 @@ final class SyntheticIdentityTransport implements GlobalIdentityDeliveryTranspor
 
     public function permitsReplay(CarbonImmutable $firstCommit): bool
     {
-        return true;
+        expect(DB::transactionLevel())->toBe(0);
+
+        return $this->idempotencyWindowSeconds === null
+            || $firstCommit->addSeconds($this->idempotencyWindowSeconds)->isFuture();
     }
 
     public function send(

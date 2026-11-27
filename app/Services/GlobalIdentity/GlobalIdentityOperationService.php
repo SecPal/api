@@ -84,10 +84,11 @@ final readonly class GlobalIdentityOperationService
                 return null;
             }
 
-            $fresh = in_array($operation->delivery_state, [GlobalIdentityDeliveryState::Pending, GlobalIdentityDeliveryState::Retryable], true);
-            $abandoned = $operation->delivery_state === GlobalIdentityDeliveryState::Claimed
-                && $operation->dispatch_committed_at === null && $operation->lease_expires_at?->isFuture() === false;
-            if (! $fresh && ! $abandoned) {
+            if ($operation->delivery_state === GlobalIdentityDeliveryState::Claimed && $operation->dispatch_committed_at === null
+                && $operation->lease_expires_at?->isFuture() !== true) {
+                $this->expireLease($operation);
+            }
+            if (! in_array($operation->delivery_state, [GlobalIdentityDeliveryState::Pending, GlobalIdentityDeliveryState::Retryable], true)) {
                 return null;
             }
             if (! $this->subject->isCurrent($operation->context())) {
@@ -263,6 +264,7 @@ final readonly class GlobalIdentityOperationService
                 foreach ($entries as $entry) {
                     $operation = GlobalIdentityOperation::query()->whereKey($entry->operationId)
                         ->where('quarantined', true)->lockForUpdate()->first();
+                    // Re-encryption can change the key version while preserving operation identity.
                     if ($operation?->delivery_state === GlobalIdentityDeliveryState::Terminal) {
                         $this->clearTerminalResiduals($operation);
                     } elseif ($operation !== null) {

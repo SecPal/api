@@ -70,9 +70,12 @@ return new class extends Migration
                 THEN
                     RAISE EXCEPTION 'Global identity operation binding is immutable' USING ERRCODE = '23514';
                 END IF;
-                IF OLD.delivery_attempt_id IS NOT NULL AND NEW.delivery_attempt_id = OLD.delivery_attempt_id
-                    AND ROW(NEW.transport_identity, NEW.transport_idempotency_key)
-                        IS DISTINCT FROM ROW(OLD.transport_identity, OLD.transport_idempotency_key)
+                IF OLD.delivery_attempt_id IS NOT NULL AND NEW.delivery_attempt_id IS NOT NULL
+                    AND (ROW(NEW.delivery_attempt_id, NEW.transport_identity, NEW.transport_idempotency_key)
+                        IS DISTINCT FROM ROW(OLD.delivery_attempt_id, OLD.transport_identity, OLD.transport_idempotency_key)
+                        OR (OLD.dispatch_committed_at IS NOT NULL
+                            AND ROW(NEW.dispatch_committed_at, NEW.uses_idempotency_key)
+                                IS DISTINCT FROM ROW(OLD.dispatch_committed_at, OLD.uses_idempotency_key)))
                 THEN
                     RAISE EXCEPTION 'Global identity attempt binding is immutable' USING ERRCODE = '23514';
                 END IF;
