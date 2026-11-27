@@ -730,7 +730,7 @@ describe('POST /v1/employees', function () {
 
         $employee = Employee::find($response->json('data.id'));
         expect($employee->user_id)->not->toBeNull();
-        expect($employee->user->email)->toBe('jane.smith@example.com');
+        expect($employee->user->emailForDisplay())->toBe('jane.smith@example.com');
     });
 
     test('creates employee and sends onboarding invitation when explicitly requested', function (): void {

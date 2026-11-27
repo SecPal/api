@@ -241,7 +241,9 @@ describe('GET /v1/me/customer-assignments', function () {
 
         $response->assertOk();
         expect($response->json('data'))->toHaveCount(8);
-        expect(count($queries))->toBeLessThan(12);
+        $emailReads = array_filter($queries, static fn (array $entry): bool => str_contains($entry['query'], '"email_enc"'));
+        expect($emailReads)->toHaveCount(1)
+            ->and(count($queries))->toBeLessThan(15);
     });
 });
 
@@ -514,6 +516,8 @@ describe('GET /v1/me/site-assignments', function () {
 
         $response->assertOk();
         expect($response->json('data'))->toHaveCount(8);
-        expect(count($queries))->toBeLessThanOrEqual(14);
+        $emailReads = array_filter($queries, static fn (array $entry): bool => str_contains($entry['query'], '"email_enc"'));
+        expect($emailReads)->toHaveCount(1)
+            ->and(count($queries))->toBeLessThanOrEqual(17);
     });
 });

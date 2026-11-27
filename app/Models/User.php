@@ -6,6 +6,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\EnforcesTenantRouteBinding;
+use App\Services\GlobalIdentity\IdentityDisplay;
 use DateTimeInterface;
 use Illuminate\Auth\MustVerifyEmail;
 use Illuminate\Contracts\Auth\MustVerifyEmail as MustVerifyEmailContract;
@@ -15,6 +16,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphOne;
 use Illuminate\Database\Eloquent\Relations\MorphToMany;
 use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -39,7 +41,7 @@ use Spatie\Permission\Traits\HasRoles;
  *
  * @property string $id UUID primary key
  * @property string $name
- * @property string $email
+ * @property int $email_version
  * @property string $password
  * @property int $tenant_id Foreign key to tenant_keys
  * @property ?\Illuminate\Support\Carbon $email_verified_at
@@ -78,7 +80,6 @@ class User extends Authenticatable implements MustVerifyEmailContract, TwoFactor
      */
     protected $fillable = [
         'name',
-        'email',
         'password',
         'preferred_locale',
         'tenant_id',
@@ -108,8 +109,43 @@ class User extends Authenticatable implements MustVerifyEmailContract, TwoFactor
     {
         return [
             'email_verified_at' => 'datetime',
+            'email_version' => 'integer',
             'password' => 'hashed',
         ];
+    }
+
+    public function emailForDisplay(): string
+    {
+        return app(IdentityDisplay::class)->address($this->id, $this->email_version);
+    }
+
+    public function getEmailForVerification(): string
+    {
+        return $this->emailForDisplay();
+    }
+
+    public function sendEmailVerificationNotification(): void
+    {
+        app(\App\Services\GlobalIdentity\IdentityLifecycle::class)->request(
+            $this,
+            \App\Services\GlobalIdentity\GlobalIdentityOperationType::EmailVerification,
+        );
+    }
+
+    /** @return MorphOne<GlobalIdentityTwoFactorAuthentication, $this> */
+    public function twoFactorAuth(): MorphOne
+    {
+        return $this->morphOne(GlobalIdentityTwoFactorAuthentication::class, 'authenticatable')
+            ->withDefault(static function (GlobalIdentityTwoFactorAuthentication $model): void {
+                /** @var array<string, mixed> $configuration */
+                $configuration = config()->array('two-factor.totp');
+                $model->fill($configuration);
+            });
+    }
+
+    public function getTwoFactorUserIdentifier(): string
+    {
+        return $this->id;
     }
 
     /**

@@ -25,7 +25,7 @@ class UserResource extends JsonResource
         return [
             'id' => $this->id,
             'name' => $this->name,
-            'email' => $this->email,
+            'email' => $this->emailForDisplay(),
             'created_at' => \App\Support\ApiTimestamp::format($this->created_at),
             'updated_at' => \App\Support\ApiTimestamp::format($this->updated_at),
         ];

@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- Encrypt global User email and MFA material with the Global Identity key
+  hierarchy. Use exact keyed lookup for sign-in and operation-bound mailbox
+  proof for reset, verification and email changes (refs #3102).
+
 - Update `web-token/jwt-library` to 4.1.11 to fix twelve advisories in the
   Web Push dependency (refs #3141).
 
@@ -24,6 +28,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the fix for CVE-2026-86144 (refs #3139).
 
 ### Changed
+
+- The clean PostgreSQL installation now creates encrypted User email fields
+  and replaces the legacy reset and email-verification endpoints with the
+  OpenAPI identity-operation endpoints. Development fixtures require explicit
+  Global Identity bootstrap before seeding (refs #3102).
 
 - Store customer and site house numbers in `house_number` separately from the
   street name. Site address display and customer duplicate detection include

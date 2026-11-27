@@ -178,11 +178,10 @@ qualification are tracked in
 
 ## Global User Email
 
-`GlobalEmailSchema::apply` defines the encrypted email columns on an unseeded
-`users` table and their PostgreSQL constraints. The isolated tests apply this
-definition to the normal users table. The coordinated cutover in
-[#3102](https://github.com/SecPal/api/issues/3102) owns its activation in the
-ordinary migration path and the conversion of active consumers.
+`GlobalEmailSchema::apply` installs the encrypted email fields and PostgreSQL
+constraints through the ordinary clean migration. Seeders and test fixtures use
+`GlobalIdentityAccounts` to create and find User identities. Existing-installation
+conversion has a separate operational scope.
 
 `GlobalEmailRepository` preserves the validated original address in the
 authenticated envelope. Exact lookup returns the User ID from the binary
@@ -236,9 +235,52 @@ checkpoint bound to the exact contiguous entries. Verified terminal entries
 tombstone matching operations. An absent terminal entry alone leaves the
 restored operation quarantined, since later dispatch may be unobserved.
 
-[#3102](https://github.com/SecPal/api/issues/3102) owns integration of the normal
-authentication and email lifecycle. The deployment custody and actual restore
-rehearsal belong to [SecPal/deployment#527](https://github.com/SecPal/deployment/issues/527).
+The deployment custody and restore rehearsal belong to
+[SecPal/deployment#527](https://github.com/SecPal/deployment/issues/527).
+
+## Global Identity bootstrap and development fixture
+
+The migration role runs the ordinary schema migration. A separately authorized
+provisioner creates the exact versioned Global Identity root outside the checkout,
+database and writable container layer. The application configuration
+`GLOBAL_IDENTITY_ROOT_DIRECTORY` names the absolute in-container directory. Use an
+immutable regular `<root-id>.<version>.key` containing 32 random bytes. The
+directory and file must report the reader's effective UID with modes `0500` or
+`0700` and `0400` or `0600`, respectively. Keep the root independent of the
+Tenant KEK, `APP_KEY`, and PostgreSQL credentials.
+
+After the migration, run the explicit registry bootstrap from the authorized
+one-shot API context with the exact root mounted read-only. The bootstrap
+context can read identity state and create the wrapped working-key records.
+
+```bash
+php artisan identity:bootstrap development 1 --force --no-interaction
+```
+
+For a private `local`, `testing` or `demo` environment, the API command below
+prepares the synthetic `test@example.com` login and its development permissions.
+Pass the synthetic password through a private standard-input stream. The command
+expects a single line with 8 to 72 bytes.
+
+```bash
+php artisan identity:seed-preview --no-interaction < /run/secpal/preview/test-account-password
+```
+
+For the API container identity `10001:10001`, map the isolated host owner into
+that identity in the rootless user namespace. Mount the root directory at
+`/run/secpal/identity` read-only with the qualified SELinux label. Shared API/worker
+bind mounts on the isolated host use the maintained `:ro,z` convention where
+required by the runtime definitions. The bootstrap context, PHP-FPM, and workers
+that process identity operations receive the mount. The scheduler also needs
+it when running employee-retention deletion that anonymizes a linked User.
+Nginx, PostgreSQL and
+workers without identity operations have no root access. Keep the fixture input
+private to the one-shot command. Normal application startup consumes existing
+authority. Missing authority fails closed.
+
+`GLOBAL_IDENTITY_MAILER` selects a dedicated non-logging transport for identity
+mail. Use a confined SMTP sink for a development preview. Tests may use the
+in-memory array transport in a test environment.
 
 ## Pattern 1: Field-Level Encryption with Blind Indexes
 

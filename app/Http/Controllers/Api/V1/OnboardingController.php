@@ -368,14 +368,11 @@ class OnboardingController extends Controller
                 throw new \RuntimeException(__('User account not found for employee.'));
             }
 
+            // Align the proven address before the first User write so dispatch keeps its lock order.
+            app(\App\Services\GlobalIdentity\IdentityLifecycle::class)->replaceProvenAddress($user, $onboardingEmail);
             $user->password = Hash::make($password);
             // Sync user name with employee name so it displays correctly after login
             $user->name = $firstName.' '.$lastName;
-            // The onboarding invite proves control over employee.email; keep the user login email aligned.
-            if ($user->email !== $onboardingEmail) {
-                $user->email = $onboardingEmail;
-                $user->email_verified_at = null;
-            }
             $user->save();
             // Consuming a valid onboarding magic link proves mailbox control.
             if ($user->markEmailAsVerified()) {
@@ -421,7 +418,7 @@ class OnboardingController extends Controller
             'data' => [
                 'user' => [
                     'id' => $user->id,
-                    'email' => $user->email,
+                    'email' => $user->emailForDisplay(),
                     'name' => $user->name,
                     'email_verified' => $user->hasVerifiedEmail(),
                 ],

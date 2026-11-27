@@ -4,6 +4,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use App\Http\Controllers\AuthController;
+use App\Jobs\DeliverGlobalIdentityOperation;
 use App\Models\Customer;
 use App\Models\CustomerAssignment;
 use App\Models\Employee;
@@ -12,13 +13,11 @@ use App\Models\Site;
 use App\Models\TenantKey;
 use App\Models\User;
 use App\Services\EmployeeLifecycleService;
-use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Notification;
-use Illuminate\Support\Facades\URL;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
 use Spatie\Activitylog\Models\Activity;
 
@@ -252,7 +251,7 @@ describe('SPA Session Login', function () {
         expect($activity)->toBeInstanceOf(Activity::class)
             ->and($activity->tenant_id)->toBe($actualTenant->id)
             ->and($activity->tenant_id)->not->toBe($spoofedTenant->id)
-            ->and($activity->properties['email'])->toBe($email);
+            ->and($activity->properties->all())->not->toHaveKey('email');
     });
 
     test('spa login authenticates user via session', function () {
@@ -475,7 +474,7 @@ describe('Auth Token Generation', function () {
         expect($activity)->toBeInstanceOf(Activity::class)
             ->and($activity->tenant_id)->toBe($lowestIdTenant->id)
             ->and($activity->tenant_id)->not->toBe($spoofedTenant->id)
-            ->and($activity->properties['email'])->toBe($email)
+            ->and($activity->properties->all())->not->toHaveKey('email')
             ->and($activity->properties['user_exists'])->toBeFalse();
     });
 
@@ -823,7 +822,7 @@ describe('Token Security', function () {
         ]);
 
         $response = $this->postJson('/v1/auth/token', [
-            'email' => $user->email,
+            'email' => $user->emailForDisplay(),
             'password' => 'secret-password',
         ]);
 
@@ -926,7 +925,7 @@ describe('Email Verification', function () {
     });
 
     test('unverified users can request a fresh verification email', function () {
-        Notification::fake();
+        Queue::fake();
 
         $user = User::factory()->unverified()->create();
         $token = $user->createToken('test-device')->plainTextToken;
@@ -935,21 +934,21 @@ describe('Email Verification', function () {
             ->postJson('/v1/auth/email/verification-notification')
             ->assertStatus(202)
             ->assertJson([
-                'message' => 'Verification link sent successfully.',
+                'message' => 'Request accepted.',
             ]);
 
-        Notification::assertSentTo($user, VerifyEmail::class);
+        Queue::assertPushed(DeliverGlobalIdentityOperation::class);
     });
 
-    test('verified users receive 200 when resending email verification', function () {
+    test('verified users receive the same neutral response to a verification request', function () {
         $user = User::factory()->create();
         $token = $user->createToken('test-device')->plainTextToken;
 
         $this->withHeader('Authorization', "Bearer {$token}")
             ->postJson('/v1/auth/email/verification-notification')
-            ->assertOk()
+            ->assertAccepted()
             ->assertJson([
-                'message' => 'Email address is already verified.',
+                'message' => 'Request accepted.',
             ]);
     });
 
@@ -963,7 +962,7 @@ describe('Email Verification', function () {
 
     test('verification resend is throttled after six requests per minute', function () {
         Cache::flush();
-        Notification::fake();
+        Queue::fake();
 
         $user = User::factory()->unverified()->create();
         $token = $user->createToken('test-device')->plainTextToken;
@@ -980,26 +979,6 @@ describe('Email Verification', function () {
             ->assertJson([
                 'message' => 'Too Many Attempts.',
             ]);
-    });
-
-    test('signed verification links mark the user email as verified', function () {
-        $user = User::factory()->unverified()->create();
-
-        $url = URL::temporarySignedRoute('verification.verify', now()->addMinutes(60), [
-            'id' => $user->id,
-            'hash' => sha1($user->getEmailForVerification()),
-        ]);
-
-        $path = (string) parse_url($url, PHP_URL_PATH);
-        $query = (string) parse_url($url, PHP_URL_QUERY);
-
-        $this->getJson("{$path}?{$query}")
-            ->assertOk()
-            ->assertJson([
-                'message' => 'Email address verified successfully.',
-            ]);
-
-        expect($user->fresh()->hasVerifiedEmail())->toBeTrue();
     });
 
     test('unverified users cannot access verified-only protected routes', function () {

@@ -17,15 +17,14 @@ final class GlobalEmailSchema
 
     public const ROTATION_INDEXES = 'global_identity_email_rotation_indexes';
 
-    /**
-     * Apply the clean target to an unseeded users table. The coordinated
-     * identity cutover calls this definition from the ordinary migration path.
-     */
+    /** Install the encrypted identity fields on the clean users table. */
     public function apply(): void
     {
+        if (DB::getDriverName() !== 'pgsql') {
+            throw new \LogicException('Global identity schema requires PostgreSQL.');
+        }
         DB::transaction(function (): void {
             Schema::table('users', function (Blueprint $table): void {
-                $table->dropColumn('email');
                 $table->jsonb('email_enc');
                 $table->binary('email_idx');
                 $table->integer('email_normalization_version');
@@ -73,5 +72,11 @@ final class GlobalEmailSchema
                 )
                 SQL);
         });
+    }
+
+    public function dropSidecars(): void
+    {
+        Schema::dropIfExists(self::ROTATION_INDEXES);
+        Schema::dropIfExists(self::RESERVATIONS);
     }
 }

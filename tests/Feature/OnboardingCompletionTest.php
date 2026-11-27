@@ -45,7 +45,7 @@ test('completes onboarding with valid token', function () {
         'first_name' => 'John', // Use realistic names to avoid validation issues
         'last_name' => 'Doe',
         'date_of_birth' => '1990-04-15',
-        'email' => $user->email,
+        'email' => $user->emailForDisplay(),
         'user_id' => $user->id,
     ]);
 
@@ -55,7 +55,7 @@ test('completes onboarding with valid token', function () {
     // Act: Complete onboarding with same names (no change)
     $response = $this->withSession([])->postJson('/v1/onboarding/complete', [
         'token' => $plainToken,
-        'email' => $user->email,
+        'email' => $user->emailForDisplay(),
         'password' => 'SecurePassword123!',
         'first_name' => 'John',
         'last_name' => 'Doe',
@@ -127,7 +127,7 @@ test('completes onboarding by syncing and verifying the invited employee email o
         ->assertJsonPath('data.user.email_verified', true);
 
     $user->refresh();
-    expect($user->email)->toBe($employee->email)
+    expect($user->emailForDisplay())->toBe($employee->email)
         ->and($user->hasVerifiedEmail())->toBeTrue();
     Notification::assertNothingSent();
 });
@@ -145,7 +145,7 @@ test('dispatches verified event when onboarding completion verifies the user ema
         'first_name' => 'Event',
         'last_name' => 'Dispatch',
         'date_of_birth' => '1992-02-29',
-        'email' => $user->email,
+        'email' => $user->emailForDisplay(),
         'user_id' => $user->id,
     ]);
 
@@ -217,7 +217,7 @@ test('rejects already used token', function () {
         'first_name' => 'John',
         'last_name' => 'Doe',
         'date_of_birth' => '1990-01-01',
-        'email' => $user->email,
+        'email' => $user->emailForDisplay(),
         'user_id' => $user->id,
     ]);
     $tokenData = EmployeeOnboardingToken::generate($employee);
@@ -226,7 +226,7 @@ test('rejects already used token', function () {
     // Complete onboarding once
     $this->withSession([])->postJson('/v1/onboarding/complete', [
         'token' => $plainToken,
-        'email' => $user->email,
+        'email' => $user->emailForDisplay(),
         'password' => 'SecurePassword123!',
         'first_name' => 'John',
         'last_name' => 'Doe',
@@ -236,7 +236,7 @@ test('rejects already used token', function () {
     // Try to use same token again
     $response = $this->withSession([])->postJson('/v1/onboarding/complete', [
         'token' => $plainToken,
-        'email' => $user->email,
+        'email' => $user->emailForDisplay(),
         'password' => 'DifferentPassword456!',
         'first_name' => 'Jane',
         'last_name' => 'Smith',
@@ -406,7 +406,7 @@ test('validation throttle bucket does not block onboarding completion for the sa
         'first_name' => 'Separate',
         'last_name' => 'Bucket',
         'date_of_birth' => '1985-12-31',
-        'email' => $user->email,
+        'email' => $user->emailForDisplay(),
         'user_id' => $user->id,
     ]);
 
@@ -415,7 +415,7 @@ test('validation throttle bucket does not block onboarding completion for the sa
 
     $this->withSession([])->postJson('/v1/onboarding/complete', [
         'token' => $plainToken,
-        'email' => $user->email,
+        'email' => $user->emailForDisplay(),
         'password' => 'SecurePassword123!',
         'first_name' => 'Separate',
         'last_name' => 'Bucket',
@@ -556,7 +556,7 @@ test('SECURITY: rejects wrong date of birth with generic identity-verification e
         'first_name' => 'John',
         'last_name' => 'Doe',
         'date_of_birth' => '1990-04-15',
-        'email' => $user->email,
+        'email' => $user->emailForDisplay(),
         'user_id' => $user->id,
     ]);
 
@@ -564,7 +564,7 @@ test('SECURITY: rejects wrong date of birth with generic identity-verification e
 
     $response = $this->withSession([])->postJson('/v1/onboarding/complete', [
         'token' => $tokenData['plain'],
-        'email' => $user->email,
+        'email' => $user->emailForDisplay(),
         'password' => 'SecurePassword123!',
         'first_name' => 'John',
         'last_name' => 'Doe',
@@ -613,7 +613,7 @@ test('SECURITY: DOB-mismatch attempts count toward the onboarding-complete rate 
         'first_name' => 'John',
         'last_name' => 'Doe',
         'date_of_birth' => '1990-04-15',
-        'email' => $user->email,
+        'email' => $user->emailForDisplay(),
         'user_id' => $user->id,
     ]);
 
@@ -621,7 +621,7 @@ test('SECURITY: DOB-mismatch attempts count toward the onboarding-complete rate 
 
     $payloadWithWrongDob = [
         'token' => $tokenData['plain'],
-        'email' => $user->email,
+        'email' => $user->emailForDisplay(),
         'password' => 'SecurePassword123!',
         'first_name' => 'John',
         'last_name' => 'Doe',
@@ -655,7 +655,7 @@ test('SECURITY: a missing stored date of birth blocks onboarding without burning
         'first_name' => 'John',
         'last_name' => 'Doe',
         'date_of_birth' => null,
-        'email' => $user->email,
+        'email' => $user->emailForDisplay(),
         'user_id' => $user->id,
     ]);
 
@@ -664,7 +664,7 @@ test('SECURITY: a missing stored date of birth blocks onboarding without burning
 
     $response = $this->withSession([])->postJson('/v1/onboarding/complete', [
         'token' => $tokenData['plain'],
-        'email' => $user->email,
+        'email' => $user->emailForDisplay(),
         'password' => 'SecurePassword123!',
         'first_name' => 'John',
         'last_name' => 'Doe',
@@ -714,7 +714,7 @@ test('SECURITY: a wrong date of birth invalidates the token immediately (single-
         'first_name' => 'John',
         'last_name' => 'Doe',
         'date_of_birth' => '1990-04-15',
-        'email' => $user->email,
+        'email' => $user->emailForDisplay(),
         'user_id' => $user->id,
     ]);
 
@@ -724,7 +724,7 @@ test('SECURITY: a wrong date of birth invalidates the token immediately (single-
     // First attempt: wrong DOB → generic 422
     $this->withSession([])->postJson('/v1/onboarding/complete', [
         'token' => $tokenData['plain'],
-        'email' => $user->email,
+        'email' => $user->emailForDisplay(),
         'password' => 'SecurePassword123!',
         'first_name' => 'John',
         'last_name' => 'Doe',
@@ -765,7 +765,7 @@ test('SECURITY: a retry on a burned token (even with correct details) is rejecte
         'first_name' => 'John',
         'last_name' => 'Doe',
         'date_of_birth' => '1990-04-15',
-        'email' => $user->email,
+        'email' => $user->emailForDisplay(),
         'user_id' => $user->id,
     ]);
 
@@ -774,7 +774,7 @@ test('SECURITY: a retry on a burned token (even with correct details) is rejecte
     // First attempt: wrong DOB burns the token.
     $this->withSession([])->postJson('/v1/onboarding/complete', [
         'token' => $tokenData['plain'],
-        'email' => $user->email,
+        'email' => $user->emailForDisplay(),
         'password' => 'SecurePassword123!',
         'first_name' => 'John',
         'last_name' => 'Doe',
@@ -785,7 +785,7 @@ test('SECURITY: a retry on a burned token (even with correct details) is rejecte
     // "invalid or expired" — exactly like a stale token, leaking nothing extra.
     $this->withSession([])->postJson('/v1/onboarding/complete', [
         'token' => $tokenData['plain'],
-        'email' => $user->email,
+        'email' => $user->emailForDisplay(),
         'password' => 'SecurePassword123!',
         'first_name' => 'John',
         'last_name' => 'Doe',
@@ -810,7 +810,7 @@ test('SECURITY: a too-different name also invalidates the token immediately', fu
         'first_name' => 'Hans',
         'last_name' => 'Müller',
         'date_of_birth' => '1985-06-10',
-        'email' => $user->email,
+        'email' => $user->emailForDisplay(),
         'user_id' => $user->id,
     ]);
 
@@ -819,7 +819,7 @@ test('SECURITY: a too-different name also invalidates the token immediately', fu
 
     $this->withSession([])->postJson('/v1/onboarding/complete', [
         'token' => $tokenData['plain'],
-        'email' => $user->email,
+        'email' => $user->emailForDisplay(),
         'password' => 'SecurePassword123!',
         'first_name' => 'Maria', // major change (<50% similar)
         'last_name' => 'Schmidt',
@@ -843,7 +843,7 @@ test('SECURITY: the identity-mismatch event is written to the activity log', fun
         'first_name' => 'John',
         'last_name' => 'Doe',
         'date_of_birth' => '1990-04-15',
-        'email' => $user->email,
+        'email' => $user->emailForDisplay(),
         'user_id' => $user->id,
     ]);
 
@@ -851,7 +851,7 @@ test('SECURITY: the identity-mismatch event is written to the activity log', fun
 
     $this->withSession([])->postJson('/v1/onboarding/complete', [
         'token' => $tokenData['plain'],
-        'email' => $user->email,
+        'email' => $user->emailForDisplay(),
         'password' => 'SecurePassword123!',
         'first_name' => 'John',
         'last_name' => 'Doe',
@@ -882,7 +882,7 @@ test('SECURITY: shape-validation failures (weak password) do NOT burn the token'
         'first_name' => 'John',
         'last_name' => 'Doe',
         'date_of_birth' => '1990-04-15',
-        'email' => $user->email,
+        'email' => $user->emailForDisplay(),
         'user_id' => $user->id,
     ]);
 
@@ -891,7 +891,7 @@ test('SECURITY: shape-validation failures (weak password) do NOT burn the token'
 
     $this->withSession([])->postJson('/v1/onboarding/complete', [
         'token' => $tokenData['plain'],
-        'email' => $user->email,
+        'email' => $user->emailForDisplay(),
         'password' => 'weak',
         'first_name' => 'John',
         'last_name' => 'Doe',
@@ -911,7 +911,7 @@ test('SECURITY: malformed date_of_birth does NOT burn the token', function () {
     /** @var Employee $employee */
     $employee = Employee::factory()->preContract()->create([
         'date_of_birth' => '1990-04-15',
-        'email' => $user->email,
+        'email' => $user->emailForDisplay(),
         'user_id' => $user->id,
     ]);
     $tokenData = EmployeeOnboardingToken::generate($employee);
@@ -919,7 +919,7 @@ test('SECURITY: malformed date_of_birth does NOT burn the token', function () {
 
     $this->withSession([])->postJson('/v1/onboarding/complete', [
         'token' => $tokenData['plain'],
-        'email' => $user->email,
+        'email' => $user->emailForDisplay(),
         'password' => 'SecurePassword123!',
         'first_name' => 'John',
         'last_name' => 'Doe',
@@ -943,7 +943,7 @@ test('SECURITY: pre-contract status mismatch does NOT burn the token', function 
         'first_name' => 'John',
         'last_name' => 'Doe',
         'date_of_birth' => '1990-04-15',
-        'email' => $user->email,
+        'email' => $user->emailForDisplay(),
         'user_id' => $user->id,
     ]);
     $tokenData = EmployeeOnboardingToken::generate($employee);
@@ -951,7 +951,7 @@ test('SECURITY: pre-contract status mismatch does NOT burn the token', function 
 
     $this->withSession([])->postJson('/v1/onboarding/complete', [
         'token' => $tokenData['plain'],
-        'email' => $user->email,
+        'email' => $user->emailForDisplay(),
         'password' => 'SecurePassword123!',
         'first_name' => 'John',
         'last_name' => 'Doe',
@@ -974,7 +974,7 @@ test('SECURITY: a successful onboarding does NOT mark the token as invalidated',
         'first_name' => 'John',
         'last_name' => 'Doe',
         'date_of_birth' => '1990-04-15',
-        'email' => $user->email,
+        'email' => $user->emailForDisplay(),
         'user_id' => $user->id,
     ]);
 
@@ -983,7 +983,7 @@ test('SECURITY: a successful onboarding does NOT mark the token as invalidated',
 
     $this->withSession([])->postJson('/v1/onboarding/complete', [
         'token' => $tokenData['plain'],
-        'email' => $user->email,
+        'email' => $user->emailForDisplay(),
         'password' => 'SecurePassword123!',
         'first_name' => 'John',
         'last_name' => 'Doe',
@@ -1008,7 +1008,7 @@ test('SECURITY: rejects too-different name with generic identity-verification er
         'first_name' => 'Hans',
         'last_name' => 'Müller',
         'date_of_birth' => '1985-06-10',
-        'email' => $user->email,
+        'email' => $user->emailForDisplay(),
         'user_id' => $user->id,
     ]);
 
@@ -1016,7 +1016,7 @@ test('SECURITY: rejects too-different name with generic identity-verification er
 
     $response = $this->withSession([])->postJson('/v1/onboarding/complete', [
         'token' => $tokenData['plain'],
-        'email' => $user->email,
+        'email' => $user->emailForDisplay(),
         'password' => 'SecurePassword123!',
         'first_name' => 'Maria', // major change (<50% similar) — would have leaked field error before
         'last_name' => 'Schmidt',
@@ -1050,7 +1050,7 @@ test('SECURITY: missing HR date_of_birth returns conflict without burning the to
         'first_name' => 'John',
         'last_name' => 'Doe',
         'date_of_birth' => null,
-        'email' => $user->email,
+        'email' => $user->emailForDisplay(),
         'user_id' => $user->id,
     ]);
 
@@ -1059,7 +1059,7 @@ test('SECURITY: missing HR date_of_birth returns conflict without burning the to
 
     $this->withSession([])->postJson('/v1/onboarding/complete', [
         'token' => $tokenData['plain'],
-        'email' => $user->email,
+        'email' => $user->emailForDisplay(),
         'password' => 'SecurePassword123!',
         'first_name' => 'John',
         'last_name' => 'Doe',
@@ -1084,7 +1084,7 @@ test('SECURITY: repeated 409 (missing HR DOB) counts toward the rate limit', fun
     /** @var Employee $employee */
     $employee = Employee::factory()->preContract()->create([
         'date_of_birth' => null,
-        'email' => $user->email,
+        'email' => $user->emailForDisplay(),
         'user_id' => $user->id,
     ]);
 
@@ -1092,7 +1092,7 @@ test('SECURITY: repeated 409 (missing HR DOB) counts toward the rate limit', fun
 
     $payload = [
         'token' => $tokenData['plain'],
-        'email' => $user->email,
+        'email' => $user->emailForDisplay(),
         'password' => 'SecurePassword123!',
         'first_name' => 'John',
         'last_name' => 'Doe',
@@ -1120,7 +1120,7 @@ test('SECURITY: stored DOB formatting differences do not burn a valid token', fu
         'first_name' => 'John',
         'last_name' => 'Doe',
         'date_of_birth' => '1990-1-1',
-        'email' => $user->email,
+        'email' => $user->emailForDisplay(),
         'user_id' => $user->id,
     ]);
 
@@ -1129,7 +1129,7 @@ test('SECURITY: stored DOB formatting differences do not burn a valid token', fu
 
     $this->withSession([])->postJson('/v1/onboarding/complete', [
         'token' => $tokenData['plain'],
-        'email' => $user->email,
+        'email' => $user->emailForDisplay(),
         'password' => 'SecurePassword123!',
         'first_name' => 'John',
         'last_name' => 'Doe',
@@ -1409,7 +1409,7 @@ test('synchronizes user name with employee name after onboarding', function () {
         'first_name' => 'Max',
         'last_name' => 'Mustermann',
         'date_of_birth' => '1990-01-01',
-        'email' => $user->email,
+        'email' => $user->emailForDisplay(),
         'user_id' => $user->id,
     ]);
 
@@ -1419,7 +1419,7 @@ test('synchronizes user name with employee name after onboarding', function () {
     // Complete onboarding with name change Max → Maximilian
     $response = $this->withSession([])->postJson('/v1/onboarding/complete', [
         'token' => $plainToken,
-        'email' => $user->email,
+        'email' => $user->emailForDisplay(),
         'password' => 'SecurePassword123!',
         'first_name' => 'Maximilian', // Name changed
         'last_name' => 'Mustermann',
@@ -1436,7 +1436,7 @@ test('synchronizes user name with employee name after onboarding', function () {
     // Assert: User name was synchronized with employee name (BUG FIX)
     $user->refresh();
     expect($user->name)->toBe('Maximilian Mustermann')
-        ->and($user->email)->toBe('max@secpal.dev');
+        ->and($user->emailForDisplay())->toBe('max@secpal.dev');
 
     // Assert: Response includes updated user name
     $response->assertJson([
@@ -1457,7 +1457,7 @@ test('creates activity log for automatic login after onboarding', function () {
         'first_name' => 'John',
         'last_name' => 'Doe',
         'date_of_birth' => '1990-01-01',
-        'email' => $user->email,
+        'email' => $user->emailForDisplay(),
         'user_id' => $user->id,
     ]);
 
@@ -1467,7 +1467,7 @@ test('creates activity log for automatic login after onboarding', function () {
     // Complete onboarding
     $response = $this->withSession([])->postJson('/v1/onboarding/complete', [
         'token' => $plainToken,
-        'email' => $user->email,
+        'email' => $user->emailForDisplay(),
         'password' => 'SecurePassword123!',
         'first_name' => 'John',
         'last_name' => 'Doe',
@@ -1504,7 +1504,7 @@ test('automatically logs user in with session after onboarding (no token)', func
         'first_name' => 'John',
         'last_name' => 'Doe',
         'date_of_birth' => '1990-01-01',
-        'email' => $user->email,
+        'email' => $user->emailForDisplay(),
         'user_id' => $user->id,
     ]);
 
@@ -1514,7 +1514,7 @@ test('automatically logs user in with session after onboarding (no token)', func
     // Complete onboarding
     $response = $this->withSession([])->postJson('/v1/onboarding/complete', [
         'token' => $plainToken,
-        'email' => $user->email,
+        'email' => $user->emailForDisplay(),
         'password' => 'SecurePassword123!',
         'first_name' => 'John',
         'last_name' => 'Doe',
@@ -1548,7 +1548,7 @@ test('sends HR notification when only first name changes with medium severity', 
         'first_name' => 'Max',
         'last_name' => 'Mustermann',
         'date_of_birth' => '1990-05-20',
-        'email' => $user->email,
+        'email' => $user->emailForDisplay(),
         'user_id' => $user->id,
     ]);
 
@@ -1559,7 +1559,7 @@ test('sends HR notification when only first name changes with medium severity', 
 
     $response = $this->withSession([])->postJson('/v1/onboarding/complete', [
         'token' => $plainToken,
-        'email' => $user->email,
+        'email' => $user->emailForDisplay(),
         'password' => 'SecurePassword123!',
         'first_name' => 'Maximilian', // Medium change (prefix pattern ~72% similar)
         'last_name' => 'Mustermann',  // Unchanged
@@ -1586,7 +1586,7 @@ test('sends HR notification when only last name changes with medium severity', f
         'first_name' => 'Hans',
         'last_name' => 'Müller',
         'date_of_birth' => '1978-09-09',
-        'email' => $user->email,
+        'email' => $user->emailForDisplay(),
         'user_id' => $user->id,
     ]);
 
@@ -1597,7 +1597,7 @@ test('sends HR notification when only last name changes with medium severity', f
 
     $response = $this->withSession([])->postJson('/v1/onboarding/complete', [
         'token' => $plainToken,
-        'email' => $user->email,
+        'email' => $user->emailForDisplay(),
         'password' => 'SecurePassword123!',
         'first_name' => 'Hans',                // Unchanged
         'last_name' => 'Müller-Schmidtmann',  // Medium change (prefix pattern ~73% similar)
@@ -1624,7 +1624,7 @@ test('sends HR notification when mixed severity changes occur', function () {
         'first_name' => 'Hanz',
         'last_name' => 'Schmidt',
         'date_of_birth' => '1982-12-12',
-        'email' => $user->email,
+        'email' => $user->emailForDisplay(),
         'user_id' => $user->id,
     ]);
 
@@ -1635,7 +1635,7 @@ test('sends HR notification when mixed severity changes occur', function () {
 
     $response = $this->withSession([])->postJson('/v1/onboarding/complete', [
         'token' => $plainToken,
-        'email' => $user->email,
+        'email' => $user->emailForDisplay(),
         'password' => 'SecurePassword123!',
         'first_name' => 'Hans',       // Minor change (typo correction, >80% similar)
         'last_name' => 'Schmidt-Weber', // Medium change (hyphenated addition)

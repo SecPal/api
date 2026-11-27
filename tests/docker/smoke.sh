@@ -159,6 +159,11 @@ podman run --rm --user 0 -v "${cert_dir}:/certs:z" "$postgres_image" \
     chown postgres:postgres /certs/server.key /certs/server.crt /certs/ca.crt
 operation='isolated-network-address'
 trusted_proxy=$(podman network inspect --format '{{(index .Subnets 0).Subnet}}' "$network")
+operation='synthetic-global-identity-root'
+identity_root="$tmp_dir/global-identity"
+mkdir -m 0700 "$identity_root"
+dd if=/dev/urandom of="$identity_root/smoke.1.key" bs=32 count=1 status=none
+chmod 0400 "$identity_root/smoke.1.key"
 operation='runtime-bootstrap-inputs'
 mkdir -m 0700 "$secret_root" "$secret_root/api" "$secret_root/database"
 printf '%s' "$app_key" > "$secret_root/api/app-key"
@@ -173,7 +178,7 @@ printf '%s\n' 'auto_prepend_file=/run/secpal/bootstrap/production-secret-bootstr
 {
     printf 'TRUSTED_PROXIES=%s\nAPP_URL=https://api.secpal.dev\nFRONTEND_URL=https://app.secpal.dev\n' "$trusted_proxy"
     printf 'CORS_ALLOWED_ORIGINS=https://app.secpal.dev\nSANCTUM_STATEFUL_DOMAINS=app.secpal.dev\n'
-    printf 'ADDRESS_DATA_IMPORT_ON_SETUP=false\nMAIL_MAILER=array\n'
+    printf 'ADDRESS_DATA_IMPORT_ON_SETUP=false\nMAIL_MAILER=array\nGLOBAL_IDENTITY_ROOT_DIRECTORY=/run/secpal/identity\n'
 } >"$api_env"
 chmod 0600 "$api_env"
 operation='postgres-start'
@@ -203,6 +208,7 @@ run_api() {
         --mount type=tmpfs,destination=/app/storage,tmpfs-mode=0750,chown=true \
         --mount type=tmpfs,destination=/app/bootstrap/cache,tmpfs-mode=0750,chown=true \
         -v "$secret_root:/run/secpal/secrets:ro,z" \
+        -v "$identity_root:/run/secpal/identity:ro,z" \
         -v "$bootstrap_source:/run/secpal/bootstrap/production-secret-bootstrap.php:ro,z" \
         -v "$bootstrap_ini:/usr/local/etc/php/conf.d/zzz-secpal-bootstrap.ini:ro,z" "$image" "$@" 2>/dev/null
 }
@@ -245,6 +251,10 @@ operation='runtime-migrations'
 run_api php artisan migrate --force >/dev/null
 operation='runtime-postgres-scram-and-tls'
 run_api php artisan tinker --execute='throw_unless(DB::scalar("SHOW password_encryption") === "scram-sha-256"); throw_unless(DB::scalar("SELECT ssl FROM pg_stat_ssl WHERE pid = pg_backend_pid()") === true);' >/dev/null
+operation='global-identity-registry-bootstrap'
+run_api php artisan identity:bootstrap smoke 1 --force --no-interaction >/dev/null
+operation='global-identity-root-ownership-and-access'
+run_api php -r 'exit(posix_geteuid() === 10001 && posix_getegid() === 10001 && is_readable("/run/secpal/identity/smoke.1.key") && ! is_writable("/run/secpal/identity") ? 0 : 1);'
 operation='tenant-key-setup'
 run_api php artisan tenant:setup >/dev/null
 # Drain scheduled work before creating audit rows. This exercises the real
@@ -255,13 +265,13 @@ run_api php artisan tinker --execute='throw_unless(DB::scalar("SELECT NOT rolsup
 # A real Sanctum token is captured locally; it is never printed in CI logs.
 operation='auth-token-fixture'
 # shellcheck disable=SC2016 # PHP variables must remain literal.
-token_output=$(run_api php artisan tinker --execute='$tenant = \App\Models\TenantKey::firstOrFail(); $user = \App\Models\User::forceCreate(["tenant_id" => $tenant->id, "name" => "Container smoke", "email" => "container-smoke@secpal.dev", "email_verified_at" => now(), "password" => bin2hex(random_bytes(32))]); echo "SMOKE-TOKEN:".$user->issueApiToken("container-smoke")->plainTextToken;')
+token_output=$(run_api php artisan tinker --execute='$tenant = \App\Models\TenantKey::firstOrFail(); $user = app(\App\Services\GlobalIdentity\GlobalIdentityAccounts::class)->create((new \App\Models\User)->forceFill(["tenant_id" => $tenant->id, "name" => "Container smoke", "email_verified_at" => now(), "password" => bin2hex(random_bytes(32))]), "container-smoke@secpal.dev"); echo "SMOKE-TOKEN:".$user->issueApiToken("container-smoke")->plainTextToken;')
 smoke_token=$(printf '%s\n' "$token_output" | sed -n 's/^SMOKE-TOKEN://p')
 test -n "$smoke_token"
 # Seed only disposable smoke data; use real application permissions and encryption.
 operation='employee-upload-fixture'
 # shellcheck disable=SC2016 # PHP variables must remain literal.
-employee_output=$(run_api php artisan tinker --execute='$tenant = \App\Models\TenantKey::firstOrFail(); $user = \App\Models\User::where("email", "container-smoke@secpal.dev")->firstOrFail(); $registrar = app(\Spatie\Permission\PermissionRegistrar::class); $registrar->setPermissionsTeamId($tenant->id); foreach (["employee_document.read", "employee_document.write"] as $permission) { $user->givePermissionTo(\App\Models\Permission::findOrCreate($permission, "sanctum")); } $registrar->forgetCachedPermissions(); $legal = \App\Models\LegalEntity::forceCreate(["tenant_id" => $tenant->id, "name" => "Container smoke"]); $site = \App\Models\Establishment::forceCreate(["tenant_id" => $tenant->id, "legal_entity_id" => $legal->id, "name" => "Container smoke"]); $employee = \App\Models\Employee::withoutEvents(fn () => \App\Models\Employee::forceCreate(["tenant_id" => $tenant->id, "legal_entity_id" => $legal->id, "establishment_id" => $site->id, "employee_number" => "CONTAINER-SMOKE", "first_name" => "Container", "last_name" => "Smoke", "contract_type" => "full_time", "status" => "applicant"])); echo "SMOKE-EMPLOYEE:".$employee->id;')
+employee_output=$(run_api php artisan tinker --execute='$tenant = \App\Models\TenantKey::firstOrFail(); $user = app(\App\Services\GlobalIdentity\GlobalIdentityAccounts::class)->find("CONTAINER-SMOKE@SECPAL.DEV"); throw_unless($user instanceof \App\Models\User); $registrar = app(\Spatie\Permission\PermissionRegistrar::class); $registrar->setPermissionsTeamId($tenant->id); foreach (["employee_document.read", "employee_document.write"] as $permission) { $user->givePermissionTo(\App\Models\Permission::findOrCreate($permission, "sanctum")); } $registrar->forgetCachedPermissions(); $legal = \App\Models\LegalEntity::forceCreate(["tenant_id" => $tenant->id, "name" => "Container smoke"]); $site = \App\Models\Establishment::forceCreate(["tenant_id" => $tenant->id, "legal_entity_id" => $legal->id, "name" => "Container smoke"]); $employee = \App\Models\Employee::withoutEvents(fn () => \App\Models\Employee::forceCreate(["tenant_id" => $tenant->id, "legal_entity_id" => $legal->id, "establishment_id" => $site->id, "employee_number" => "CONTAINER-SMOKE", "first_name" => "Container", "last_name" => "Smoke", "contract_type" => "full_time", "status" => "applicant"])); echo "SMOKE-EMPLOYEE:".$employee->id;')
 smoke_employee=$(printf '%s\n' "$employee_output" | sed -n 's/^SMOKE-EMPLOYEE://p')
 test -n "$smoke_employee"
 operation='activity-hash-fixture'
@@ -284,6 +294,7 @@ podman run -d --label "$owner_label" --name "$fpm" --network "$network" --env-fi
     --mount type=tmpfs,destination=/app/bootstrap/cache,tmpfs-mode=0750,chown=true \
     -v "$socket_dir:/run/secpal-fpm:rw,z" \
     -v "$secret_root:/run/secpal/secrets:ro,z" \
+        -v "$identity_root:/run/secpal/identity:ro,z" \
     -v "$bootstrap_source:/run/secpal/bootstrap/production-secret-bootstrap.php:ro,z" \
     -v "$bootstrap_ini:/usr/local/etc/php/conf.d/zzz-secpal-bootstrap.ini:ro,z" "$image" >/dev/null
 operation='nginx-start'

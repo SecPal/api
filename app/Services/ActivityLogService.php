@@ -6,6 +6,7 @@
 namespace App\Services;
 
 use App\Models\User;
+use App\Services\GlobalIdentity\GlobalIdentityAccounts;
 use Illuminate\Database\Eloquent\Model;
 use Spatie\Activitylog\Contracts\Activity;
 
@@ -46,7 +47,6 @@ class ActivityLogService
             ->withProperties([
                 'event' => 'login_success',
                 'user_id' => $user->id,
-                'user_email' => $user->email,
             ])
             ->tap(function ($activity) use ($primaryOrgUnitId) {
                 /** @var \App\Models\Activity $activity */
@@ -78,10 +78,9 @@ class ActivityLogService
      *
      * All cases are logged, including completely unknown emails for security auditing.
      */
-    public function logLoginFailed(string $email, string $reason): ?Activity
+    public function logLoginFailed(#[\SensitiveParameter] string $email, string $reason, ?User $user = null): ?Activity
     {
-        // Try to find user by email to get their tenant_id
-        $user = User::where('email', $email)->first();
+        $user ??= $email === '' ? null : app(GlobalIdentityAccounts::class)->find($email);
 
         // Determine tenant_id from server-side state only.
         if ($user !== null) {
@@ -129,7 +128,6 @@ class ActivityLogService
             'description' => 'Failed login attempt',
             'properties' => [
                 'event' => 'login_failed',
-                'email' => $email,
                 'reason' => $reason,
                 'user_exists' => $user !== null,
                 'employee_exists' => $employee !== null,
@@ -163,7 +161,6 @@ class ActivityLogService
             ->withProperties([
                 'event' => 'logout',
                 'user_id' => $user->id,
-                'user_email' => $user->email,
             ])
             ->tap(function ($activity) use ($primaryOrgUnitId) {
                 /** @var \App\Models\Activity $activity */
@@ -192,7 +189,6 @@ class ActivityLogService
             ->withProperties([
                 'event' => 'logout_all',
                 'user_id' => $user->id,
-                'user_email' => $user->email,
             ])
             ->tap(function ($activity) use ($primaryOrgUnitId) {
                 /** @var \App\Models\Activity $activity */
@@ -221,7 +217,6 @@ class ActivityLogService
             ->withProperties([
                 'event' => 'password_reset',
                 'user_id' => $user->id,
-                'user_email' => $user->email,
             ])
             ->tap(function ($activity) use ($primaryOrgUnitId) {
                 /** @var \App\Models\Activity $activity */
@@ -252,7 +247,6 @@ class ActivityLogService
             ->withProperties(array_merge([
                 'event' => $event,
                 'user_id' => $user->id,
-                'user_email' => $user->email,
             ], $properties))
             ->tap(function ($activity) use ($primaryOrgUnitId) {
                 /** @var \App\Models\Activity $activity */
@@ -284,7 +278,6 @@ class ActivityLogService
             ->withProperties(array_merge([
                 'event' => 'mfa_reset_by_privileged_user',
                 'target_user_id' => $targetUser->id,
-                'target_user_email' => $targetUser->email,
                 'reason' => $reason,
             ], $properties))
             ->tap(function ($activity) use ($targetOrgUnitId) {
@@ -309,7 +302,6 @@ class ActivityLogService
             ->withProperties([
                 'event' => 'role_assigned',
                 'target_user_id' => $targetUser->id,
-                'target_user_email' => $targetUser->email,
                 'roles' => $roles,
                 'reason' => $reason,
             ])
@@ -331,7 +323,6 @@ class ActivityLogService
             ->withProperties([
                 'event' => 'role_revoked',
                 'target_user_id' => $targetUser->id,
-                'target_user_email' => $targetUser->email,
                 'roles' => $roles,
                 'reason' => $reason,
             ])
@@ -372,7 +363,6 @@ class ActivityLogService
             ->withProperties([
                 'event' => 'scope_changed',
                 'target_user_id' => $targetUser->id,
-                'target_user_email' => $targetUser->email,
                 'scope_type' => $scopeType, // 'site', 'organizational_unit'
                 'scope_id' => $scopeId,
                 'action' => $action, // 'granted' or 'revoked'

@@ -71,7 +71,7 @@ class PasskeyService
     /**
      * @return array<string, mixed>
      */
-    public function buildAuthenticationOptions(): array
+    public function buildAuthenticationOptions(bool $requireUserVerification = false): array
     {
         $timeout = $this->challengeTimeoutMs();
 
@@ -79,7 +79,7 @@ class PasskeyService
             random_bytes(32),
             rpId: $this->relyingPartyId(),
             allowCredentials: [],
-            userVerification: $this->userVerification(),
+            userVerification: $requireUserVerification ? 'required' : $this->userVerification(),
             timeout: $timeout,
         );
 
@@ -95,7 +95,7 @@ class PasskeyService
 
         $options = PublicKeyCredentialCreationOptions::create(
             PublicKeyCredentialRpEntity::create($this->relyingPartyName(), $this->relyingPartyId()),
-            PublicKeyCredentialUserEntity::create($user->email, $user->id, $user->name),
+            PublicKeyCredentialUserEntity::create($user->id, $user->id, $user->name),
             random_bytes(32),
             [
                 PublicKeyCredentialParameters::createPk(-7),
@@ -188,7 +188,7 @@ class PasskeyService
      * @param  array<string, mixed>  $credentialPayload
      * @return array{user: User, credential: PasskeyCredential}
      */
-    public function verifyAuthentication(array $storedOptions, array $credentialPayload): array
+    public function verifyAuthentication(array $storedOptions, array $credentialPayload, ?string $expectedUserId = null): array
     {
         $publicKeyCredential = $this->deserializeCredential($credentialPayload);
 
@@ -207,13 +207,13 @@ class PasskeyService
         $assertionResponse = $publicKeyCredential->response;
 
         /** @var array{user: User, credential: PasskeyCredential} $result */
-        $result = DB::transaction(function () use ($credentialId, $assertionResponse, $requestOptions): array {
+        $result = DB::transaction(function () use ($credentialId, $assertionResponse, $requestOptions, $expectedUserId): array {
             $credential = PasskeyCredential::query()
                 ->where('credential_id', $credentialId)
                 ->lockForUpdate()
                 ->first();
 
-            if (! $credential instanceof PasskeyCredential) {
+            if (! $credential instanceof PasskeyCredential || ($expectedUserId !== null && $credential->user_id !== $expectedUserId)) {
                 throw AuthenticatorResponseVerificationException::create('The passkey credential is invalid.');
             }
 

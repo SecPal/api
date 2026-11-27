@@ -20,7 +20,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
-uses(RefreshDatabase::class);
+uses(RefreshDatabase::class, Tests\Support\ManagesGlobalIdentityFixture::class);
 
 beforeEach(function (): void {
     $this->rootDirectory = sys_get_temp_dir().'/secpal-key-registry-'.bin2hex(random_bytes(12));
@@ -49,6 +49,7 @@ it('initializes each required purpose once and stores only authenticated wrapped
         'secpal/global-identity/email-encryption/v1',
         'secpal/global-identity/user-email-lookup/v1',
         'secpal/global-identity/user-email-reservation/v1',
+        'secpal/global-identity/authentication-rate-limit/v1',
         'secpal/global-identity/operation-delivery-secret/v1',
         'secpal/global-identity/invitation-address-encryption/v1',
         'secpal/global-identity/pending-email-change-encryption/v1',

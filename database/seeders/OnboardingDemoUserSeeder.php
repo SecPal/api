@@ -11,6 +11,7 @@ use App\Models\LegalEntity;
 use App\Models\OrganizationalUnit;
 use App\Models\TenantKey;
 use App\Models\User;
+use App\Services\GlobalIdentity\GlobalIdentityAccounts;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
@@ -37,14 +38,18 @@ class OnboardingDemoUserSeeder extends Seeder
                 ->where('name', 'SecPal Holding')
                 ->firstOrFail();
 
-            $user = User::query()->firstOrCreate(
-                ['email' => 'onboarding@example.com'],
-                [
+            $accounts = app(GlobalIdentityAccounts::class);
+            $user = $accounts->find('onboarding@example.com') ?? $accounts->create(
+                (new User)->forceFill([
                     'name' => 'John Doe',
                     'password' => Hash::make('password'),
                     'tenant_id' => $tenantId,
-                ],
+                ]),
+                'onboarding@example.com',
             );
+            if ($user->tenant_id !== $tenantId) {
+                throw new \LogicException('The synthetic address is already assigned to a different tenant.');
+            }
 
             $user->forceFill([
                 'name' => 'John Doe',
@@ -113,7 +118,7 @@ class OnboardingDemoUserSeeder extends Seeder
                 $employee->save();
             }
 
-            $this->command?->info('Onboarding demo user: onboarding@example.com / password (pre-contract, SecPal Holding).');
+            $this->command?->info('Onboarding demo account prepared.');
         });
     }
 

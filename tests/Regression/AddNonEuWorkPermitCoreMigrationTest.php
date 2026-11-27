@@ -10,7 +10,7 @@ use Symfony\Component\Process\Process;
 
 uses(TestCase::class);
 
-test('non-eu work permit core migration applies on sqlite-backed setups', function (): void {
+test('clean installation rejects SQLite before its PostgreSQL identity schema', function (): void {
     $repositoryRoot = dirname(__DIR__, 2);
     $databasePath = createTemporarySqliteDatabase('non-eu-work-permit-migration');
 
@@ -28,14 +28,8 @@ test('non-eu work permit core migration applies on sqlite-backed setups', functi
         }
     }
 
-    expect(preg_match(
-        '/2026_04_12_150000_add_non_eu_work_permit_core_to_employees_table\s+\d+(?:\.\d+)?(?:ms|s) DONE/',
-        $output,
-    ))->toBe(1, $output)
-        ->and(preg_match(
-            '/2026_04_12_150000_add_non_eu_work_permit_core_to_employees_table\s+\d+(?:\.\d+)?(?:ms|s) FAIL/',
-            $output,
-        ))->toBe(0, $output);
+    expect($process->isSuccessful())->toBeFalse()
+        ->and($output)->toContain('Global identity schema requires PostgreSQL.');
 });
 
 test('non-eu work permit core migration rewrites existing sqlite legacy permit values', function (): void {

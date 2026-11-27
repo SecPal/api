@@ -9,7 +9,7 @@ Laravel + Mailpit Email Testing
 
 ## Overview
 
-SecPal uses Laravel's Mail system with Mailpit for local email testing. All emails are queued for asynchronous dispatch to prevent blocking user requests.
+SecPal uses Laravel's Mail system with Mailpit for local email testing.
 
 ## Development Environment
 
@@ -31,185 +31,23 @@ MAIL_FROM_ADDRESS="noreply@secpal.app"
 MAIL_FROM_NAME="${APP_NAME}"
 ```
 
-## Security Rules
+## Identity mail
 
-1. **Never include sensitive tokens in email subjects** (logs may capture subjects)
-2. **Always queue emails** (never send immediately - use `Mail::queue()`)
-3. **URL-encode all query parameters** (emails, tokens, etc.)
-4. **Include expiry warnings** for time-sensitive links
-5. **No PII in logs** (tokens, emails, phone numbers)
+Password resets, active email verification and pending email changes dispatch
+`DeliverGlobalIdentityOperation` with the operation ID after database commit.
+The worker resolves the exact address and token only for the committed delivery
+attempt. The application-origin link carries the operation ID and verifier in
+its fragment. Submit the verifier in the request body to the corresponding
+identity-operation endpoint.
 
-## Creating a Mailable
+Set `GLOBAL_IDENTITY_MAILER` to a confined SMTP mailer for private previews.
+Identity mail excludes logging and log-based failover transports. Subjects,
+application logs, failed jobs and queue payloads contain no addresses, tokens,
+or full delivery URLs. Account notices queue employee and User references and
+resolve the address at the final delivery boundary.
 
-**Location**: `app/Mail/`
-
-**Example**: `app/Mail/PasswordResetMail.php`
-
-```php
-<?php
-
-namespace App\Mail;
-
-use App\Models\User;
-use Illuminate\Bus\Queueable;
-use Illuminate\Mail\Mailable;
-use Illuminate\Mail\Mailables\Content;
-use Illuminate\Mail\Mailables\Envelope;
-use Illuminate\Queue\SerializesModels;
-
-class PasswordResetMail extends Mailable
-{
-    use Queueable, SerializesModels;
-
-    /**
-     * Create a new message instance.
-     */
-    public function __construct(
-        public User $user,
-        public string $token
-    ) {}
-
-    /**
-     * Get the message envelope.
-     */
-    public function envelope(): Envelope
-    {
-        return new Envelope(
-            subject: 'Password Reset Request', // No PII/tokens here!
-        );
-    }
-
-    /**
-     * Get the message content definition.
-     */
-    public function content(): Content
-    {
-        // Build URL with proper encoding
-        $resetUrl = url('/reset-password?token=' . urlencode($this->token) . '&email=' . urlencode($this->user->email));
-
-        return new Content(
-            markdown: 'emails.password-reset',
-            with: [
-                'user' => $this->user,
-                'resetUrl' => $resetUrl,
-                'expiresInMinutes' => 60, // Match controller constant
-            ]
-        );
-    }
-}
-```
-
-## Email Templates
-
-**Location**: `resources/views/emails/`
-
-**Example**: `resources/views/emails/password-reset.blade.php`
-
-```blade
-@component('mail::message')
-# Password Reset Request
-
-Hello {{ $user->name }},
-
-We received a request to reset your password for your SecPal account.
-
-@component('mail::button', ['url' => $resetUrl])
-Reset Password
-@endcomponent
-
-**This link will expire in {{ $expiresInMinutes }} minutes.**
-
-If you didn't request a password reset, please ignore this email. Your password will not be changed.
-
-For security reasons, never share this email or link with anyone.
-
-Thanks,<br>
-{{ config('app.name') }}
-@endcomponent
-```
-
-## Dispatching Emails
-
-### Queue (Asynchronous - REQUIRED)
-
-```php
-use App\Mail\PasswordResetMail;
-use Illuminate\Support\Facades\Mail;
-
-// In controller
-Mail::to($user)->queue(new PasswordResetMail($user, $token));
-```
-
-### Immediate (NOT RECOMMENDED)
-
-```php
-// Only for critical system notifications
-Mail::to($user)->send(new PasswordResetMail($user, $token));
-```
-
-## Testing
-
-### Using Mail::fake()
-
-```php
-use App\Mail\PasswordResetMail;
-use App\Models\User;
-use Illuminate\Support\Facades\Mail;
-
-test('password reset email is queued', function () {
-    Mail::fake(); // Intercept all mail
-
-    $user = User::factory()->create(['email_plain' => 'test@example.com']);
-
-    // Trigger action that sends email
-    $this->postJson('/api/auth/password/reset-request', [
-        'email' => 'test@example.com'
-    ]);
-
-    // Assert email was queued (not sent immediately)
-    Mail::assertQueued(PasswordResetMail::class, function ($mail) use ($user) {
-        return $mail->hasTo($user->email);
-    });
-});
-
-test('email contains valid reset URL', function () {
-    Mail::fake();
-
-    $user = User::factory()->create(['email_plain' => 'test@example.com']);
-
-    $this->postJson('/api/auth/password/reset-request', [
-        'email' => 'test@example.com'
-    ]);
-
-    Mail::assertQueued(PasswordResetMail::class, function ($mail) {
-        // Access Mailable's public properties
-        expect($mail->token)->toBeString()->not->toBeEmpty();
-        return true;
-    });
-});
-
-test('email subject contains no PII', function () {
-    Mail::fake();
-
-    $user = User::factory()->create(['email_plain' => 'test@example.com']);
-
-    $this->postJson('/api/auth/password/reset-request', [
-        'email' => 'test@example.com'
-    ]);
-
-    Mail::assertQueued(PasswordResetMail::class, function ($mail) use ($user) {
-        $envelope = $mail->envelope();
-
-        // Subject must not contain email, token, or username
-        expect($envelope->subject)
-            ->not->toContain($user->email)
-            ->not->toContain($mail->token)
-            ->not->toContain($user->name);
-
-        return true;
-    });
-});
-```
+Use `Queue::fake()` to verify the operation ID on dispatch. Use a synthetic
+transport to exercise ambiguous handoff, redaction and lifecycle fencing.
 
 ### Manual Testing with Mailpit
 

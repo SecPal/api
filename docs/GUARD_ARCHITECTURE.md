@@ -250,7 +250,6 @@ return [
 
     'defaults' => [
         'guard' => env('AUTH_GUARD', 'sanctum'),  // ✅ API-only default
-        'passwords' => env('AUTH_PASSWORD_BROKER', 'users'),
     ],
 
     /*

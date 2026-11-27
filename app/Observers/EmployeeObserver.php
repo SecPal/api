@@ -9,6 +9,7 @@ use App\Mail\BwrIdDocumentAutoDeletedMail;
 use App\Models\Employee;
 use App\Models\TenantKey;
 use App\Models\User;
+use App\Services\GlobalIdentity\GlobalIdentityAccounts;
 use App\Traits\NormalizesPersonFields;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -141,7 +142,12 @@ class EmployeeObserver
     {
         try {
             DB::transaction(function () use ($employee) {
-                $existingUser = User::where('email', $employee->email)->first();
+                $address = $employee->email;
+                if ($address === null) {
+                    return;
+                }
+                $accounts = app(GlobalIdentityAccounts::class);
+                $existingUser = $accounts->find($address);
 
                 if ($existingUser) {
                     if ($existingUser->tenant_id !== $employee->tenant_id) {
@@ -181,13 +187,12 @@ class EmployeeObserver
                         'user_id' => $user->id,
                     ]);
                 } else {
-                    $user = User::create([
+                    $user = $accounts->create((new User)->forceFill([
                         'name' => $employee->first_name.' '.$employee->last_name,
-                        'email' => $employee->email,
                         'password' => Hash::make(Str::random(32)),
                         'email_verified_at' => null,
                         'tenant_id' => $employee->tenant_id,
-                    ]);
+                    ]), $address);
 
                     Log::info('Created new user account for employee', [
                         'employee_id' => $employee->id,
@@ -204,10 +209,9 @@ class EmployeeObserver
                     'onboarding_started_at' => $employee->onboarding_started_at ?? now(),
                 ]);
             });
-        } catch (\Exception $e) {
+        } catch (\Exception) {
             Log::error('User account creation failed for employee', [
                 'employee_id' => $employee->id,
-                'error' => $e->getMessage(),
             ]);
         }
     }

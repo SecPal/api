@@ -153,13 +153,13 @@ it('emits bounded MFA reset-token and bearer-token rejection semantics', functio
         ->getJson('/v1/me')
         ->assertUnauthorized();
 
-    $this->postJson('/v1/auth/password/reset', [
+    $this->postJson('/v1/auth/password-reset-requests/00000000-0000-4000-8000-000000000001/consume', [
         'email' => 'missing@example.test',
         'token' => 'synthetic-invalid-reset-token',
         'password' => 'ReplacementPassword123!',
         'password_confirmation' => 'ReplacementPassword123!',
-    ])->assertBadRequest()
-        ->assertExactJson(['message' => 'Invalid or expired reset token']);
+    ])->assertConflict()
+        ->assertExactJson(['message' => 'This operation is unavailable.', 'code' => 'IDENTITY_OPERATION_UNAVAILABLE']);
 
     expect($events)->toHaveCount(2)
         ->and($events[0]->toArray())->not->toHaveKey('actor_reference')
@@ -354,11 +354,11 @@ it('keeps known and unknown reset-token responses identical while pseudonymizing
         'password_confirmation' => 'ReplacementPassword123!',
     ];
 
-    $knownResponse = $this->postJson('/v1/auth/password/reset', [
+    $knownResponse = $this->postJson('/v1/auth/password-reset-requests/00000000-0000-4000-8000-000000000001/consume', [
         ...$payload,
         'email' => 'known-reset@example.test',
     ]);
-    $unknownResponse = $this->postJson('/v1/auth/password/reset', [
+    $unknownResponse = $this->postJson('/v1/auth/password-reset-requests/00000000-0000-4000-8000-000000000002/consume', [
         ...$payload,
         'email' => 'unknown-reset@example.test',
     ]);
@@ -390,9 +390,9 @@ it('emits a password-reset rate-limit signal without changing the public denial'
         $response = $this->postJson($endpoint, $payload);
 
         if ($phase === 'request') {
-            $response->assertOk();
+            $response->assertAccepted();
         } else {
-            $response->assertBadRequest();
+            $response->assertConflict();
         }
     }
 
@@ -408,12 +408,12 @@ it('emits a password-reset rate-limit signal without changing the public denial'
     ]);
 })->with([
     'request phase' => [
-        '/v1/auth/password/reset-request',
+        '/v1/auth/password-reset-requests',
         ['email' => 'reset-rate-limit@example.test'],
         'request',
     ],
     'confirmation phase' => [
-        '/v1/auth/password/reset',
+        '/v1/auth/password-reset-requests/00000000-0000-4000-8000-000000000001/consume',
         [
             'email' => 'reset-rate-limit@example.test',
             'token' => 'synthetic-invalid-reset-token',

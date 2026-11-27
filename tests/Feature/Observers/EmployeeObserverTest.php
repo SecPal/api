@@ -89,7 +89,7 @@ test('employee observer creates user account when status changes to pre_contract
 
     // User should be created
     expect($employee->user)->not->toBeNull();
-    expect($employee->user->email)->toBe('john.doe@example.com');
+    expect($employee->user->emailForDisplay())->toBe('john.doe@example.com');
 
     Mail::assertNothingQueued();
 });
@@ -119,7 +119,7 @@ test('employee observer reuses existing user account in same tenant', function (
 
     expect($employee->user)->not->toBeNull();
     expect($employee->user->id)->toBe($existingUser->id);
-    expect(User::where('email', 'existing@example.com')->count())->toBe(1);
+    expect(app(App\Services\GlobalIdentity\GlobalIdentityAccounts::class)->find('existing@example.com'))->toBeInstanceOf(User::class);
 
     Mail::assertNothingQueued();
 });
@@ -158,7 +158,7 @@ test('employee observer does not reuse user account from another tenant', functi
     expect($employee->user)->toBeNull();
     expect($employee->user_account_active)->toBeFalse();
     expect($employee->user_account_activated_at)->toBeNull();
-    expect(User::where('email', 'conflict@example.com')->count())->toBe(1);
+    expect(app(App\Services\GlobalIdentity\GlobalIdentityAccounts::class)->find('conflict@example.com'))->toBeInstanceOf(User::class);
     expect(User::whereKey($otherTenantUser->id)->value('tenant_id'))->toBe($otherTenant->id);
     expect($otherOrgUnit->tenant_id)->toBe($otherTenant->id);
 
@@ -187,9 +187,7 @@ test('employee observer does not reuse user account already linked to another em
 
     expect($firstEmployee->fresh()?->user_id)->toBe($existingUser->id);
 
-    $existingUser->forceFill([
-        'email' => 'duplicate@example.com',
-    ])->save();
+    app(App\Services\GlobalIdentity\IdentityLifecycle::class)->replaceProvenAddress($existingUser, 'duplicate@example.com');
 
     Mail::fake();
 
@@ -209,7 +207,7 @@ test('employee observer does not reuse user account already linked to another em
     expect($secondEmployee->user)->toBeNull();
     expect($secondEmployee->user_account_active)->toBeFalse();
     expect($secondEmployee->user_account_activated_at)->toBeNull();
-    expect(User::where('email', 'duplicate@example.com')->count())->toBe(1);
+    expect(app(App\Services\GlobalIdentity\GlobalIdentityAccounts::class)->find('duplicate@example.com'))->toBeInstanceOf(User::class);
     expect($existingUser->fresh()?->employee?->id)->toBe($firstEmployee->id);
 
     Mail::assertNothingQueued();
@@ -453,7 +451,7 @@ test('employee observer creates user immediately when status=pre_contract during
     // User account MUST be created automatically by Observer
     expect($employee->user_id)->not->toBeNull('User account was not created by Observer');
     expect($employee->user)->not->toBeNull('User relationship is null');
-    expect($employee->user->email)->toBe($employee->email);
+    expect($employee->user->emailForDisplay())->toBe($employee->email);
     expect($employee->user_account_active)->toBeTrue();
 
     expect($employee->onboarding_invitation_status)->toBe(Employee::INVITATION_STATUS_NOT_REQUESTED);

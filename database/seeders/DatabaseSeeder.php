@@ -8,6 +8,7 @@ namespace Database\Seeders;
 use App\Models\Permission;
 use App\Models\TenantKey;
 use App\Models\User;
+use App\Services\GlobalIdentity\GlobalIdentityAccounts;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 use Spatie\Permission\PermissionRegistrar;
@@ -36,6 +37,17 @@ class DatabaseSeeder extends Seeder
             $this->call(OnboardingDemoUserSeeder::class);
         }
 
+        if (app()->environment('local', 'testing', 'demo')) {
+            $this->seedPreviewAccount('password');
+        }
+    }
+
+    public function seedPreviewAccount(#[\SensitiveParameter] string $password): void
+    {
+        if (! app()->environment('local', 'testing', 'demo')) {
+            throw new \LogicException('Synthetic accounts require a development environment.');
+        }
+
         // Get tenant ID from created tenant key (OrganizationalUnitSeeder ensures it exists)
         $tenant = TenantKey::firstOrFail();
         $tenantId = $tenant->id;
@@ -44,14 +56,18 @@ class DatabaseSeeder extends Seeder
         app()[PermissionRegistrar::class]->setPermissionsTeamId($tenantId);
 
         // Create test user with direct permissions and full organizational scopes
-        $testUser = User::firstOrCreate(
-            ['email' => 'test@example.com'],
-            [
+        $accounts = app(GlobalIdentityAccounts::class);
+        $testUser = $accounts->find('test@example.com') ?? $accounts->create(
+            (new User)->forceFill([
                 'name' => 'Test User',
-                'password' => bcrypt('password'),
+                'password' => $password,
                 'tenant_id' => $tenantId,
-            ]
+            ]),
+            'test@example.com',
         );
+        if ($testUser->tenant_id !== $tenantId) {
+            throw new \LogicException('The synthetic address is already assigned to a different tenant.');
+        }
 
         if (! $testUser->hasVerifiedEmail()) {
             $testUser->forceFill([
