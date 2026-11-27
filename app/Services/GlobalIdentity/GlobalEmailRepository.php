@@ -283,15 +283,40 @@ final readonly class GlobalEmailRepository
 
     private function requireStoredVersions(GlobalEmailLookupVersions $versions, int $reservationVersion): void
     {
-        if (DB::table('users')->where('email_normalization_version', '<>', self::NORMALIZATION)
-            ->orWhereNotIn('email_idx_key_version', $versions->accepted)->exists()
-            || DB::table(GlobalEmailSchema::ROTATION_INDEXES)->where('normalization_version', '<>', self::NORMALIZATION)
-                ->orWhereNotIn('index_key_version', $versions->accepted)->exists()
-            || DB::table(GlobalEmailSchema::RESERVATIONS)->where('reservation_key_version', '<>', $reservationVersion)
-                ->orWhere('normalization_version', '<>', self::NORMALIZATION)
-                ->orWhereNotIn('index_key_version', $versions->accepted)->exists()) {
+        $accepted = array_map(static fn (int $version): array => [self::NORMALIZATION, $version], $versions->accepted);
+        $reservationTuples = array_map(static fn (array $pair): array => [...$pair, $reservationVersion], $accepted);
+
+        if (! $this->hasOnlyVersionTuples('users', ['email_normalization_version', 'email_idx_key_version'], $accepted)
+            || ! $this->hasOnlyVersionTuples(GlobalEmailSchema::ROTATION_INDEXES, ['normalization_version', 'index_key_version'], $accepted)
+            || ! $this->hasOnlyVersionTuples(GlobalEmailSchema::RESERVATIONS, ['normalization_version', 'index_key_version', 'reservation_key_version'], $reservationTuples)) {
             $this->reject('write', 'unaccepted_stored_version');
         }
+    }
+
+    /**
+     * Seek to the first row after each accepted tuple using the unique index
+     * prefix from GlobalEmailSchema. Each probe skips all rows for that tuple.
+     *
+     * @param  non-empty-list<string>  $columns
+     * @param  non-empty-list<list<int>>  $accepted
+     */
+    private function hasOnlyVersionTuples(string $table, array $columns, array $accepted): bool
+    {
+        $ordered = DB::table($table);
+        foreach ($columns as $column) {
+            $ordered->orderBy($column);
+        }
+
+        $row = (clone $ordered)->first($columns);
+        while ($row !== null) {
+            $tuple = array_values(get_object_vars($row));
+            if (! in_array($tuple, $accepted, true)) {
+                return false;
+            }
+            $row = (clone $ordered)->whereRowValues($columns, '>', $tuple)->first($columns);
+        }
+
+        return true;
     }
 
     /** @return array<int, string> */

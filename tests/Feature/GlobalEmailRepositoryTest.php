@@ -150,3 +150,32 @@ it('retains exact historical encryption and atomically activates a reserved addr
         ->and(fn () => $this->repository->withEmail($userId, 1, true, $deliver))->toThrow(GlobalIdentityKeyException::class)
         ->and(DB::table(GlobalEmailSchema::RESERVATIONS)->count())->toBe(0);
 });
+
+it('rejects stale write policies with bounded indexed version seeks', function (): void {
+    (new GlobalEmailSchema)->apply();
+    $this->repository->create(sealedEmailUser($this->tenant->id), 'source@secpal.app', $this->versions);
+    $this->registry->activate($this->registry->stage(Purpose::UserEmailLookup));
+    $operation = (string) Str::uuid();
+    expect(fn () => $this->repository->reserve($operation, 'new@secpal.app', new GlobalEmailLookupVersions(2, [2])))
+        ->toThrow(GlobalIdentityKeyException::class, 'Global email operation unavailable.');
+
+    DB::enableQueryLog();
+    try {
+        $this->repository->reserve($operation, 'new@secpal.app', new GlobalEmailLookupVersions(2, [2, 1]));
+        $queries = DB::getQueryLog();
+    } finally {
+        DB::disableQueryLog();
+        DB::flushQueryLog();
+    }
+
+    expect(implode("\n", array_column($queries, 'query')))->not->toContain('not in');
+    $seeks = array_values(array_filter($queries, static fn (array $entry): bool => str_contains(
+        $entry['query'],
+        'where ("email_normalization_version", "email_idx_key_version") > (?, ?)',
+    )));
+    expect($seeks)->toHaveCount(1);
+    DB::statement('SET LOCAL enable_seqscan = off');
+    $explanation = DB::select('EXPLAIN '.$seeks[0]['query'], $seeks[0]['bindings']);
+    expect(implode("\n", array_column($explanation, 'QUERY PLAN')))
+        ->toContain('users_global_email_unique', 'Index Cond:');
+});
