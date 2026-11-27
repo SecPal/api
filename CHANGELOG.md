@@ -42,6 +42,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Add the encrypted global email repository, versioned blind indexes,
+  reservation primitives and PostgreSQL schema for the coordinated identity
+  cutover (refs #3100, #3102).
+
 - Persist purpose-separated Global Identity working keys with exact-version
   resolution and transactional initialization and activation (refs #3099).
 

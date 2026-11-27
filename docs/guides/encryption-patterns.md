@@ -12,6 +12,7 @@ This document defines the encryption patterns used in SecPal for protecting sens
 - [Overview](#overview)
 - [Encryption Architecture](#encryption-architecture)
 - [Global Identity Key Wrapping](#global-identity-key-wrapping)
+- [Global User Email](#global-user-email)
 - [Pattern 1: Field-Level Encryption with Blind Indexes](#pattern-1-field-level-encryption-with-blind-indexes)
 - [Pattern 2: JSON Encryption](#pattern-2-json-encryption)
 - [When NOT to Encrypt](#when-not-to-encrypt)
@@ -173,6 +174,33 @@ command or HTTP entry point. Operational rotation and retirement are tracked
 in [#3116](https://github.com/SecPal/api/issues/3116), and custody and restore
 qualification are tracked in
 [SecPal/deployment#527](https://github.com/SecPal/deployment/issues/527).
+
+## Global User Email
+
+`GlobalEmailSchema::apply` defines the encrypted email columns on an unseeded
+`users` table and their PostgreSQL constraints. The isolated tests apply this
+definition to the normal users table. The coordinated cutover in
+[#3102](https://github.com/SecPal/api/issues/3102) owns its activation in the
+ordinary migration path and the conversion of active consumers.
+
+`GlobalEmailRepository` preserves the validated original address in the
+authenticated envelope. Exact lookup returns the User ID from the binary
+HMAC and its normalization and key versions. Display and delivery use a
+callback for an explicitly authorized User ID and expected email version.
+Delivery converts the domain to ASCII A-labels and preserves local-part case.
+The delivery protocol uses `checkEmailVersionForDispatch` in its final
+transaction before committing permission to send. That check locks the
+version row until commitment. Transport runs after the transaction commits.
+
+The write policy supplies an explicit set of accepted lookup key versions for
+normalization V1 and identifies the write version. Writes hold the registry
+lease and take PostgreSQL transaction-scoped locks for all accepted candidates
+in stable order. An independently wrapped HMAC key separates pending
+reservations from the user lookup index. During mixed lookup-key versions, the
+rotation table keeps alternate binary indexes for the same User. The caller
+owns operation state and expiry. Hold the applicable operation lock when
+consuming or releasing a reservation. The rotation and recovery workflow
+belongs to [#3116](https://github.com/SecPal/api/issues/3116).
 
 ## Pattern 1: Field-Level Encryption with Blind Indexes
 
