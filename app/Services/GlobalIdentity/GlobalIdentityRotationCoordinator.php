@@ -91,6 +91,10 @@ final readonly class GlobalIdentityRotationCoordinator
             }
         }
         if ($plan->kind === GlobalIdentityRotationKind::Root) {
+            if (GlobalIdentityRotation::query()->where('phase', 'paused')
+                ->where('scope->kind', GlobalIdentityRotationKind::Root->value)->exists()) {
+                $this->reject($plan->operationId, 'another_root_rotation_paused');
+            }
             if (! GlobalIdentityWorkingKey::query()->where('root_id', $plan->from->id)
                 ->where('root_version', $plan->from->version)->exists()) {
                 $this->reject($plan->operationId, 'source_root_missing');

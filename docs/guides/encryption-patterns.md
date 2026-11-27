@@ -300,7 +300,8 @@ fresh retention approval and zero live references, and keeps the wrapped
 record in the registry. The deployment recovery owner handles root retention.
 
 Root rewrap authenticates each exact old wrapper and wraps the same working key
-under the approved target root with a fresh nonce. Keep both versioned root
+under the approved target root with a fresh nonce. Resume a paused root rewrap
+before starting another root rewrap. Keep both versioned root
 files available throughout the transition and for every backup that references
 them. Restore a missing exact authority through its recovery owner. Permanent
 loss of the final required root makes the corresponding data unrecoverable.

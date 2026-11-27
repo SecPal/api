@@ -5,6 +5,7 @@
 
 declare(strict_types=1);
 
+use App\Exceptions\GlobalIdentityKeyException;
 use App\Services\GlobalIdentity\FileGlobalIdentityRootProvider;
 use App\Services\GlobalIdentity\GlobalIdentityKeyReference;
 use App\Services\GlobalIdentity\GlobalIdentityWorkingKeyContext;
@@ -49,17 +50,7 @@ it('serializes competing bootstraps and delays activation until the active write
                 $worker->start();
             }
             foreach ($activators as $worker) {
-                $worker->waitUntil(static fn (string $type, string $output): bool => preg_match('/^[0-9]+\n$/', $output) === 1);
-                $pid = (int) trim($worker->getOutput());
-                expect($pid)->toBeGreaterThan(0);
-                $deadline = microtime(true) + 5;
-                do {
-                    $blocked = (bool) DB::scalar('SELECT cardinality(pg_blocking_pids(?)) > 0', [$pid]);
-                    if (! $blocked) {
-                        usleep(10_000);
-                    }
-                } while (! $blocked && microtime(true) < $deadline);
-                expect($blocked)->toBeTrue();
+                expectRegistryWorkerToWait($worker);
             }
         });
 
@@ -77,7 +68,51 @@ it('serializes competing bootstraps and delays activation until the active write
     }
 });
 
-function registryWorker(string $directory, ?GlobalIdentityWorkingKeyContext $candidate = null): Process
+it('holds the delivery fence through exact key resolution and use', function (bool $byPurposeVersion): void {
+    $directory = sys_get_temp_dir().'/secpal-key-concurrency-'.bin2hex(random_bytes(12));
+    mkdir($directory, 0700);
+    $root = new GlobalIdentityKeyReference('root', 1);
+    (new FileGlobalIdentityRootProvider($directory))->provision($root);
+    config(['global_identity.root_directory' => $directory]);
+    $registry = app(GlobalIdentityWorkingKeyRegistry::class);
+    $registry->initialize($root);
+    $purpose = Purpose::OperationDeliverySecret;
+    $context = new GlobalIdentityWorkingKeyContext($purpose, $registry->activeReference($purpose));
+    $worker = registryWorker($directory, $context, blockDelivery: true);
+    $use = fn (Closure $callback): mixed => $byPurposeVersion
+        ? $registry->withPurposeVersion($purpose, $context->reference->version, $callback)
+        : $registry->withKey($context, $callback);
+
+    try {
+        $use(function () use ($worker): void {
+            $worker->start();
+            expectRegistryWorkerToWait($worker);
+        });
+        expect($worker->wait())->toBe(0)
+            ->and(fn () => $use(static fn (): bool => true))->toThrow(GlobalIdentityKeyException::class);
+    } finally {
+        $worker->stop();
+        (new Filesystem)->deleteDirectory($directory);
+        DB::table('global_identity_working_keys')->delete();
+    }
+})->with([false, true]);
+
+function expectRegistryWorkerToWait(Process $worker): void
+{
+    $worker->waitUntil(static fn (string $type, string $output): bool => preg_match('/^[0-9]+\n$/', $output) === 1);
+    $pid = (int) trim($worker->getOutput());
+    expect($pid)->toBeGreaterThan(0);
+    $deadline = microtime(true) + 5;
+    do {
+        $blocked = (bool) DB::scalar('SELECT cardinality(pg_blocking_pids(?)) > 0', [$pid]);
+        if (! $blocked) {
+            usleep(10_000);
+        }
+    } while (! $blocked && $worker->isRunning() && microtime(true) < $deadline);
+    expect($blocked)->toBeTrue();
+}
+
+function registryWorker(string $directory, ?GlobalIdentityWorkingKeyContext $candidate = null, bool $blockDelivery = false): Process
 {
     $script = <<<'WORKER'
     require 'vendor/autoload.php';
@@ -89,6 +124,11 @@ function registryWorker(string $directory, ?GlobalIdentityWorkingKeyContext $can
     $registry = $app->make(App\Services\GlobalIdentity\GlobalIdentityWorkingKeyRegistry::class);
     if ($argv[1] === '') {
         $registry->initialize(new App\Services\GlobalIdentity\GlobalIdentityKeyReference('root', 1));
+    } elseif ($argv[3] === 'block') {
+        $registry->blockDeliveryVersion(
+            new App\Services\GlobalIdentity\GlobalIdentityKeyReference($argv[1], (int) $argv[2]),
+            App\Services\GlobalIdentity\GlobalIdentityTerminalReason::SecurityRevoked,
+        );
     } else {
         $registry->activate(new App\Services\GlobalIdentity\GlobalIdentityWorkingKeyContext(
             App\Services\GlobalIdentity\GlobalIdentityWorkingKeyPurpose::EmailEncryption,
@@ -98,7 +138,7 @@ function registryWorker(string $directory, ?GlobalIdentityWorkingKeyContext $can
     WORKER;
 
     return new Process(
-        [PHP_BINARY, '-r', $script, $candidate?->reference->id ?? '', (string) $candidate?->reference->version],
+        [PHP_BINARY, '-r', $script, $candidate?->reference->id ?? '', (string) $candidate?->reference->version, $blockDelivery ? 'block' : 'activate'],
         base_path(),
         [
             'APP_ENV' => 'testing',

@@ -197,6 +197,33 @@ it('keeps a partial root rewrap batch intact when an exact target root is unavai
     expect($this->registry->rewrapRootBatch($this->root, $next, 10))->toBe(6);
 });
 
+it('rejects starting another root rewrap while a prior root checkpoint is paused', function (): void {
+    $this->registry->initialize($this->root);
+    $target = new GlobalIdentityKeyReference('root', 2);
+    $laterTarget = new GlobalIdentityKeyReference('root', 3);
+    $this->provider->provision($target);
+    $this->provider->provision($laterTarget);
+    app()->instance(GlobalIdentityWorkingKeyRegistry::class, $this->registry);
+    $first = (string) Str::uuid();
+    $later = (string) Str::uuid();
+    $authority = Mockery::mock(GlobalIdentityRotationAuthority::class);
+    $authority->shouldReceive('approvedPlan')->with($first, Mockery::type('string'))
+        ->andReturn(new GlobalIdentityRotationPlan($first, GlobalIdentityRotationKind::Root, $this->root, $target));
+    $authority->shouldReceive('approvedPlan')->with($later, 'start')
+        ->andReturn(new GlobalIdentityRotationPlan($later, GlobalIdentityRotationKind::Root, $target, $laterTarget));
+    app()->instance(GlobalIdentityRotationAuthority::class, $authority);
+    $this->artisan('identity:rotation', ['operation' => $first, 'action' => 'start'])->assertSuccessful();
+    $this->artisan('identity:rotation', ['operation' => $first, 'action' => 'advance', '--batch' => 3])->assertSuccessful();
+    $this->artisan('identity:rotation', ['operation' => $first, 'action' => 'pause'])->assertSuccessful();
+    $this->artisan('identity:rotation', ['operation' => $later, 'action' => 'start'])->assertFailed();
+
+    expect(DB::table('global_identity_rotations')->count())->toBe(1)
+        ->and(DB::table('global_identity_working_keys')->where('root_version', 2)->count())->toBe(3);
+    $this->artisan('identity:rotation', ['operation' => $first, 'action' => 'resume'])->assertSuccessful();
+    $this->artisan('identity:rotation', ['operation' => $first, 'action' => 'advance'])->assertSuccessful();
+    $this->artisan('identity:rotation', ['operation' => $first, 'action' => 'complete'])->assertSuccessful();
+});
+
 it('opens restored encrypted identity state before, during and after root rewrap using only the exact roots', function (): void {
     $directory = $this->rootDirectory;
     $this->registry->initialize($this->root);

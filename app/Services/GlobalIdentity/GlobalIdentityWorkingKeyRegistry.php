@@ -417,9 +417,11 @@ final readonly class GlobalIdentityWorkingKeyRegistry
      */
     public function withKey(GlobalIdentityWorkingKeyContext $context, Closure $use): mixed
     {
-        $record = $this->exactRecord($context, 'resolve');
+        return $this->withReadLease(function () use ($context, $use): mixed {
+            $record = $this->exactRecord($context, 'resolve');
 
-        return $this->withReadableRecord($record, $context, $use);
+            return $this->withReadableRecord($record, $context, $use);
+        });
     }
 
     /**
@@ -432,11 +434,13 @@ final readonly class GlobalIdentityWorkingKeyRegistry
      */
     public function withPurposeVersion(GlobalIdentityWorkingKeyPurpose $purpose, int $version, Closure $use): mixed
     {
-        $record = GlobalIdentityWorkingKey::envelopeQuery()->where('purpose', $purpose->value)
-            ->where('key_version', $version)->first()
-            ?? $this->reject('resolve', 'missing_version', $purpose);
+        return $this->withReadLease(function () use ($purpose, $version, $use): mixed {
+            $record = GlobalIdentityWorkingKey::envelopeQuery()->where('purpose', $purpose->value)
+                ->where('key_version', $version)->first()
+                ?? $this->reject('resolve', 'missing_version', $purpose);
 
-        return $this->withReadableRecord($record, $this->context($purpose, $record), $use);
+            return $this->withReadableRecord($record, $this->context($purpose, $record), $use);
+        });
     }
 
     /**
