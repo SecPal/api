@@ -15,6 +15,7 @@ use App\Services\ActivityLogService;
 use Closure;
 use Illuminate\Auth\Events\Verified;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use SensitiveParameter;
@@ -83,7 +84,10 @@ final readonly class IdentityLifecycle
                 if ($type === GlobalIdentityOperationType::PendingEmailChange) {
                     $this->activateEmail($operation, $user);
                 } else {
-                    $user->forceFill(['password' => $password])->save();
+                    if ($password === null) {
+                        throw new GlobalIdentityKeyException('Password reset material unavailable.');
+                    }
+                    $user->forceFill(['password' => Hash::make($password)])->save();
                 }
                 $user->forceFill(['remember_token' => null])->save();
                 $user->tokens()->delete();

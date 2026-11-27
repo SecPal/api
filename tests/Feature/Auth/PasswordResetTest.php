@@ -69,6 +69,16 @@ it('rejects invalid proof without changing the password', function (): void {
     expect($user->fresh()->password)->toBe($user->password);
 });
 
+it('treats the submitted reset password as plaintext even when it has a hash format', function (): void {
+    $user = User::factory()->create();
+    [$path, $token] = issueResetProof($user);
+    $submitted = Hash::make('Synthetic-New-Password-937!');
+
+    $this->postJson($path, ['token' => $token, 'password' => $submitted])->assertNoContent();
+
+    expect(Hash::check($submitted, $user->fresh()->password))->toBeTrue();
+});
+
 it('revokes the pending email change and releases its reservation on password reset', function (): void {
     Queue::fake();
     $user = User::factory()->create();

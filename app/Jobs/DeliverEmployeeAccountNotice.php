@@ -14,7 +14,7 @@ use App\Services\GlobalIdentity\GlobalEmailRepository;
 use App\Services\GlobalIdentity\IdentityMailDelivery;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
-use Illuminate\Support\Facades\Log;
+use RuntimeException;
 use SensitiveParameter;
 use Throwable;
 
@@ -33,18 +33,21 @@ final class DeliverEmployeeAccountNotice implements ShouldQueue
 
     public function handle(GlobalEmailRepository $email, IdentityMailDelivery $delivery): void
     {
-        $employee = Employee::query()->where('user_id', $this->userId)->find($this->employeeId);
-        if ($employee === null) {
-            return;
-        }
         try {
+            $employee = Employee::query()->where('user_id', $this->userId)
+                ->whereHas('user', fn ($query) => $query->where('email_version', $this->emailVersion))
+                ->find($this->employeeId);
+            if ($employee === null) {
+                return;
+            }
+
             $email->withEmail($this->userId, $this->emailVersion, true, function (#[SensitiveParameter] string $recipient) use ($employee, $delivery): void {
                 $delivery->mailer()->sendNow(
                     ($this->activated ? new WelcomeActiveMail($employee) : new AccountDeactivatedMail($employee))->to($recipient),
                 );
             });
         } catch (Throwable) {
-            Log::warning('Employee account notification failed.', ['employee_id' => $this->employeeId, 'user_id' => $this->userId]);
+            throw new RuntimeException('Employee account notice delivery failed.');
         }
     }
 }
