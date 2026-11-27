@@ -72,6 +72,51 @@ it('re-encrypts a user at the exact active version without rotating address auth
         ->and(fn () => $registry->withKey($source, fn (): bool => true))->toThrow(GlobalIdentityKeyException::class);
 });
 
+it('blocks retirement when a stored encryption reference cannot be reconciled', function (bool $retainId): void {
+    $user = User::factory()->create();
+    $registry = app(GlobalIdentityWorkingKeyRegistry::class);
+    $purpose = GlobalIdentityWorkingKeyPurpose::EmailEncryption;
+    $source = $registry->withActiveKey($purpose, static fn (#[SensitiveParameter] string $key, $context) => $context);
+    $registry->activate($registry->stage($purpose));
+    $row = DB::table('users')->where('id', $user->id);
+    $envelope = json_decode($row->value('email_enc'), true, flags: JSON_THROW_ON_ERROR);
+    if ($retainId) {
+        $envelope['key_version'] = 99;
+    } else {
+        unset($envelope['key_id']);
+    }
+    $row->update(['email_enc' => json_encode($envelope, JSON_THROW_ON_ERROR)]);
+
+    $references = app(GlobalIdentityKeyReferences::class);
+    expect(fn () => $registry->retire($source, fn (): bool => $references->hasLiveReference($source)))
+        ->toThrow(GlobalIdentityKeyException::class)
+        ->and($registry->withKey($source, static fn (): bool => true))->toBeTrue();
+})->with([false, true]);
+
+it('keeps a paused checkpoint fenced to its approved exact target after another rotation', function (): void {
+    $purpose = GlobalIdentityWorkingKeyPurpose::EmailEncryption;
+    $registry = app(GlobalIdentityWorkingKeyRegistry::class);
+    $from = $registry->activeReference($purpose);
+    $initial = (string) Str::uuid();
+    $later = (string) Str::uuid();
+    $firstTarget = new GlobalIdentityKeyReference($from->id, $from->version + 1);
+    $laterTarget = new GlobalIdentityKeyReference($from->id, $from->version + 2);
+    $authority = Mockery::mock(GlobalIdentityRotationAuthority::class);
+    $authority->shouldReceive('approvedPlan')->with($initial, Mockery::type('string'))
+        ->andReturn(new GlobalIdentityRotationPlan($initial, GlobalIdentityRotationKind::Working, $from, $firstTarget, $purpose));
+    $authority->shouldReceive('approvedPlan')->with($later, Mockery::type('string'))
+        ->andReturn(new GlobalIdentityRotationPlan($later, GlobalIdentityRotationKind::Working, $firstTarget, $laterTarget, $purpose));
+    app()->instance(GlobalIdentityRotationAuthority::class, $authority);
+    $rotation = app(GlobalIdentityRotationCoordinator::class);
+    $rotation->execute($initial, 'start', 10);
+    $rotation->execute($initial, 'pause', 10);
+    $rotation->execute($later, 'start', 10);
+    $rotation->execute($later, 'advance', 10);
+    expect($rotation->execute($later, 'complete', 10)['phase'])->toBe('complete')
+        ->and(fn () => $rotation->execute($initial, 'resume', 10))->toThrow(GlobalIdentityKeyException::class)
+        ->and($rotation->execute($initial, 'status', 10)['phase'])->toBe('paused');
+});
+
 it('reads both lookup versions and migrates a verified index without changing the identity', function (): void {
     $email = 'Existing+Index@secpal.dev';
     $accounts = app(GlobalIdentityAccounts::class);

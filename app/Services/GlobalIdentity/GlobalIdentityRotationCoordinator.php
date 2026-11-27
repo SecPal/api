@@ -136,6 +136,7 @@ final readonly class GlobalIdentityRotationCoordinator
 
     private function advance(GlobalIdentityRotation $checkpoint, GlobalIdentityRotationPlan $plan, int $limit): void
     {
+        $this->requireActiveTarget($plan, $checkpoint->phase);
         switch ($checkpoint->phase) {
             case 'rewrap':
                 $changed = $this->keys->rewrapRootBatch($plan->from, $plan->to, $limit);
@@ -237,6 +238,7 @@ final readonly class GlobalIdentityRotationCoordinator
         if ($checkpoint->phase !== 'verify') {
             $this->reject($plan->operationId, 'rotation_incomplete');
         }
+        $this->requireActiveTarget($plan, $checkpoint->phase);
         if ($plan->kind === GlobalIdentityRotationKind::Root
             && GlobalIdentityWorkingKey::query()->where('root_id', $plan->from->id)->where('root_version', $plan->from->version)->exists()) {
             $this->reject($plan->operationId, 'root_references_remain');
@@ -273,6 +275,7 @@ final readonly class GlobalIdentityRotationCoordinator
             if ($checkpoint->resume_phase === null || $this->hasRunningRotation()) {
                 $this->reject($plan->operationId, 'rotation_cannot_resume');
             }
+            $this->requireActiveTarget($plan, $checkpoint->resume_phase);
             $values = ['phase' => $checkpoint->resume_phase, 'resume_phase' => null];
         }
         if (! $checkpoint->update($values)) {
@@ -284,6 +287,18 @@ final readonly class GlobalIdentityRotationCoordinator
     private function hasRunningRotation(): bool
     {
         return GlobalIdentityRotation::query()->whereNotIn('phase', ['complete', 'paused'])->exists();
+    }
+
+    private function requireActiveTarget(GlobalIdentityRotationPlan $plan, string $phase): void
+    {
+        $purpose = $plan->purpose;
+        if ($purpose === null || in_array($phase, ['revoke', 'activate', 'paused', 'complete'], true)) {
+            return;
+        }
+        $expected = $phase === 'drain' && $purpose === GlobalIdentityWorkingKeyPurpose::UserEmailReservation ? $plan->from : $plan->to;
+        if ($this->keys->activeReference($purpose) != $expected) {
+            $this->reject($plan->operationId, 'target_key_changed');
+        }
     }
 
     private function sourceContext(GlobalIdentityRotationPlan $plan): GlobalIdentityWorkingKeyContext
