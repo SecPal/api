@@ -8,9 +8,11 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Models\Employment\EmploymentPeriod;
+use App\Models\Employment\EmploymentPeriodEnd;
 use App\Models\Employment\EmploymentTermsVersion;
 use App\Repositories\EmploymentRepository;
 use DateTimeInterface;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
@@ -83,23 +85,25 @@ final readonly class EmploymentService
         });
     }
 
-    /**
-     * Resolve terms inside the period's current authoritative validity.
-     * The optional recording cutoff applies to terms revisions.
-     */
+    /** Resolve applicable terms. Pin the returned version ID to replay prior decisions. */
     public function termsAt(
         int $tenantId,
         string $periodId,
         DateTimeInterface $at,
-        ?DateTimeInterface $knownAt = null,
     ): ?EmploymentTermsVersion {
-        return $this->employment->termsAt($tenantId, $periodId, $at, $knownAt);
+        return $this->employment->termsAt($tenantId, $periodId, $at);
     }
 
     /** Retrieve an exact version previously cited by a calculation or personnel record. */
     public function version(int $tenantId, string $periodId, string $versionId): EmploymentTermsVersion
     {
         return $this->employment->version($tenantId, $periodId, $versionId);
+    }
+
+    /** @return Collection<int, EmploymentPeriodEnd> */
+    public function endHistory(int $tenantId, string $periodId): Collection
+    {
+        return $this->employment->endHistory($tenantId, $periodId);
     }
 
     /** @return array{current: ?EmploymentPeriod, future: ?EmploymentPeriod} */

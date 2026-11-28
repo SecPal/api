@@ -12,6 +12,7 @@ use App\Exceptions\CorruptedEncryptedAttributeException;
 use App\Models\TenantEncryptedModel;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use JsonException;
 use SensitiveParameter;
 
 /**
@@ -37,7 +38,7 @@ final class EmploymentTermsVersion extends TenantEncryptedModel
     /** @var list<string> */
     protected $fillable = [
         'tenant_id', 'employee_id', 'employment_period_id', 'evidence_id',
-        'replaces_id', 'effective_from', 'conditions_plain',
+        'replaces_id', 'effective_from',
     ];
 
     /** @var list<string> */
@@ -54,9 +55,20 @@ final class EmploymentTermsVersion extends TenantEncryptedModel
     }
 
     /** @param array<string, mixed> $conditions */
-    public function setConditionsPlainAttribute(#[SensitiveParameter] array $conditions): void
+    public function setConditionsPlain(#[SensitiveParameter] array $conditions): void
     {
-        $this->setAttribute('conditions_enc', json_encode($conditions, JSON_THROW_ON_ERROR | JSON_PRESERVE_ZERO_FRACTION));
+        try {
+            $payload = json_encode($conditions, JSON_THROW_ON_ERROR | JSON_PRESERVE_ZERO_FRACTION);
+        } catch (JsonException) {
+            throw new CorruptedEncryptedAttributeException('Employment conditions could not be encoded.');
+        }
+
+        try {
+            $this->attributes['conditions_enc'] = app(EncryptedWithDek::class)
+                ->set($this, 'conditions_enc', $payload, $this->attributes);
+        } finally {
+            sodium_memzero($payload);
+        }
     }
 
     /** @return array<string, mixed> */

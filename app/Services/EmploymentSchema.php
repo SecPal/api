@@ -11,7 +11,11 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
-/** Install the employment authority against the functional Employee and its evidence at cutover. */
+/**
+ * Install the employment authority at the coordinated cutover. The retained
+ * history requires the qualified #3113 replacement for blanket Employee purge
+ * before any active installation calls this definition.
+ */
 final class EmploymentSchema
 {
     public function apply(): void
@@ -41,6 +45,21 @@ final class EmploymentSchema
                 $table->foreign(['employee_id', 'end_evidence_id'], 'employment_periods_end_evidence_foreign')
                     ->references(['employee_id', 'id'])->on('employee_documents')->restrictOnDelete();
                 $table->index(['tenant_id', 'employee_id', 'valid_from']);
+            });
+
+            Schema::create('employment_period_ends', function (Blueprint $table): void {
+                $table->id();
+                $table->foreignId('tenant_id')->constrained('tenants')->restrictOnDelete();
+                $table->uuid('employee_id');
+                $table->uuid('employment_period_id');
+                $table->uuid('evidence_id');
+                $table->timestampTz('valid_until', 6);
+                $table->timestampTz('recorded_at', 6);
+                $table->unique(['tenant_id', 'employment_period_id', 'valid_until'], 'employment_ends_boundary_unique');
+                $table->foreign(['tenant_id', 'employee_id', 'employment_period_id'], 'employment_ends_period_foreign')
+                    ->references(['tenant_id', 'employee_id', 'id'])->on('employment_periods')->restrictOnDelete();
+                $table->foreign(['employee_id', 'evidence_id'], 'employment_ends_evidence_foreign')
+                    ->references(['employee_id', 'id'])->on('employee_documents')->restrictOnDelete();
             });
 
             Schema::create('employment_terms_versions', function (Blueprint $table): void {
@@ -107,11 +126,69 @@ final class EmploymentSchema
                     BEFORE TRUNCATE ON employment_periods
                     FOR EACH STATEMENT EXECUTE FUNCTION enforce_employment_period_history();
 
+                CREATE FUNCTION record_employment_period_end() RETURNS trigger
+                LANGUAGE plpgsql SET search_path TO pg_catalog, pg_temp AS $$
+                BEGIN
+                    IF NEW.valid_until IS NOT NULL
+                        AND (TG_OP = 'INSERT' OR NEW.valid_until IS DISTINCT FROM OLD.valid_until) THEN
+                        EXECUTE format(
+                            'INSERT INTO %I.employment_period_ends
+                             (tenant_id, employee_id, employment_period_id, valid_until, evidence_id)
+                             VALUES ($1, $2, $3, $4, $5)', TG_TABLE_SCHEMA
+                        ) USING NEW.tenant_id, NEW.employee_id, NEW.id, NEW.valid_until, NEW.end_evidence_id;
+                    END IF;
+
+                    RETURN NEW;
+                END;
+                $$;
+
+                CREATE FUNCTION enforce_employment_end_history() RETURNS trigger
+                LANGUAGE plpgsql SET search_path TO pg_catalog, pg_temp AS $$
+                DECLARE
+                    current_end boolean;
+                BEGIN
+                    IF TG_OP <> 'INSERT' THEN
+                        RAISE EXCEPTION 'Employment end decisions are immutable' USING ERRCODE = '23514';
+                    END IF;
+                    IF NEW.recorded_at IS NOT NULL THEN
+                        RAISE EXCEPTION 'Employment end recording time is set by the database' USING ERRCODE = '23514';
+                    END IF;
+
+                    EXECUTE format(
+                        'SELECT EXISTS (
+                             SELECT 1 FROM %I.employment_periods
+                             WHERE tenant_id = $1 AND employee_id = $2 AND id = $3
+                               AND valid_until = $4 AND end_evidence_id = $5
+                         )', TG_TABLE_SCHEMA
+                    ) INTO current_end USING NEW.tenant_id, NEW.employee_id, NEW.employment_period_id,
+                        NEW.valid_until, NEW.evidence_id;
+                    IF NOT current_end THEN
+                        RAISE EXCEPTION 'Employment end must match the accepted period boundary' USING ERRCODE = '23514';
+                    END IF;
+
+                    NEW.recorded_at := clock_timestamp();
+                    RETURN NEW;
+                END;
+                $$;
+
+                CREATE TRIGGER employment_periods_record_end
+                    AFTER INSERT OR UPDATE OF valid_until, end_evidence_id ON employment_periods
+                    FOR EACH ROW EXECUTE FUNCTION record_employment_period_end();
+
+                CREATE TRIGGER employment_ends_history
+                    BEFORE INSERT OR UPDATE OR DELETE ON employment_period_ends
+                    FOR EACH ROW EXECUTE FUNCTION enforce_employment_end_history();
+
+                CREATE TRIGGER employment_ends_no_truncate
+                    BEFORE TRUNCATE ON employment_period_ends
+                    FOR EACH STATEMENT EXECUTE FUNCTION enforce_employment_end_history();
+
                 CREATE FUNCTION enforce_employment_terms_history() RETURNS trigger
                 LANGUAGE plpgsql SET search_path TO pg_catalog, pg_temp AS $$
                 DECLARE
                     period_start timestamptz;
                     period_end timestamptz;
+                    initial_id uuid;
                     previous_id uuid;
                     previous_recorded_at timestamptz;
                 BEGIN
@@ -126,10 +203,13 @@ final class EmploymentSchema
                     EXECUTE format(
                         'UPDATE %I.employment_periods SET valid_from = valid_from
                          WHERE tenant_id = $1 AND employee_id = $2 AND id = $3
-                         RETURNING valid_from, valid_until', TG_TABLE_SCHEMA
-                    ) INTO period_start, period_end USING NEW.tenant_id, NEW.employee_id, NEW.employment_period_id;
+                         RETURNING valid_from, valid_until, initial_terms_id', TG_TABLE_SCHEMA
+                    ) INTO period_start, period_end, initial_id USING NEW.tenant_id, NEW.employee_id, NEW.employment_period_id;
                     IF period_start IS NULL THEN
                         RAISE EXCEPTION 'Employment period is unavailable' USING ERRCODE = '23503';
+                    END IF;
+                    IF NEW.id = initial_id AND NEW.replaces_id IS NOT NULL THEN
+                        RAISE EXCEPTION 'Initial employment terms must be the original version' USING ERRCODE = '23514';
                     END IF;
                     IF NOT isfinite(NEW.effective_from) OR NEW.effective_from < period_start
                         OR NEW.effective_from >= period_end THEN

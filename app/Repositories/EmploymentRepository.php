@@ -9,8 +9,10 @@ namespace App\Repositories;
 
 use App\Models\Employee;
 use App\Models\Employment\EmploymentPeriod;
+use App\Models\Employment\EmploymentPeriodEnd;
 use App\Models\Employment\EmploymentTermsVersion;
 use DateTimeInterface;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\Query\Builder;
@@ -63,8 +65,9 @@ final class EmploymentRepository
             'evidence_id' => $evidenceId,
             'replaces_id' => $replacesId,
             'effective_from' => $from,
-            'conditions_plain' => $conditions,
-        ])->save();
+        ]);
+        $version->setConditionsPlain($conditions);
+        $version->save();
 
         return $version->refresh();
     }
@@ -73,7 +76,6 @@ final class EmploymentRepository
         int $tenantId,
         string $periodId,
         DateTimeInterface $effectiveAt,
-        ?DateTimeInterface $knownAt,
     ): ?EmploymentTermsVersion {
         if (! Str::isUuid($periodId)) {
             return null;
@@ -94,10 +96,6 @@ final class EmploymentRepository
                     });
             });
 
-        if ($knownAt !== null) {
-            $query->where('recorded_at', '<=', $knownAt->format('Y-m-d H:i:s.uP'));
-        }
-
         return $query->orderByDesc('effective_from')->orderByDesc('recorded_at')->first();
     }
 
@@ -108,6 +106,15 @@ final class EmploymentRepository
 
         return EmploymentTermsVersion::query()->where('tenant_id', $tenantId)
             ->where('employment_period_id', $periodId)->whereKey($versionId)->firstOrFail();
+    }
+
+    /** @return Collection<int, EmploymentPeriodEnd> */
+    public function endHistory(int $tenantId, string $periodId): Collection
+    {
+        $this->requireUuid($periodId, EmploymentPeriod::class);
+
+        return EmploymentPeriodEnd::query()->where('tenant_id', $tenantId)
+            ->where('employment_period_id', $periodId)->orderBy('id')->get();
     }
 
     /** @return array{current: ?EmploymentPeriod, future: ?EmploymentPeriod} */

@@ -100,7 +100,6 @@ it('resolves future conditions at their exact effective instant and preserves co
     expect($this->employment->termsAt($this->tenant->id, $period->id, $start->subMicrosecond()))->toBeNull()
         ->and($this->employment->termsAt($this->tenant->id, $period->id, $effective->subMicrosecond())?->id)->toBe($initial?->id)
         ->and($this->employment->termsAt($this->tenant->id, $period->id, $effective)?->id)->toBe($correction->id)
-        ->and($this->employment->termsAt($this->tenant->id, $period->id, $effective, $future->recorded_at)?->id)->toBe($future->id)
         ->and($this->employment->version($this->tenant->id, $period->id, $future->id)->evidence_id)->toBe($amendment->id)
         ->and($future->fresh()->conditions()['weekly_hours'])->toBe(26.5)
         ->and($initial?->conditions()['position'])->toBe('Synthetic private role')
@@ -159,4 +158,78 @@ it('requires initial terms at commit and forbids rewriting durable terms', funct
         ->and(fn () => DB::table('employment_terms_versions')->where('employment_period_id', $period->id)
             ->update(['evidence_id' => $this->evidence->id]))->toThrow(QueryException::class, '23514')
         ->and(fn () => DB::statement('TRUNCATE employment_terms_versions CASCADE'))->toThrow(QueryException::class, '23514');
+});
+
+it('retains the original agreed end and its evidence when an earlier end is recorded', function (): void {
+    $agreed = employmentTime('2027-06-01');
+    $period = $this->employment->start($this->tenant->id, $this->employee->id, employmentTime('2027-01-01'), $agreed,
+        $this->evidence->id, employmentConditions());
+    $historicCalculation = employmentTime('2027-05-01');
+    $recorded = $this->employment->termsAt($this->tenant->id, $period->id, $historicCalculation);
+    $earlier = employmentTime('2027-04-01');
+    $document = EmployeeDocument::factory()->create(['employee_id' => $this->employee->id, 'uploaded_by' => null]);
+    $ended = $this->employment->end($this->tenant->id, $period->id, $earlier, $document->id);
+    $history = $this->employment->endHistory($this->tenant->id, $period->id);
+
+    expect($ended->valid_until)->toEqual($earlier)
+        ->and($history->pluck('evidence_id')->all())->toBe([$this->evidence->id, $document->id])
+        ->and($history->first()?->valid_until)->toEqual($agreed)
+        ->and($history->last()?->valid_until)->toEqual($earlier)
+        ->and($this->employment->termsAt($this->tenant->id, $period->id, $historicCalculation))->toBeNull()
+        ->and($this->employment->version($this->tenant->id, $period->id, $recorded->id)->evidence_id)->toBe($this->evidence->id)
+        ->and(fn () => DB::table('employees')->where('id', $this->employee->id)->delete())->toThrow(QueryException::class, '23001')
+        ->and(fn () => DB::table('employment_period_ends')->where('employment_period_id', $period->id)
+            ->delete())->toThrow(QueryException::class, '23514');
+});
+
+it('requires the initial terms anchor to reference an original rather than a correction', function (): void {
+    $period = $this->employment->start($this->tenant->id, $this->employee->id, employmentTime('2027-01-01'),
+        employmentTime('2027-05-01'), $this->evidence->id, employmentConditions());
+    $original = (array) DB::table('employment_terms_versions')->where('id', $period->initial_terms_id)->sole();
+    unset($original['recorded_at']);
+    $newPeriodId = (string) Str::uuid7();
+    $originalId = (string) Str::uuid7();
+    $correctionId = (string) Str::uuid7();
+    $nextStart = '2027-05-01T00:00:00Z';
+
+    expect(fn () => DB::transaction(function () use ($period, $original, $newPeriodId, $originalId, $correctionId, $nextStart): void {
+        DB::table('employment_periods')->insert([...$period->getAttributes(), 'id' => $newPeriodId,
+            'initial_terms_id' => $correctionId, 'valid_from' => $nextStart, 'valid_until' => null, 'end_evidence_id' => null]);
+        $terms = [...$original, 'employment_period_id' => $newPeriodId, 'effective_from' => $nextStart];
+        DB::table('employment_terms_versions')->insert([...$terms, 'id' => $originalId]);
+        DB::table('employment_terms_versions')->insert([...$terms, 'id' => $correctionId, 'replaces_id' => $originalId]);
+    }))->toThrow(QueryException::class, '23514');
+});
+
+it('keeps plaintext conditions out of captured encryption failure arguments', function (): void {
+    $previous = ini_get('zend.exception_ignore_args');
+    ini_set('zend.exception_ignore_args', '0');
+    TenantKey::setKekPath(getTestKekPath().'.missing');
+
+    try {
+        $this->employment->start($this->tenant->id, $this->employee->id, employmentTime('2027-01-01'), null,
+            $this->evidence->id, employmentConditions());
+        $this->fail('A missing key must abort starting employment.');
+    } catch (Throwable $failure) {
+        $containsPlaintext = function (mixed $value) use (&$containsPlaintext): bool {
+            if (is_string($value)) {
+                return str_contains($value, 'Synthetic private role');
+            }
+            if (is_array($value)) {
+                return array_any($value, $containsPlaintext);
+            }
+
+            return false;
+        };
+
+        do {
+            expect($containsPlaintext($failure->getMessage()))->toBeFalse()
+                ->and($containsPlaintext($failure->getTrace()))->toBeFalse();
+        } while (($failure = $failure->getPrevious()) !== null);
+    } finally {
+        TenantKey::setKekPath(getTestKekPath());
+        ini_set('zend.exception_ignore_args', $previous);
+    }
+
+    expect(DB::table('employment_periods')->count())->toBe(0);
 });
