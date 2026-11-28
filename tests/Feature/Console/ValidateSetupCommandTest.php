@@ -9,7 +9,6 @@
 use App\Models\TenantKey;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
-use Illuminate\Support\Facades\File;
 
 uses(RefreshDatabase::class);
 
@@ -36,9 +35,6 @@ describe('app:validate-setup Command', function () {
     it('returns exit code 0 when all checks pass', function () {
         // Setup: Create tenant key in database
         seedTenantKeyPresence();
-
-        // Setup: Create KEK file
-        TenantKey::generateKek();
 
         // Act
         $result = Artisan::call('app:validate-setup');
@@ -96,8 +92,8 @@ describe('app:validate-setup Command', function () {
     });
 
     it('detects missing KEK file', function () {
-        // Setup: Create tenant key but no KEK
         seedTenantKeyPresence();
+        cleanupTestKekFile();
 
         // Act
         Artisan::call('app:validate-setup');
@@ -106,14 +102,12 @@ describe('app:validate-setup Command', function () {
         // Assert: KEK file check failed
         expect($output)->toContain('KEK file');
         expect($output)->toContain('❌');
-        expect($output)->toContain('Not found');
+        expect($output)->toContain('Exact committed Tenant KEK generation unavailable');
     });
 
     it('detects unreadable KEK file', function () {
         // Setup: Create tenant key and KEK file
         seedTenantKeyPresence();
-
-        TenantKey::generateKek();
         $kekPath = TenantKey::getKekPath();
 
         // Make file unreadable (skip on Windows)
@@ -139,8 +133,6 @@ describe('app:validate-setup Command', function () {
 
     it('detects insecure KEK file permissions', function () {
         seedTenantKeyPresence();
-
-        TenantKey::generateKek();
         chmod(TenantKey::getKekPath(), 0644);
 
         $result = Artisan::call('app:validate-setup');
@@ -148,8 +140,7 @@ describe('app:validate-setup Command', function () {
 
         expect($result)->toBe(1);
         expect($output)->toContain('KEK file');
-        expect($output)->toContain('insecure permissions');
-        expect($output)->toContain('expected 0600');
+        expect($output)->toContain('Exact committed Tenant KEK generation unavailable');
     });
 
     it('checks storage directories are writable', function () {
@@ -181,8 +172,8 @@ describe('app:validate-setup Command', function () {
     });
 
     it('displays colored output with emojis', function () {
-        // Setup: Partially valid configuration (missing KEK)
         seedTenantKeyPresence();
+        cleanupTestKekFile();
 
         // Act
         Artisan::call('app:validate-setup');
@@ -219,8 +210,6 @@ describe('app:validate-setup Command', function () {
         for ($i = 0; $i < 3; $i++) {
             seedTenantKeyPresence();
         }
-
-        TenantKey::generateKek();
 
         // Act
         Artisan::call('app:validate-setup');

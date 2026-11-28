@@ -8,7 +8,7 @@ declare(strict_types=1);
 function organizationReusableWorkflowReferencePattern(string $workflowName): string
 {
     return sprintf(
-        '/^\\s*uses:\\s*SecPal\\/\\.github\\/\\.github\\/workflows\\/%s@[0-9a-f]{40}\\s*$/m',
+        '/^\\s*uses:\\s*SecPal\\/\\.github\\/\\.github\\/workflows\\/%s@[0-9a-f]{40}\\h+# v[0-9]+\\.[0-9]+\\.[0-9]+\\h*$/m',
         preg_quote($workflowName, '/'),
     );
 }
@@ -43,7 +43,7 @@ test('organization reusable workflow references use expected paths and immutable
 });
 
 test('organization reusable workflow references allow immutable SHA updates', function (): void {
-    expect('uses: SecPal/.github/.github/workflows/reusable-php-lint.yml@bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb')->toMatch(
+    expect('uses: SecPal/.github/.github/workflows/reusable-php-lint.yml@bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb # v1.1.0')->toMatch(
         organizationReusableWorkflowReferencePattern('reusable-php-lint.yml'),
     );
 });

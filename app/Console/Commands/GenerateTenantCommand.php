@@ -8,9 +8,9 @@
 
 namespace App\Console\Commands;
 
-use App\Models\TenantKey;
 use App\Services\TenantProvisioner;
 use Illuminate\Console\Command;
+use Throwable;
 
 /**
  * Generate a new tenant with envelope keys.
@@ -40,16 +40,6 @@ class GenerateTenantCommand extends Command
     {
         $this->info('Generating new tenant envelope keys...');
 
-        $kekPath = TenantKey::getKekPath();
-
-        if (! file_exists($kekPath)) {
-            $this->error('❌ KEK file not found at: '.$kekPath);
-            $this->comment('Generate KEK first with:');
-            $this->line('   php artisan keys:generate-kek');
-
-            return Command::FAILURE;
-        }
-
         try {
             $key = $provisioner->create();
 
@@ -59,8 +49,8 @@ class GenerateTenantCommand extends Command
             $this->line("   Key version: {$key->key_version}");
 
             return Command::SUCCESS;
-        } catch (\Exception $e) {
-            $this->error('❌ Failed to generate tenant: '.$e->getMessage());
+        } catch (Throwable) {
+            $this->error('Failed to generate tenant. Verify the database and the externally provided Tenant KEK generation.');
 
             return Command::FAILURE;
         }

@@ -41,6 +41,7 @@ it('constrains every tenant column to a functional tenant in the clean schema', 
 });
 
 it('seeds one tenant with its separately identified key and uses it for retained rows', function (): void {
+    TenantKey::ensureKekExists();
     $this->seed(DatabaseSeeder::class);
 
     $tenant = Tenant::sole();

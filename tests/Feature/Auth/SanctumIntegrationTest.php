@@ -158,7 +158,7 @@ describe('Integration: CORS and Security', function () {
         $response = $this->withHeaders([
             'Origin' => 'https://app.secpal.dev',
         ])->postJson('/v1/auth/token', [
-            'email' => $user->email,
+            'email' => $user->emailForDisplay(),
             'password' => 'password',
         ]);
 

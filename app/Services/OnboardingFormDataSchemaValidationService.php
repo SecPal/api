@@ -624,7 +624,7 @@ final class OnboardingFormDataSchemaValidationService
         }
 
         // Require at least one prior residence when the current address alone does not cover the
-        // regulatory lookback window (see {@see AddressHistoryLookback} and {@see BewacherregisterExportService}).
+        // regulatory lookback window (see {@see AddressHistoryLookback} and {@see BwrReportingReadiness}).
         $residedFrom = $this->normalizedNonEmptyString($currentAddress['resided_from'] ?? null);
         $windowStart = now()->startOfDay()->copy()->subYears(AddressHistoryLookback::YEARS)->toDateString();
         if (

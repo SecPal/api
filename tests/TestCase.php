@@ -5,7 +5,9 @@
 
 namespace Tests;
 
+use App\Models\TenantKey;
 use App\Models\User;
+use App\Services\TenantKekReference;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Foundation\Application;
@@ -70,6 +72,14 @@ abstract class TestCase extends BaseTestCase
         $app->loadEnvironmentFrom(static::bootstrapEnvironmentFileName());
         $app->make(Kernel::class)->bootstrap();
         self::normalizeApplicationConfiguration($app);
+        $app->bind(TenantKekReference::class, static function (): TenantKekReference {
+            $key = TenantKey::loadKek();
+            try {
+                return new TenantKekReference('94809506-5191-4ace-ac35-c38a96579271', 1, hash('sha256', $key));
+            } finally {
+                sodium_memzero($key);
+            }
+        });
 
         return $app;
     }
@@ -83,6 +93,15 @@ abstract class TestCase extends BaseTestCase
         parent::setUp();
         self::normalizeParallelWorkerDatabaseConfiguration($this->app);
         $this->app->setLocale(self::TEST_LOCALE);
+        $traits = class_uses_recursive(static::class);
+        if (! isset($traits[Support\ManagesGlobalIdentityFixture::class])
+            && array_intersect($traits, [
+                \Illuminate\Foundation\Testing\RefreshDatabase::class,
+                \Illuminate\Foundation\Testing\DatabaseMigrations::class,
+                \Illuminate\Foundation\Testing\DatabaseTruncation::class,
+            ]) !== []) {
+            Support\GlobalIdentityTestFixture::prepare();
+        }
 
         // Prevent real network calls to HIBP so Password::uncompromised() always
         // passes for test passwords without coupling tests to an external service.

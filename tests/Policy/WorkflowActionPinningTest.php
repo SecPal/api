@@ -104,7 +104,7 @@ function workflowActionSourceLines(string $contents, string $uses): array
 /**
  * @param  array{action: string, reference: string, uses: string, occurrence: int}  $actionReference
  */
-function workflowActionHasAdjacentVersionComment(string $contents, array $actionReference): bool
+function workflowActionHasVersionComment(string $contents, array $actionReference, bool $onSameLine): bool
 {
     $lines = preg_split('/\\R/', $contents);
 
@@ -115,7 +115,15 @@ function workflowActionHasAdjacentVersionComment(string $contents, array $action
     $sourceLines = workflowActionSourceLines($contents, $actionReference['uses']);
     $sourceLine = $sourceLines[$actionReference['occurrence']] ?? null;
 
-    if ($sourceLine === null || $sourceLine['line'] === 0) {
+    if ($sourceLine === null) {
+        return false;
+    }
+
+    if ($onSameLine) {
+        return preg_match('/[ \t]+# v(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)[ \t]*\z/', $lines[$sourceLine['line']]) === 1;
+    }
+
+    if ($sourceLine['line'] === 0) {
         return false;
     }
 
@@ -147,10 +155,6 @@ function workflowActionPinningViolations(string $contents): array
             continue;
         }
 
-        if (str_starts_with($action, 'SecPal/.github/')) {
-            continue;
-        }
-
         $sourceLines = workflowActionSourceLines($contents, $actionReference['uses']);
 
         if (count($sourceLines) !== $referenceCounts[$actionReference['uses']]) {
@@ -159,8 +163,11 @@ function workflowActionPinningViolations(string $contents): array
             continue;
         }
 
-        if (! workflowActionHasAdjacentVersionComment($contents, $actionReference)) {
-            $violations[] = "{$actionReference['uses']} does not have an immediately preceding version comment.";
+        $shared = str_starts_with($action, 'SecPal/.github/');
+        if (! workflowActionHasVersionComment($contents, $actionReference, $shared)) {
+            $violations[] = $shared
+                ? "{$actionReference['uses']} does not have an exact inline release annotation."
+                : "{$actionReference['uses']} does not have an immediately preceding version comment.";
         }
     }
 
@@ -283,7 +290,7 @@ test('the policy requires the version comment immediately before the action refe
 
     expect($actionReferences)
         ->toHaveCount(1)
-        ->and(workflowActionHasAdjacentVersionComment($contents, $actionReferences[0]))->toBeFalse()
+        ->and(workflowActionHasVersionComment($contents, $actionReferences[0], false))->toBeFalse()
         ->and(workflowActionPinningViolations($contents))->toHaveCount(1);
 });
 
@@ -301,7 +308,7 @@ test('the policy accepts an immediately preceding version comment', function ():
 
     expect($actionReferences)
         ->toHaveCount(1)
-        ->and(workflowActionHasAdjacentVersionComment($contents, $actionReferences[0]))->toBeTrue()
+        ->and(workflowActionHasVersionComment($contents, $actionReferences[0], false))->toBeTrue()
         ->and(workflowActionPinningViolations($contents))->toBe([]);
 });
 
@@ -326,7 +333,7 @@ test('repository workflows use version-documented immutable commit SHAs', functi
     }
 });
 
-test('Dependabot isolates reviewed no-op helpers to their exact caller and first group', function (): void {
+test('Dependabot proposes shared components independently and uses central admission', function (): void {
     $root = dirname(__DIR__, 2);
     $updates = Yaml::parseFile($root.'/.github/dependabot.yml')['updates'];
     $actions = array_values(array_filter(
@@ -336,21 +343,11 @@ test('Dependabot isolates reviewed no-op helpers to their exact caller and first
 
     expect($actions)->toHaveCount(1);
 
-    $groups = $actions[0]['groups'];
-    expect(array_key_first($groups))->toBe('shared-no-op-workflow-pins')
-        ->and($groups['shared-no-op-workflow-pins'])->toBe([
-            'patterns' => [
-                'SecPal/.github/.github/workflows/reusable-check-conflict-markers.yml',
-                'SecPal/.github/.github/workflows/reusable-pr-size.yml',
-            ],
-        ]);
-
     $workflow = Yaml::parseFile($root.'/.github/workflows/dependabot-auto-merge.yml');
-    $input = $workflow['jobs']['auto-merge']['with']['shared-sha-workflow-paths'];
-    expect(json_decode($input, true, flags: JSON_THROW_ON_ERROR))->toBe([
-        '.github/workflows/check-conflict-markers.yml',
-        '.github/workflows/pr-size.yml',
-    ]);
+
+    expect($actions[0])->not->toHaveKey('groups')
+        ->and($workflow['jobs']['auto-merge']['with'])->not->toHaveKey('shared-sha-workflow-paths');
+
 });
 
 test('Dependabot forwards only the dedicated publisher credential and opts in by App ID', function (): void {

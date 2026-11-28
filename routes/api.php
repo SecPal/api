@@ -31,6 +31,7 @@ use App\Http\Controllers\Api\V1\SourceController;
 use App\Http\Controllers\Api\V1\UserAssignmentController;
 use App\Http\Controllers\Api\V1\UserPermissionController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\IdentityEmailChangeController;
 use App\Http\Controllers\PersonController;
 use App\Http\Controllers\RoleController;
 use App\Http\Middleware\EnsureBrowserSessionLoginContext;
@@ -86,25 +87,23 @@ Route::prefix('v1')->group(function () {
         ->middleware('throttle:passkey-verify');
     Route::post('/auth/mfa-challenges/{challengeId}/verify', [AuthController::class, 'verifyMfaChallenge'])
         ->middleware('throttle:mfa-challenge');
-    Route::post('/auth/password/reset-request', [AuthController::class, 'passwordResetRequest'])
-        ->middleware('throttle:password-reset');
-    Route::post('/auth/password/reset', [AuthController::class, 'passwordReset'])
+    Route::post('/auth/password-reset-requests', [AuthController::class, 'passwordResetRequest'])
         ->middleware('throttle:password-reset');
 
-    // The signed URL is the complete authorization proof for email verification.
-    // Verification neither reads nor establishes browser identity, so keep the
-    // route outside session, CSRF, remember-cookie, and bearer-token resolution.
-    // Global locale, CORS, JSON, and security-header middleware still apply.
-    Route::get('/auth/email/verify/{id}/{hash}', [AuthController::class, 'verifyEmail'])
-        ->withoutMiddleware([
-            EnsureFrontendRequestsAreStateful::class,
-            RestoreSessionFromRememberToken::class,
-            SetLocaleFromHeader::class,
-            InjectTenantId::class,
-        ])
-        ->middleware(['signed', 'throttle:email-verification'])
-        ->whereUuid('id')
-        ->name('verification.verify');
+    // Mailbox proofs supply their own authorization. Browser sessions are unnecessary.
+    Route::withoutMiddleware([
+        EnsureFrontendRequestsAreStateful::class,
+        RestoreSessionFromRememberToken::class,
+        SetLocaleFromHeader::class,
+        InjectTenantId::class,
+    ])->group(function (): void {
+        Route::post('/auth/password-reset-requests/{operationId}/consume', [AuthController::class, 'passwordReset'])
+            ->middleware('throttle:password-reset');
+        Route::post('/auth/email/verifications/{operationId}/consume', [AuthController::class, 'verifyEmail'])
+            ->middleware('throttle:email-verification');
+        Route::post('/auth/email-change-requests/{operationId}/consume', [IdentityEmailChangeController::class, 'consume'])
+            ->middleware('throttle:email-verification');
+    });
 
     // Token validation is public and stateless: token + email are the complete
     // authorization context, so browser identity/session middleware must not run.
@@ -132,6 +131,8 @@ Route::prefix('v1')->group(function () {
         Route::post('/auth/email/verification-notification', [AuthController::class, 'sendVerificationNotification'])
             ->middleware('throttle:6,1');
         Route::get('/me', [AuthController::class, 'me']);
+        Route::post('/me/email-change-requests', [IdentityEmailChangeController::class, 'start'])->middleware('throttle:mfa');
+        Route::post('/me/email-change-requests/passkey-challenge', [IdentityEmailChangeController::class, 'preparePasskey'])->middleware('throttle:passkey-challenge');
         Route::put('/me/notification-installations/{installationId}', [PushDeviceRegistrationController::class, 'upsert'])
             ->whereUuid('installationId');
         Route::delete('/me/notification-installations/{installationId}', [PushDeviceRegistrationController::class, 'destroy'])
@@ -366,10 +367,7 @@ Route::prefix('v1')->group(function () {
                 Route::get('/employees/{employee}', [EmployeeController::class, 'show']);
                 Route::patch('/employees/{employee}', [EmployeeController::class, 'update']);
                 Route::delete('/employees/{employee}', [EmployeeController::class, 'destroy']);
-                Route::post('/employees/{employee}/bwr/export', [EmployeeController::class, 'exportBwr']);
                 Route::put('/employees/{employee}/bwr/status', [EmployeeController::class, 'updateBwrStatus']);
-                Route::get('/employees/{employee}/bwr/exports/{file}/download', [EmployeeController::class, 'downloadBwrExport'])
-                    ->name('employees.bwr-exports.download');
                 // Status transitions
                 Route::post('/employees/{employee}/activate', [EmployeeController::class, 'activate']);
                 Route::post('/employees/{employee}/leave', [EmployeeController::class, 'placeOnLeave']);

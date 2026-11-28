@@ -14,10 +14,10 @@ SPDX-License-Identifier: CC0-1.0
 
 ## About
 
-SecPal supports professional security operations, including private security
-services, in-house and plant protection, corporate security, and comparable
-operational security organisations. This repository contains the Laravel API for
-the main SecPal product.
+SecPal develops open-source software for professional security operations,
+including private security services, in-house and plant protection, and
+corporate security. This repository contains the Laravel API for the main
+SecPal product.
 
 ## Repository responsibilities
 
@@ -61,14 +61,19 @@ documentation and public contract rather than to this README.
 
 ## Quick start
 
-Local development requires PHP 8.4, Composer 2, and PostgreSQL 18. Clone the
-repository, create the local environment file, and configure its PostgreSQL
-connection before running setup:
+Use PHP 8.4, Composer 2 and PostgreSQL 18 for a fresh standalone checkout
+with a disposable local database:
 
 ```bash
 git clone https://github.com/SecPal/api.git
 cd api
 cp .env.example .env
+```
+
+Set the local database connection in `.env`. Then run setup to initialize the
+local application key, migrate the database and import address data:
+
+```bash
 composer setup
 composer dev
 ```
@@ -84,18 +89,20 @@ validation, and pull-request requirements.
 
 ## Documentation
 
-| Intent                                                   | Authority                                                                                           |
-| -------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| Public API contract and reference                        | [SecPal/contracts](https://github.com/SecPal/contracts)                                             |
-| Authentication                                           | [Authentication API documentation](docs/api/authentication.md)                                      |
-| Authorization and RBAC                                   | [RBAC architecture](docs/rbac-architecture.md) and [RBAC API reference](docs/api/rbac-endpoints.md) |
-| Encryption implementation patterns                       | [Encryption patterns](docs/guides/encryption-patterns.md)                                           |
-| Activity integrity and operations                        | [Activity logging admin guide](docs/ACTIVITY_LOGGING_ADMIN_GUIDE.md)                                |
-| Application security-event output                        | [Security-event contract](docs/security-events.md)                                                  |
-| BewachV and BWR domain implementation                    | [BewachV compliance documentation](docs/BEWACHV_COMPLIANCE.md)                                      |
-| Local development and contribution                       | [Contributing](CONTRIBUTING.md)                                                                     |
-| API image and application runtime contract               | [API container](docs/containers.md) and [production boundary](docs/deployment.md)                   |
-| Self-hosting, host, edge, database, backup, and recovery | [SecPal/deployment](https://github.com/SecPal/deployment)                                           |
+| Intent                                                   | Authority                                                                         |
+| -------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| Public API contract and reference                        | [SecPal/contracts](https://github.com/SecPal/contracts)                           |
+| Authentication                                           | [Authentication API documentation](docs/api/authentication.md)                    |
+| Authorization and RBAC                                   | [API access and authorization](docs/guides/permission-system.md)                  |
+| Encryption implementation patterns                       | [Encryption patterns](docs/guides/encryption-patterns.md)                         |
+| Tenant KEK bootstrap and runtime inputs                  | [Tenant KEK application interface](docs/tenant-kek.md)                            |
+| Activity integrity and operations                        | [Activity logging admin guide](docs/ACTIVITY_LOGGING_ADMIN_GUIDE.md)              |
+| Application security-event output                        | [Security-event contract](docs/security-events.md)                                |
+| BewachV and manual BWR reporting                         | [Bewacherregister reporting](docs/bewacherregister.md)                            |
+| Local development, test databases, mail and queues       | [Development](DEVELOPMENT.md)                                                     |
+| Contributor setup and validation                         | [Contributing](CONTRIBUTING.md)                                                   |
+| API image and application runtime contract               | [API container](docs/containers.md) and [production boundary](docs/deployment.md) |
+| Self-hosting, host, edge, database, backup, and recovery | [SecPal/deployment](https://github.com/SecPal/deployment)                         |
 
 ## Related repositories
 

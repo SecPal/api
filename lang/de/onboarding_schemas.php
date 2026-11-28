@@ -10,7 +10,7 @@ return [
             'description' => 'Ihre persönlichen Angaben für das Onboarding; fehlende Bewacherregister-Felder kann die Personalabteilung später ergänzen.',
             'schema' => [
                 'title' => 'Persönliche Informationen',
-                'description' => 'Für das Onboarding erforderliche Angaben; geplante Tätigkeiten nach Paragraf 34a GewO können bei Bedarf später durch HR für den Bewacherregister-Export ergänzt werden.',
+                'description' => 'Für das Onboarding erforderliche Angaben; geplante Tätigkeiten nach Paragraf 34a GewO können bei Bedarf später durch HR für die manuelle Meldung im Bewacherregister ergänzt werden.',
             ],
             'fields' => [
                 'gender' => [
@@ -25,7 +25,7 @@ return [
                 'previous_names' => ['title' => 'Frühere Namen'],
                 'intended_activities' => [
                     'title' => 'Beabsichtigte Tätigkeiten (Paragraf 34a GewO)',
-                    'description' => 'Beim Onboarding optional; vor dem Bewacherregister-Export müssen HR diese mit dem Einsatz abstimmen oder eintragen, falls Sie sie auslassen.',
+                    'description' => 'Beim Onboarding optional; vor der manuellen Meldung im Bewacherregister müssen HR diese mit dem Einsatz abstimmen oder eintragen, falls Sie sie auslassen.',
                     'enum' => [
                         'door_control' => 'Einlasskontrolle',
                         'event_security' => 'Veranstaltungsschutz',

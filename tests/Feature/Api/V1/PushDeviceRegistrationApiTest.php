@@ -86,7 +86,7 @@ function enableWebPushNotificationChannel(): void
 function loginBrowserSession(Tests\TestCase $testCase, User $user): void
 {
     $testCase->withHeaders(spaCsrfHeaders($testCase))->postJson('/v1/auth/login', [
-        'email' => $user->email,
+        'email' => $user->emailForDisplay(),
         'password' => 'password123',
     ])->assertOk();
 }

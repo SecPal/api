@@ -10,6 +10,9 @@ namespace App\Models;
 
 use App\Exceptions\CorruptedEncryptedAttributeException;
 use App\Exceptions\TenantKeyDecryptionException;
+use App\Services\TenantKekReference;
+use App\Services\TenantKekRegistry;
+use App\Services\TenantKekRotationPlan;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -26,6 +29,8 @@ use SodiumException;
  *
  * @property string $id
  * @property int $tenant_id
+ * @property string $kek_id
+ * @property int $kek_generation
  * @property string $dek_wrapped BYTEA wrapped DEK
  * @property string $dek_nonce BYTEA nonce for DEK
  * @property string $idx_wrapped BYTEA wrapped idx_key
@@ -76,6 +81,8 @@ class TenantKey extends Model
      * @var list<string>
      */
     protected $fillable = [
+        'kek_id',
+        'kek_generation',
         'dek_wrapped',
         'dek_nonce',
         'idx_wrapped',
@@ -99,6 +106,7 @@ class TenantKey extends Model
             'idx_wrapped' => \App\Casts\Binary::class,
             'idx_nonce' => \App\Casts\Binary::class,
             'key_version' => 'integer',
+            'kek_generation' => 'integer',
             'created_at' => 'datetime',
         ];
     }
@@ -480,21 +488,22 @@ class TenantKey extends Model
         return is_dir($dir);
     }
 
-    /** @return array{dek_wrapped: string, dek_nonce: string, idx_wrapped: string, idx_nonce: string} */
+    /** @return array{kek_id: string, kek_generation: int, dek_wrapped: string, dek_nonce: string, idx_wrapped: string, idx_nonce: string} */
     public static function generateEnvelopeKeys(int $tenantId): array
     {
-        $kek = self::loadKek();
-        $dek = sodium_crypto_secretbox_keygen();
-        $indexKey = sodium_crypto_secretbox_keygen();
+        return app(TenantKekRegistry::class)->withKey(static function (#[SensitiveParameter] string $kek, TenantKekReference $reference) use ($tenantId): array {
+            $dek = sodium_crypto_secretbox_keygen();
+            $indexKey = sodium_crypto_secretbox_keygen();
 
-        try {
-            return self::wrapKey($tenantId, 'dek', $dek, $kek)
-                + self::wrapKey($tenantId, 'idx', $indexKey, $kek);
-        } finally {
-            sodium_memzero($kek);
-            sodium_memzero($dek);
-            sodium_memzero($indexKey);
-        }
+            try {
+                return ['kek_id' => $reference->id, 'kek_generation' => $reference->generation]
+                    + self::wrapKey($tenantId, 'dek', $dek, $reference, $kek)
+                    + self::wrapKey($tenantId, 'idx', $indexKey, $reference, $kek);
+            } finally {
+                sodium_memzero($dek);
+                sodium_memzero($indexKey);
+            }
+        });
     }
 
     public function unwrapDek(): string
@@ -509,25 +518,26 @@ class TenantKey extends Model
 
     public function replaceDek(#[SensitiveParameter] string $dek): void
     {
-        $kek = self::loadKek();
-        try {
-            $this->update(self::wrapKey($this->tenant_id, 'dek', $dek, $kek) + [
+        app(TenantKekRegistry::class)->withKey(function (#[SensitiveParameter] string $kek, TenantKekReference $reference) use ($dek): void {
+            $this->assertKeyReference($reference);
+            if (! $this->update(self::wrapKey($this->tenant_id, 'dek', $dek, $reference, $kek) + [
                 'key_version' => $this->key_version + 1,
-            ]);
-        } finally {
-            sodium_memzero($kek);
-        }
+            ])) {
+                throw new \RuntimeException('Tenant DEK could not be stored.');
+            }
+        });
     }
 
-    /** @return array{dek_wrapped: string, dek_nonce: string, idx_wrapped: string, idx_nonce: string} */
-    public function rewrappedEnvelopes(#[SensitiveParameter] string $oldKek, #[SensitiveParameter] string $newKek): array
+    /** @return array{kek_id: string, kek_generation: int, dek_wrapped: string, dek_nonce: string, idx_wrapped: string, idx_nonce: string} */
+    public function rewrappedEnvelopes(TenantKekRotationPlan $plan, #[SensitiveParameter] string $oldKek, #[SensitiveParameter] string $newKek): array
     {
-        $dek = $this->unwrapKey('dek', $oldKek);
+        $dek = $this->openEnvelope('dek', $plan->from, $oldKek);
         try {
-            $indexKey = $this->unwrapKey('idx', $oldKek);
+            $indexKey = $this->openEnvelope('idx', $plan->from, $oldKek);
             try {
-                return self::wrapKey($this->tenant_id, 'dek', $dek, $newKek)
-                    + self::wrapKey($this->tenant_id, 'idx', $indexKey, $newKek);
+                return ['kek_id' => $plan->to->id, 'kek_generation' => $plan->to->generation]
+                    + self::wrapKey($this->tenant_id, 'dek', $dek, $plan->to, $newKek)
+                    + self::wrapKey($this->tenant_id, 'idx', $indexKey, $plan->to, $newKek);
             } finally {
                 sodium_memzero($indexKey);
             }
@@ -546,10 +556,11 @@ class TenantKey extends Model
         int $tenantId,
         string $purpose,
         #[SensitiveParameter] string $key,
+        TenantKekReference $reference,
         #[SensitiveParameter] string $kek,
     ): array {
         $nonce = random_bytes(SODIUM_CRYPTO_AEAD_XCHACHA20POLY1305_IETF_NPUBBYTES);
-        $wrapped = sodium_crypto_aead_xchacha20poly1305_ietf_encrypt($key, self::keyContext($tenantId, $purpose), $nonce, $kek);
+        $wrapped = sodium_crypto_aead_xchacha20poly1305_ietf_encrypt($key, self::keyContext($tenantId, $purpose, $reference), $nonce, $kek);
 
         return $purpose === 'dek'
             ? ['dek_wrapped' => $wrapped, 'dek_nonce' => $nonce]
@@ -557,23 +568,36 @@ class TenantKey extends Model
     }
 
     /** @param 'dek'|'idx' $purpose */
-    private function unwrapKey(string $purpose, #[SensitiveParameter] ?string $kek = null): string
+    private function unwrapKey(string $purpose): string
     {
-        $kek ??= self::loadKek();
+        return app(TenantKekRegistry::class)->withKey(function (#[SensitiveParameter] string $kek, TenantKekReference $reference) use ($purpose): string {
+            $snapshot = $this;
+            if ($this->exists && $this->kek_id === $reference->id && $this->kek_generation < $reference->generation) {
+                // The model may have been read just before a rewrap. Resolve the same
+                // tenant and key row under the lease before opening the new envelope.
+                $snapshot = self::query()->useWritePdo()->whereKey($this->id)->where('tenant_id', $this->tenant_id)->firstOrFail();
+            }
+
+            return $snapshot->openEnvelope($purpose, $reference, $kek);
+        });
+    }
+
+    /** @param 'dek'|'idx' $purpose */
+    private function openEnvelope(string $purpose, TenantKekReference $reference, #[SensitiveParameter] string $kek): string
+    {
+        $this->assertKeyReference($reference);
         try {
             [$wrapped, $nonce] = $purpose === 'dek'
                 ? [$this->dek_wrapped, $this->dek_nonce]
                 : [$this->idx_wrapped, $this->idx_nonce];
             $key = sodium_crypto_aead_xchacha20poly1305_ietf_decrypt(
                 $wrapped,
-                self::keyContext($this->tenant_id, $purpose),
+                self::keyContext($this->tenant_id, $purpose, $reference),
                 $nonce,
                 $kek,
             );
         } catch (SodiumException) {
             throw new CorruptedEncryptedAttributeException('Invalid tenant key envelope');
-        } finally {
-            sodium_memzero($kek);
         }
 
         if ($key === false || strlen($key) !== SODIUM_CRYPTO_SECRETBOX_KEYBYTES) {
@@ -583,9 +607,16 @@ class TenantKey extends Model
         return $key;
     }
 
-    private static function keyContext(int $tenantId, string $purpose): string
+    private function assertKeyReference(TenantKekReference $reference): void
     {
-        return "secpal/tenant-key/v1/{$purpose}/{$tenantId}";
+        if ($this->kek_id !== $reference->id || $this->kek_generation !== $reference->generation) {
+            throw new CorruptedEncryptedAttributeException('Tenant key envelope has an unexpected KEK reference.');
+        }
+    }
+
+    private static function keyContext(int $tenantId, string $purpose, TenantKekReference $reference): string
+    {
+        return "secpal/tenant-key/v2/{$purpose}/{$tenantId}/{$reference->id}/{$reference->generation}";
     }
 
     /**

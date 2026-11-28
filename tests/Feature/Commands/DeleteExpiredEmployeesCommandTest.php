@@ -110,7 +110,7 @@ test('it deletes expired terminated employees, removes local files, and anonymiz
     $user->refresh();
 
     expect($user->name)->toBe('Deleted User')
-        ->and($user->email)->toBe('deleted-user+'.$user->id.'@secpal.dev')
+        ->and($user->emailForDisplay())->toBe('deleted-user+'.$user->id.'@secpal.dev')
         ->and($user->email_verified_at)->toBeNull()
         ->and(Hash::check('password', $user->password))->toBeFalse();
 
@@ -425,18 +425,20 @@ test('it skips and logs suspicious file paths that fall outside the employees/ p
     Storage::disk('local')->assertExists('employees/safe.enc');
 });
 
-test('it clears password reset tokens for the pre-anonymization email', function (): void {
+test('it revokes reset operations for the pre-anonymization identity version', function (): void {
     $tenant = Tenant::factory()->create();
     $user = User::factory()->create([
         'tenant_id' => $tenant->id,
         'email' => 'jane.doe@secpal.dev',
     ]);
 
-    DB::table('password_reset_tokens')->insert([
-        'email' => $user->email,
-        'token' => Hash::make('some-token'),
-        'created_at' => now()->subMinutes(10),
-    ]);
+    $operationId = (string) Str::uuid();
+    app(App\Services\GlobalIdentity\GlobalIdentityOperationService::class)->create(
+        new App\Services\GlobalIdentity\GlobalIdentityOperationContext(
+            App\Services\GlobalIdentity\GlobalIdentityOperationType::PasswordReset, $operationId, $user->id, $user->email_version,
+        ),
+        now()->toImmutable()->addHour(),
+    );
 
     $employee = Employee::factory()
         ->for($tenant, 'tenant')
@@ -452,5 +454,6 @@ test('it clears password reset tokens for the pre-anonymization email', function
         ->expectsOutputToContain('Deleted 1 expired employee record(s)')
         ->assertSuccessful();
 
-    expect(DB::table('password_reset_tokens')->where('email', 'jane.doe@secpal.dev')->exists())->toBeFalse();
+    $operation = App\Models\GlobalIdentityOperation::query()->findOrFail($operationId);
+    expect($operation->token_hash)->toBeNull()->and($operation->delivery_token_enc)->toBeNull();
 });

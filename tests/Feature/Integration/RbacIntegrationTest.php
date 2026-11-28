@@ -210,7 +210,7 @@ describe('Permission Inheritance Integration', function (): void {
         // Assign direct permission
         actingAs($this->privilegedUser)
             ->postJson("/v1/users/{$user->id}/permissions", [
-                'permissions' => ['employees.export'],
+                'permissions' => ['employees.read_sensitive'],
             ])
             ->assertSuccessful();
 
@@ -223,12 +223,12 @@ describe('Permission Inheritance Integration', function (): void {
         // Verify inheritance: Role permissions ∪ Direct permissions
         expect($response['data']['all'])
             ->toContain('employees.read') // from Guard or Client role
-            ->toContain('employees.export') // direct permission
+            ->toContain('employees.read_sensitive') // direct permission
             ->toContain('shifts.read'); // from Guard or Client role
 
         // Verify direct permissions are separated (array of objects with 'name' property)
         $directPermissionNames = collect($response['data']['direct'])->pluck('name')->toArray();
-        expect($directPermissionNames)->toContain('employees.export');
+        expect($directPermissionNames)->toContain('employees.read_sensitive');
     });
 
     test('direct permission overrides are independent of role changes', function (): void {

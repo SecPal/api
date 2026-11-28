@@ -112,9 +112,6 @@ describe('Health Check Endpoints', function () {
             $runtimeHeartbeatService = app(RuntimeHeartbeatService::class);
 
             seedTenantKeyPresence();
-
-            // Generate KEK file for test
-            TenantKey::generateKek();
             $runtimeHeartbeatService->recordSchedulerHeartbeat();
 
             $response = $this->getJson('/health/ready');
@@ -238,18 +235,18 @@ describe('Health Check Endpoints', function () {
             assertPublicReadinessResponse($response, 503, 'not_ready');
         });
 
-        it('returns 503 when the default queue worker heartbeat is stale with pending jobs', function () {
+        it('returns 503 when the worker heartbeat is stale with pending jobs', function (string $queue) {
             seedHealthReadinessPrerequisites();
 
             $runtimeHeartbeatService = app(RuntimeHeartbeatService::class);
             $runtimeHeartbeatService->recordSchedulerHeartbeat();
-            $runtimeHeartbeatService->recordQueueHeartbeat('default', now()->subHours(2));
-            seedPendingJob('default');
+            $runtimeHeartbeatService->recordQueueHeartbeat($queue, now()->subHours(2));
+            seedPendingJob($queue);
 
             $response = $this->getJson('/health/ready');
 
             assertPublicReadinessResponse($response, 503, 'not_ready');
-        });
+        })->with(['default', 'opentimestamp']);
     });
 
     describe('CORS for health endpoints', function () {
@@ -276,7 +273,6 @@ describe('Health Check Endpoints', function () {
         it('returns CORS headers for /health/ready with whitelisted origin', function () {
             // Setup for ready endpoint
             seedTenantKeyPresence();
-            TenantKey::generateKek();
             app(RuntimeHeartbeatService::class)->recordSchedulerHeartbeat();
 
             $response = $this->withHeaders([
@@ -329,8 +325,6 @@ describe('Health Check Endpoints', function () {
 function seedHealthReadinessPrerequisites(): void
 {
     seedTenantKeyPresence();
-
-    TenantKey::generateKek();
 }
 
 function seedPendingJob(string $queue): void

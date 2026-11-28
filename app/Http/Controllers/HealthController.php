@@ -7,9 +7,9 @@ namespace App\Http\Controllers;
 
 use App\Models\TenantKey;
 use App\Services\RuntimeHeartbeatService;
+use App\Services\TenantKekRegistry;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\File;
 
 class HealthController extends Controller
 {
@@ -43,7 +43,7 @@ class HealthController extends Controller
      * - Scheduler heartbeats are fresh
      * - Queue workers stay fresh while backlog exists
      */
-    public function ready(RuntimeHeartbeatService $runtimeHeartbeatService): JsonResponse
+    public function ready(RuntimeHeartbeatService $runtimeHeartbeatService, TenantKekRegistry $kek): JsonResponse
     {
         $allPassed = true;
 
@@ -54,18 +54,12 @@ class HealthController extends Controller
             $allPassed = false;
         }
 
-        // Tenant keys exist
+        // Observe key presence and the exact committed generation under one lease.
         try {
-            if (TenantKey::count() === 0) {
+            if (! $kek->withKey(static fn (): bool => TenantKey::query()->exists())) {
                 $allPassed = false;
             }
         } catch (\Throwable) {
-            $allPassed = false;
-        }
-
-        // KEK file is readable
-        $kekPath = TenantKey::getKekPath();
-        if (! File::exists($kekPath) || ! File::isReadable($kekPath)) {
             $allPassed = false;
         }
 

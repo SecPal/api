@@ -84,17 +84,10 @@ function spaOrigin(): string
     return 'https://app.secpal.dev';
 }
 
-/** Seed the database prerequisite for readiness checks that vary the KEK independently. */
+/** Store an authenticated tenant key before varying its mount or metadata. */
 function seedTenantKeyPresence(): void
 {
-    Illuminate\Support\Facades\DB::table('tenant_keys')->insert([
-        'id' => Illuminate\Support\Str::uuid()->toString(),
-        'tenant_id' => App\Models\Tenant::query()->create()->id,
-        'dek_wrapped' => base64_encode(random_bytes(48)),
-        'dek_nonce' => base64_encode(random_bytes(24)),
-        'idx_wrapped' => base64_encode(random_bytes(48)),
-        'idx_nonce' => base64_encode(random_bytes(24)),
-    ]);
+    App\Models\TenantKey::factory()->create();
 }
 
 function spaReferer(): string

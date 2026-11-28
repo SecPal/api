@@ -9,7 +9,6 @@ use App\Models\TenantKey;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
@@ -39,18 +38,10 @@ function createCustomerAssignmentTestUser(string $email, ?int $tenantId = null):
         $tenantId = $tenant !== null ? $tenant->id : Tenant::factory()->create()->id;
     }
 
-    $userId = Str::uuid()->toString();
-    DB::table('users')->insert([
-        'id' => $userId,
-        'name' => 'Test User',
+    return App\Models\User::factory()->create([
         'email' => $email,
-        'password' => Hash::make('password'),
         'tenant_id' => $tenantId,
-        'created_at' => now(),
-        'updated_at' => now(),
-    ]);
-
-    return $userId;
+    ])->id;
 }
 
 /**

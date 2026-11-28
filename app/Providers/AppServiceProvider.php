@@ -5,6 +5,7 @@
 
 namespace App\Providers;
 
+use App\Contracts\GlobalIdentityKeyWrapper;
 use App\Contracts\ProcessExecutor;
 use App\Contracts\SecurityEventEmitter;
 use App\Contracts\WebPushDeliveryServiceInterface;
@@ -45,9 +46,12 @@ use App\Policies\SiteAssignmentPolicy;
 use App\Policies\SitePolicy;
 use App\SecurityEvents\SecurityEventName;
 use App\Services\BoundedSecurityEventEmitter;
+use App\Services\GlobalIdentity\FileGlobalIdentityKeyWrapper;
+use App\Services\GlobalIdentity\FileGlobalIdentityRootProvider;
 use App\Services\RuntimeHeartbeatService;
 use App\Services\SecurityEventRecorder;
 use App\Services\SystemProcessExecutor;
+use App\Services\TenantKekReference;
 use App\Services\WebPushDeliveryService;
 use App\Services\WebPushTransport;
 use App\Support\RuntimeInfrastructure;
@@ -75,6 +79,23 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
+        $this->app->scoped(\App\Services\GlobalIdentity\IdentityDisplay::class);
+        $this->app->bind(\App\Services\GlobalIdentity\GlobalIdentityOperationSubject::class, \App\Services\GlobalIdentity\IdentityOperationSubject::class);
+        $this->app->bind(\App\Services\GlobalIdentity\GlobalIdentityDeliveryRenderer::class, \App\Services\GlobalIdentity\IdentityLinkRenderer::class);
+        $this->app->bind(\App\Services\GlobalIdentity\GlobalIdentityDeliveryTransport::class, \App\Services\GlobalIdentity\IdentityMailDelivery::class);
+        $this->app->bind(GlobalIdentityKeyWrapper::class, FileGlobalIdentityKeyWrapper::class);
+        $this->app->bind(FileGlobalIdentityRootProvider::class, static fn (): FileGlobalIdentityRootProvider => new FileGlobalIdentityRootProvider(
+            config()->string('global_identity.root_directory'),
+        ));
+        $this->app->bind(TenantKekReference::class, static function (): TenantKekReference {
+            $generation = filter_var(config('app.tenant_kek_generation'), FILTER_VALIDATE_INT);
+
+            return new TenantKekReference(
+                config()->string('app.tenant_kek_id'),
+                $generation === false ? 0 : $generation,
+                config()->string('app.tenant_kek_fingerprint'),
+            );
+        });
         $this->app->bind(ProcessExecutor::class, SystemProcessExecutor::class);
         $this->app->bind(SecurityEventEmitter::class, BoundedSecurityEventEmitter::class);
         $this->app->bind(WebPushTransportInterface::class, WebPushTransport::class);
@@ -113,14 +134,12 @@ class AppServiceProvider extends ServiceProvider
             return Limit::perMinutes(60, 5)
                 ->by($request->ip())
                 ->response(function (Request $request, array $headers): JsonResponse {
-                    $phase = $request->is('v1/auth/password/reset-request') ? 'request' : 'confirmation';
-                    $email = $request->input('email');
+                    $phase = $request->is('v1/auth/password-reset-requests') ? 'request' : 'confirmation';
 
                     app(SecurityEventRecorder::class)->record(
                         $request,
                         SecurityEventName::PasswordResetRateLimited,
                         ['reset_phase' => $phase],
-                        is_string($email) ? strtolower(trim($email)) : null,
                     );
 
                     /** @var array<string, mixed> $headers */
@@ -426,9 +445,11 @@ class AppServiceProvider extends ServiceProvider
             return ['login|ip|'.$request->ip()];
         }
 
+        $digest = app(\App\Services\GlobalIdentity\GlobalIdentityAccounts::class)->throttleDigest($email);
+
         return [
-            'login|account|'.$email,
-            'login|credential|'.$request->ip().'|'.$email,
+            'login|account|'.$digest,
+            'login|credential|'.$request->ip().'|'.$digest,
         ];
     }
 

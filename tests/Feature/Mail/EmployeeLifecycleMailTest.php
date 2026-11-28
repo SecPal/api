@@ -6,6 +6,7 @@
 
 declare(strict_types=1);
 
+use App\Jobs\DeliverEmployeeAccountNotice;
 use App\Mail\AccountDeactivatedMail;
 use App\Mail\BwrIdDocumentAutoDeletedMail;
 use App\Mail\ContractEndingSoonMail;
@@ -20,7 +21,11 @@ use App\Models\Qualification;
 use App\Models\Tenant;
 use App\Models\TenantKey;
 use App\Models\User;
+use App\Services\GlobalIdentity\GlobalEmailRepository;
+use App\Services\GlobalIdentity\IdentityMailDelivery;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Mail\Mailer;
+use Illuminate\Support\Facades\Mail;
 
 /**
  * @property Tenant $tenant
@@ -48,6 +53,35 @@ beforeEach(function () {
 afterEach(function () {
     cleanupTestKekFile();
     TenantKey::setKekPath(null);
+});
+
+test('propagates account notice transport failure without recipient data', function (): void {
+    $user = User::factory()->create(['tenant_id' => $this->tenant->id]);
+    $employee = Employee::factory()->create(['tenant_id' => $this->tenant->id, 'user_id' => $user->id]);
+    $mailer = Mockery::mock(Mailer::class);
+    $mailer->shouldReceive('sendNow')->once()->andThrow(new RuntimeException('Synthetic recipient detail'));
+    Mail::shouldReceive('mailer')->with('array')->once()->andReturn($mailer);
+    $notice = new DeliverEmployeeAccountNotice($employee->id, $user->id, $user->email_version, true);
+
+    try {
+        $notice->handle(app(GlobalEmailRepository::class), app(IdentityMailDelivery::class));
+    } catch (RuntimeException $failure) {
+        expect($failure->getMessage())->toBe('Employee account notice delivery failed.')
+            ->and($failure->getPrevious())->toBeNull();
+
+        return;
+    }
+
+    $this->fail('The queue must observe a retryable delivery failure.');
+});
+
+test('does not deliver an account notice for a stale email version', function (): void {
+    $user = User::factory()->create(['tenant_id' => $this->tenant->id]);
+    $employee = Employee::factory()->create(['tenant_id' => $this->tenant->id, 'user_id' => $user->id]);
+    Mail::shouldReceive('mailer')->never();
+    $notice = new DeliverEmployeeAccountNotice($employee->id, $user->id, $user->email_version + 1, true);
+
+    $notice->handle(app(GlobalEmailRepository::class), app(IdentityMailDelivery::class));
 });
 
 test('onboarding invitation mail has correct content', function () {

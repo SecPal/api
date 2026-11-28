@@ -18,18 +18,19 @@ use App\Http\Requests\TokenRequest;
 use App\Http\Requests\TotpCodeRequest;
 use App\Http\Requests\UpdateUserLanguageRequest;
 use App\Http\Requests\UserMfaResetRequest;
-use App\Mail\PasswordResetMail;
 use App\Models\Employee;
 use App\Models\PasskeyCredential;
 use App\Models\User;
 use App\SecurityEvents\SecurityEventName;
 use App\Services\ActivityLogService;
+use App\Services\GlobalIdentity\GlobalIdentityAccounts;
+use App\Services\GlobalIdentity\GlobalIdentityOperationType;
+use App\Services\GlobalIdentity\IdentityLifecycle;
 use App\Services\LoginMfaChallengeService;
 use App\Services\MfaService;
 use App\Services\PasskeyChallengeService;
 use App\Services\PasskeyService;
 use App\Services\SecurityEventRecorder;
-use Illuminate\Auth\Events\Verified;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -39,7 +40,6 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -56,7 +56,6 @@ class AuthController extends Controller
     /**
      * Password reset token expiry time in minutes.
      */
-    private const PASSWORD_RESET_TOKEN_EXPIRY_MINUTES = 60;
 
     /**
      * Cache prefix for the placeholder hash used on unknown-user logins.
@@ -77,6 +76,8 @@ class AuthController extends Controller
         private PasskeyChallengeService $passkeyChallengeService,
         private PasskeyService $passkeyService,
         private SecurityEventRecorder $securityEventRecorder,
+        private GlobalIdentityAccounts $identityAccounts,
+        private IdentityLifecycle $identityLifecycle,
     ) {}
 
     /**
@@ -161,7 +162,7 @@ class AuthController extends Controller
         /** @var User|null $user */
         $user = User::find($challenge['user_id']);
 
-        if ($user === null) {
+        if ($user === null || ! hash_equals($challenge['account_binding'], $this->loginMfaChallengeService->accountBinding($user))) {
             $this->loginMfaChallengeService->forget($challengeId);
 
             return $this->resourceNotFoundResponse();
@@ -179,7 +180,7 @@ class AuthController extends Controller
         $validated = $request->validated();
 
         if (! $this->mfaService->verifyEnabledTwoFactorCode($user, $validated['method'], $validated['code'])) {
-            $this->activityLogService->logLoginFailed($user->email, 'invalid_mfa_code');
+            $this->activityLogService->logLoginFailed('', 'invalid_mfa_code', $user);
             $this->securityEventRecorder->record(
                 $request,
                 SecurityEventName::AuthenticationMfaFailed,
@@ -187,7 +188,7 @@ class AuthController extends Controller
                     'authentication_method' => $validated['method'],
                     'login_context' => $challenge['login_context'],
                 ],
-                strtolower(trim($user->email)),
+                $user->id,
             );
             $this->loginMfaChallengeService->forget($challengeId);
 
@@ -288,52 +289,22 @@ class AuthController extends Controller
         ]);
     }
 
-    /**
-     * Send a fresh email verification notification to the authenticated user.
-     */
     public function sendVerificationNotification(Request $request): JsonResponse
     {
         /** @var User $user */
         $user = $request->user();
+        $this->identityLifecycle->request($user, GlobalIdentityOperationType::EmailVerification);
 
-        if ($user->hasVerifiedEmail()) {
-            return response()->json([
-                'message' => __('Email address is already verified.'),
-            ]);
-        }
-
-        $user->sendEmailVerificationNotification();
-
-        return response()->json([
-            'message' => __('Verification link sent successfully.'),
-        ], 202);
+        return $this->identityRequestAccepted();
     }
 
-    /**
-     * Verify an email address using a signed verification link.
-     */
-    public function verifyEmail(string $id, string $hash): JsonResponse
+    public function verifyEmail(Request $request, string $operationId): \Symfony\Component\HttpFoundation\Response
     {
-        /** @var User|null $user */
-        $user = User::find($id);
+        $request->validate(['token' => ['required', 'string', 'max:128']]);
 
-        if ($user === null || ! hash_equals($hash, sha1($user->getEmailForVerification()))) {
-            return $this->resourceNotFoundResponse();
-        }
-
-        if ($user->hasVerifiedEmail()) {
-            return response()->json([
-                'message' => __('Email address is already verified.'),
-            ]);
-        }
-
-        if ($user->markEmailAsVerified()) {
-            event(new Verified($user));
-        }
-
-        return response()->json([
-            'message' => __('Email address verified successfully.'),
-        ]);
+        return $this->identityLifecycle->consume($operationId, GlobalIdentityOperationType::EmailVerification, $request->string('token')->toString())
+            ? response()->noContent()
+            : $this->identityOperationUnavailable();
     }
 
     /**
@@ -903,54 +874,19 @@ class AuthController extends Controller
     public function passwordResetRequest(PasswordResetRequestRequest $request): JsonResponse
     {
         $startedAt = hrtime(true);
-        $validated = $request->validated();
-
-        $user = User::where('email', $validated['email'])->first();
-
-        // Always allocate the token and compute the bcrypt hash, regardless of
-        // whether the email matched a real account. This is the dominant cost
-        // of the "known" branch and running it unconditionally collapses the
-        // primary timing oracle. The resulting hash is only persisted when a
-        // real user exists; for the missing-account branch the value is
-        // discarded after the hash work has been performed.
-        $token = Str::random(64);
-        $hashedToken = Hash::make($token);
-
-        if ($user) {
-            try {
-                DB::transaction(function () use ($user, $hashedToken, $token): void {
-                    DB::table('password_reset_tokens')
-                        ->where('email', $user->email)
-                        ->delete();
-
-                    DB::table('password_reset_tokens')->insert([
-                        'email' => $user->email,
-                        'token' => $hashedToken,
-                        'created_at' => now(),
-                    ]);
-
-                    Mail::to($user)->queue(new PasswordResetMail($user, $token));
-                });
-            } catch (Throwable $exception) {
-                // Log at error level so monitoring can surface users that
-                // received a generic 200 without an actual delivery attempt.
-                // The uniform 200 is intentional (prevents 500/200 enumeration
-                // oracle), but silent swallowing would leave operators blind to
-                // delivery failures. report() alone is insufficient when the
-                // exception reporter is not wired to an alerting channel.
-                Log::error('password_reset_delivery_failed', [
-                    'email' => $user->email,
-                    'exception' => $exception->getMessage(),
-                ]);
-                report($exception);
+        try {
+            Hash::make(bin2hex(random_bytes(32)));
+            $user = $this->identityAccounts->find($request->string('email')->toString());
+            if ($user !== null) {
+                $this->identityLifecycle->request($user, GlobalIdentityOperationType::PasswordReset);
             }
+        } catch (Throwable) {
+            Log::warning('Identity password reset request could not be prepared.');
+        } finally {
+            $this->enforcePasswordResetMinimumResponseTime($startedAt);
         }
 
-        $this->enforcePasswordResetMinimumResponseTime($startedAt);
-
-        return response()->json([
-            'message' => __('Password reset email sent if account exists'),
-        ]);
+        return $this->identityRequestAccepted();
     }
 
     private function enforcePasswordResetMinimumResponseTime(int $startedAt): void
@@ -970,90 +906,37 @@ class AuthController extends Controller
         usleep((int) ceil(($minimumDelayNanoseconds - $elapsedNanoseconds) / 1000));
     }
 
-    /**
-     * Reset password using token.
-     */
-    public function passwordReset(PasswordResetRequest $request): JsonResponse
+    public function passwordReset(PasswordResetRequest $request, string $operationId): \Symfony\Component\HttpFoundation\Response
     {
-        /** @var array{token: string, email: string, password: string} $validated */
-        $validated = $request->validated();
-
-        // Find user
-        $user = User::where('email', $validated['email'])->first();
-
-        if (! $user) {
-            return $this->invalidPasswordResetResponse($request, $validated['email']);
+        if ($this->identityLifecycle->consume(
+            $operationId,
+            GlobalIdentityOperationType::PasswordReset,
+            $request->string('token')->toString(),
+            $request->string('password')->toString(),
+        )) {
+            return response()->noContent()->header('Cache-Control', 'no-store');
         }
+        $this->securityEventRecorder->record(
+            $request,
+            SecurityEventName::PasswordResetTokenRejected,
+            ['reset_phase' => 'confirmation'],
+            Str::isUuid($operationId) ? $operationId : null,
+        );
 
-        // Get stored token record
-        /** @var object{email: string, token: string, created_at: string}|null $tokenRecord */
-        $tokenRecord = DB::table('password_reset_tokens')
-            ->where('email', $validated['email'])
-            ->first();
+        return $this->identityOperationUnavailable();
+    }
 
-        if (! $tokenRecord) {
-            return $this->invalidPasswordResetResponse($request, $validated['email']);
-        }
+    private function identityRequestAccepted(): JsonResponse
+    {
+        return response()->json(['message' => 'Request accepted.'], 202)->header('Cache-Control', 'no-store');
+    }
 
-        // Check if token is expired
-        $createdAt = \Carbon\Carbon::parse($tokenRecord->created_at);
-        $minutesAgo = $createdAt->diffInMinutes(now());
-
-        if ($minutesAgo > self::PASSWORD_RESET_TOKEN_EXPIRY_MINUTES) {
-            DB::table('password_reset_tokens')
-                ->where('email', $validated['email'])
-                ->delete();
-
-            return $this->invalidPasswordResetResponse($request, $validated['email']);
-        }
-
-        // Verify token
-        if (! Hash::check($validated['token'], $tokenRecord->token)) {
-            return $this->invalidPasswordResetResponse($request, $validated['email']);
-        }
-
-        $invalidToken = false;
-
-        DB::transaction(function () use ($user, $validated, &$invalidToken): void {
-            // Re-fetch and lock the token row to prevent concurrent consumption (TOCTOU)
-            /** @var object{email: string, token: string, created_at: string}|null $lockedToken */
-            $lockedToken = DB::table('password_reset_tokens')
-                ->where('email', $validated['email'])
-                ->lockForUpdate()
-                ->first();
-
-            if (! $lockedToken || ! Hash::check($validated['token'], $lockedToken->token)) {
-                $invalidToken = true;
-
-                return;
-            }
-
-            $user->forceFill([
-                'password' => Hash::make($validated['password']),
-                'remember_token' => null,
-            ])->save();
-
-            $user->tokens()->delete();
-
-            DB::table('sessions')
-                ->where('user_id', $user->getAuthIdentifier())
-                ->delete();
-
-            $this->activityLogService->logPasswordReset($user);
-
-            // Delete used token (one-time use)
-            DB::table('password_reset_tokens')
-                ->where('email', $validated['email'])
-                ->delete();
-        });
-
-        if ($invalidToken) {
-            return $this->invalidPasswordResetResponse($request, $validated['email']);
-        }
-
+    private function identityOperationUnavailable(): JsonResponse
+    {
         return response()->json([
-            'message' => __('Password has been reset successfully'),
-        ]);
+            'message' => 'This operation is unavailable.',
+            'code' => 'IDENTITY_OPERATION_UNAVAILABLE',
+        ], 409)->header('Cache-Control', 'no-store');
     }
 
     /**
@@ -1108,7 +991,7 @@ class AuthController extends Controller
         return [
             'id' => $user->id,
             'name' => $user->name,
-            'email' => $user->email,
+            'email' => $user->emailForDisplay(),
             'emailVerified' => $user->hasVerifiedEmail(),
             'roles' => $roles,
             'permissions' => $permissions,
@@ -1155,13 +1038,13 @@ class AuthController extends Controller
         string $password,
         string $loginContext,
     ): User {
-        $user = User::where('email', $email)->first();
+        $user = $this->identityAccounts->find($email);
 
         $hashToCheck = $user !== null ? $user->password : $this->dummyPasswordHash();
         $passwordValid = Hash::check($password, $hashToCheck);
 
         if (! $user || ! $passwordValid) {
-            $this->activityLogService->logLoginFailed($email, 'invalid_credentials');
+            $this->activityLogService->logLoginFailed($email, 'invalid_credentials', $user);
             $this->securityEventRecorder->record(
                 $request,
                 SecurityEventName::AuthenticationFailed,
@@ -1169,7 +1052,7 @@ class AuthController extends Controller
                     'authentication_method' => 'password',
                     'login_context' => $loginContext,
                 ],
-                strtolower(trim($email)),
+                $user?->id,
             );
 
             throw ValidationException::withMessages([
@@ -1180,25 +1063,6 @@ class AuthController extends Controller
         return $user;
     }
 
-    private function invalidPasswordResetResponse(Request $request, string $email): JsonResponse
-    {
-        $this->securityEventRecorder->record(
-            $request,
-            SecurityEventName::PasswordResetTokenRejected,
-            ['reset_phase' => 'confirmation'],
-            strtolower(trim($email)),
-        );
-
-        return response()->json([
-            'message' => __('Invalid or expired reset token'),
-        ], 400);
-    }
-
-    /**
-     * Return a stable bcrypt placeholder used to neutralize the login timing
-     * oracle when no user matches the submitted email address. Cache entries
-     * are scoped by hasher config so cost/driver changes regenerate the hash.
-     */
     private function dummyPasswordHash(): string
     {
         try {
@@ -1237,8 +1101,11 @@ class AuthController extends Controller
      */
     private function completeSessionLogin(Request $request, User $user, bool $mfaCompleted = false, ?string $method = null): JsonResponse
     {
-        Auth::guard('web')->login($user, remember: true);
-        $request->session()->regenerate();
+        DB::transaction(function () use ($request, $user): void {
+            $this->requireCurrentCredentials($user);
+            Auth::guard('web')->login($user, remember: true);
+            $request->session()->regenerate();
+        });
 
         $this->activityLogService->logLoginSuccess($user);
 
@@ -1261,7 +1128,11 @@ class AuthController extends Controller
         int $createdStatus = 201,
         ?string $method = null,
     ): JsonResponse {
-        $token = $user->issueApiToken($deviceName);
+        $token = DB::transaction(function () use ($user, $deviceName): \Laravel\Sanctum\NewAccessToken {
+            $this->requireCurrentCredentials($user);
+
+            return $user->issueApiToken($deviceName);
+        });
 
         $this->activityLogService->logLoginSuccess($user);
 
@@ -1276,6 +1147,15 @@ class AuthController extends Controller
             'token' => $token->plainTextToken,
             'user' => $this->buildUserAuthorizationData($user),
         ], $createdStatus);
+    }
+
+    private function requireCurrentCredentials(User $user): void
+    {
+        $current = User::query()->lockForUpdate()->find($user->id);
+        if ($current === null || $current->email_version !== $user->email_version
+            || ! hash_equals($current->password, $user->password)) {
+            throw ValidationException::withMessages(['email' => ['The provided credentials are incorrect.']]);
+        }
     }
 
     /**

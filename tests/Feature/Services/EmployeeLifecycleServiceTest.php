@@ -5,8 +5,7 @@
 
 declare(strict_types=1);
 
-use App\Mail\AccountDeactivatedMail;
-use App\Mail\WelcomeActiveMail;
+use App\Jobs\DeliverEmployeeAccountNotice;
 use App\Models\Activity;
 use App\Models\Customer;
 use App\Models\CustomerAssignment;
@@ -29,6 +28,7 @@ use App\Services\EmployeeLifecycleService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Validation\ValidationException;
 use Spatie\Permission\Models\Role;
 
@@ -104,6 +104,7 @@ test('employee lifecycle RBAC bootstrap tolerates pre-seeded permissions and rol
 
 test('employee lifecycle service activates employee atomically', function (): void {
     Mail::fake();
+    Queue::fake([DeliverEmployeeAccountNotice::class]);
 
     $employee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
@@ -121,13 +122,13 @@ test('employee lifecycle service activates employee atomically', function (): vo
     expect($activatedEmployee->user_account_activated_at)->not->toBeNull();
     expect($activatedEmployee->user?->hasRole('Employee'))->toBeTrue();
 
-    Mail::assertQueued(WelcomeActiveMail::class, function ($mail) use ($activatedEmployee): bool {
-        return $mail->employee->id === $activatedEmployee->id;
-    });
+    Queue::assertPushed(DeliverEmployeeAccountNotice::class, fn (DeliverEmployeeAccountNotice $notice): bool => $notice->employeeId === $activatedEmployee->id && $notice->activated
+    );
 });
 
 test('employee lifecycle service rejects activation under an inactive legal entity', function (): void {
     Mail::fake();
+    Queue::fake([DeliverEmployeeAccountNotice::class]);
     $legalEntity = LegalEntity::factory()->forTenant((string) $this->tenant->id)->create();
     $establishment = Establishment::factory()->create([
         'tenant_id' => $this->tenant->id,
@@ -154,6 +155,7 @@ test('employee lifecycle service rejects activation under an inactive legal enti
 
 test('employee lifecycle service rolls activation back when employee role is missing', function () {
     Mail::fake();
+    Queue::fake([DeliverEmployeeAccountNotice::class]);
 
     $employee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
@@ -178,6 +180,7 @@ test('employee lifecycle service rolls activation back when employee role is mis
 
 test('employee lifecycle service rejects activation when employee has no linked user account', function () {
     Mail::fake();
+    Queue::fake([DeliverEmployeeAccountNotice::class]);
 
     $employee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
@@ -204,6 +207,7 @@ test('employee lifecycle service rejects activation when employee has no linked 
 
 test('employee lifecycle service rejects activation when onboarding workflow is not ready', function () {
     Mail::fake();
+    Queue::fake([DeliverEmployeeAccountNotice::class]);
     $this->orgUnit->update(['is_assignable' => false]);
 
     $employee = Employee::factory()->create([
@@ -226,6 +230,7 @@ test('employee lifecycle service rejects activation when onboarding workflow is 
 
 test('employee lifecycle service terminates employee and revokes runtime access atomically', function () {
     Mail::fake();
+    Queue::fake([DeliverEmployeeAccountNotice::class]);
 
     $employee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
@@ -263,13 +268,13 @@ test('employee lifecycle service terminates employee and revokes runtime access 
     expect($user->tokens()->count())->toBe(0);
     expect(DB::table('sessions')->where('user_id', $user->id)->count())->toBe(0);
 
-    Mail::assertQueued(AccountDeactivatedMail::class, function ($mail) use ($terminatedEmployee) {
-        return $mail->employee->id === $terminatedEmployee->id;
-    });
+    Queue::assertPushed(DeliverEmployeeAccountNotice::class, fn (DeliverEmployeeAccountNotice $notice): bool => $notice->employeeId === $terminatedEmployee->id && ! $notice->activated
+    );
 });
 
 test('employee lifecycle service places active employee on leave with read-only runtime access', function () {
     Mail::fake();
+    Queue::fake([DeliverEmployeeAccountNotice::class]);
 
     $employee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
@@ -301,6 +306,7 @@ test('employee lifecycle service places active employee on leave with read-only 
 
 test('employee lifecycle service restores the prior runtime access model when returning from leave', function () {
     Mail::fake();
+    Queue::fake([DeliverEmployeeAccountNotice::class]);
 
     $employee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
@@ -333,6 +339,7 @@ test('employee lifecycle service restores the prior runtime access model when re
 
 test('employee lifecycle service restores access independently of organizational unit assignability', function (): void {
     Mail::fake();
+    Queue::fake([DeliverEmployeeAccountNotice::class]);
 
     $employee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
@@ -352,6 +359,7 @@ test('employee lifecycle service restores access independently of organizational
 
 test('employee lifecycle service clears on-leave access snapshots and direct permissions on termination', function () {
     Mail::fake();
+    Queue::fake([DeliverEmployeeAccountNotice::class]);
 
     $employee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
@@ -694,7 +702,7 @@ test('employee lifecycle service deprovisions a shared user when only trashed em
         ->and(DB::table('model_has_roles')->where('model_id', $linkedUser->id)->count())->toBe(0)
         ->and(DB::table('model_has_permissions')->where('model_id', $linkedUser->id)->count())->toBe(0)
         ->and(User::query()->findOrFail($linkedUser->id)->remember_token)->toBeNull()
-        ->and(User::query()->findOrFail($linkedUser->id)->email)->toBe('deleted-user+'.$linkedUser->id.'@secpal.dev')
+        ->and(User::query()->findOrFail($linkedUser->id)->emailForDisplay())->toBe('deleted-user+'.$linkedUser->id.'@secpal.dev')
         ->and(User::query()->findOrFail($linkedUser->id)->email_verified_at)->toBeNull()
         ->and(Hash::check('SharedLegacyPassword123!', User::query()->findOrFail($linkedUser->id)->password))->toBeFalse();
 });
@@ -743,7 +751,7 @@ test('employee lifecycle service deprovisions a shared user when remaining emplo
         ->and(DB::table('sessions')->where('user_id', $linkedUser->id)->count())->toBe(0)
         ->and(DB::table('model_has_roles')->where('model_id', $linkedUser->id)->count())->toBe(0)
         ->and(DB::table('model_has_permissions')->where('model_id', $linkedUser->id)->count())->toBe(0)
-        ->and(User::query()->findOrFail($linkedUser->id)->email)->toBe('deleted-user+'.$linkedUser->id.'@secpal.dev')
+        ->and(User::query()->findOrFail($linkedUser->id)->emailForDisplay())->toBe('deleted-user+'.$linkedUser->id.'@secpal.dev')
         ->and(Hash::check('InactiveSharedPassword123!', User::query()->findOrFail($linkedUser->id)->password))->toBeFalse();
 });
 
@@ -794,6 +802,7 @@ test('employee lifecycle service cancels future assignments when deleting a link
 
 test('employee lifecycle service rolls leave transition back when the read-only role is missing', function () {
     Mail::fake();
+    Queue::fake([DeliverEmployeeAccountNotice::class]);
 
     $employee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,

@@ -127,7 +127,7 @@ test('middleware prefers authenticated user preferred locale over Accept-Languag
     });
 
     $this->withHeaders(spaCsrfHeaders($this))->postJson('/v1/auth/login', [
-        'email' => $user->email,
+        'email' => $user->emailForDisplay(),
         'password' => 'password',
     ])->assertOk();
 

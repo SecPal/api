@@ -53,7 +53,7 @@ test('logLoginFailed creates authentication log without causer', function (): vo
         ->and($activity->description)->toBe('Failed login attempt')
         ->and($activity->causer_id)->toBeNull()
         ->and($activity->properties['event'])->toBe('login_failed')
-        ->and($activity->properties['email'])->toBe('test@example.com')
+        ->and($activity->properties->all())->not->toHaveKey('email')
         ->and($activity->properties['reason'])->toBe('Invalid password')
         ->and(Activity::getRetentionYearsForLogType($activity->log_name))->toBeIn([3, 8]);
 });

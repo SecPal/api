@@ -12,6 +12,7 @@ use App\Exceptions\CorruptedEncryptedAttributeException;
 use App\Models\Person;
 use App\Models\Tenant;
 use App\Models\TenantKey;
+use App\Services\TenantKekRegistry;
 use Illuminate\Console\Command;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\DB;
@@ -43,7 +44,7 @@ class RotateDekCommand extends Command
         $this->info("Starting DEK rotation for tenant {$tenantId}...");
 
         try {
-            $result = DB::transaction(function () use ($tenantId): ?array {
+            $result = app(TenantKekRegistry::class)->withLease(function () use ($tenantId): ?array {
                 $key = TenantKey::query()->where('tenant_id', $tenantId)->lockForUpdate()->firstOrFail();
 
                 // Include soft-deleted records and employees that own encrypted files.

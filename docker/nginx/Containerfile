@@ -1,6 +1,6 @@
 # SPDX-FileCopyrightText: 2026 SecPal Contributors
 # SPDX-License-Identifier: CC0-1.0
-FROM docker.io/library/nginx:1.30.7-alpine3.24-slim@sha256:8c950211a641ec5b23f265450517001f6bcca533666120ebe36cb4cff3d00a55 AS runtime
+FROM docker.io/library/nginx:1.30.8-alpine3.24-slim@sha256:e9eaa7298465eab06d618c51556fdcf3fb5061f9ff40bd28ee898fbd7ee7f900 AS runtime
 RUN apk add --no-cache zlib=1.4-r0 libcrypto3=3.5.9-r1 libssl3=3.5.9-r1 \
     && apk del --no-network gettext-envsubst \
     && addgroup -g 10001 secpal \

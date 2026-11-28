@@ -12,6 +12,7 @@ use App\Http\Requests\Api\V1\UpdateSiteRequest;
 use App\Http\Resources\SiteResource;
 use App\Models\Site;
 use App\Models\Tenant;
+use App\Services\GlobalIdentity\IdentityDisplay;
 use App\Services\OrganizationalUnitAssignmentService;
 use App\Support\LikePattern;
 use Illuminate\Http\JsonResponse;
@@ -33,6 +34,8 @@ use Illuminate\Validation\ValidationException;
  */
 class SiteController extends Controller
 {
+    public function __construct(private readonly IdentityDisplay $identityDisplay) {}
+
     /**
      * Display a listing of sites.
      *
@@ -97,6 +100,8 @@ class SiteController extends Controller
         $perPage = $request->integer('per_page', 15);
         $sites = $query->paginate($perPage);
 
+        $this->identityDisplay->prepare($sites, 'assignments.user');
+
         return SiteResource::collection($sites);
     }
 
@@ -158,6 +163,7 @@ class SiteController extends Controller
         $this->authorize('view', $site);
 
         $site->load(['customer', 'legalEntity', 'establishment', 'assignments.user']);
+        $this->identityDisplay->prepare($site, 'assignments.user');
 
         return response()->json([
             'data' => new SiteResource($site),

@@ -5,7 +5,9 @@
 
 namespace Database\Factories;
 
+use App\Services\GlobalIdentity\GlobalIdentityAccounts;
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 
@@ -51,5 +53,26 @@ class UserFactory extends Factory
         return $this->state(fn (array $attributes) => [
             'email_verified_at' => null,
         ]);
+    }
+
+    /** @param Collection<int, \App\Models\User> $results */
+    protected function store(Collection $results): void
+    {
+        if (app()->environment('testing')) {
+            \Tests\Support\GlobalIdentityTestFixture::prepare();
+        }
+        foreach ($results as $model) {
+            $address = $model->getAttribute('email');
+            if (! is_string($address)) {
+                throw new \LogicException('An identity fixture requires a synthetic email.');
+            }
+            $model->offsetUnset('email');
+            $account = app(GlobalIdentityAccounts::class)->create($model, $address);
+            $model->setRawAttributes($account->getAttributes(), true);
+            $model->setConnection($account->getConnectionName());
+            $model->exists = true;
+            $model->wasRecentlyCreated = true;
+            $this->createChildren($model);
+        }
     }
 }

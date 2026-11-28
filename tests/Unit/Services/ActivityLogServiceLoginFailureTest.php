@@ -43,7 +43,7 @@ test('logs unknown email without user or employee', function () {
 
     expect($activity)->not->toBeNull();
     expect($activity->properties['event'])->toBe('login_failed');
-    expect($activity->properties['email'])->toBe($unknownEmail);
+    expect($activity->properties->all())->not->toHaveKey('email');
     expect($activity->properties['user_exists'])->toBeFalse();
     expect($activity->properties['employee_exists'])->toBeFalse();
     expect($activity->properties['has_organizational_unit'])->toBeFalse();
@@ -64,14 +64,14 @@ test('logs user with employee', function () {
     $employee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
         'user_id' => $user->id,
-        'email' => $user->email,
+        'email' => $user->emailForDisplay(),
     ]);
     App\Models\UserInternalOrganizationalScope::create([
         'user_id' => $user->id,
         'organizational_unit_id' => $this->orgUnit->id,
     ]);
 
-    $activity = $this->service->logLoginFailed($user->email, 'invalid_credentials');
+    $activity = $this->service->logLoginFailed($user->emailForDisplay(), 'invalid_credentials');
 
     expect($activity)->not->toBeNull();
     expect($activity->properties['user_exists'])->toBeTrue();
@@ -97,7 +97,7 @@ test('logs user without employee', function () {
         'organizational_unit_id' => $this->orgUnit->id,
     ]);
 
-    $activity = $this->service->logLoginFailed($user->email, 'invalid_credentials');
+    $activity = $this->service->logLoginFailed($user->emailForDisplay(), 'invalid_credentials');
 
     expect($activity)->not->toBeNull();
     expect($activity->properties['user_exists'])->toBeTrue();

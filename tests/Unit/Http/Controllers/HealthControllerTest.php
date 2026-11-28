@@ -5,10 +5,10 @@
 
 use App\Http\Controllers\HealthController;
 use App\Services\RuntimeHeartbeatService;
+use App\Services\TenantKekRegistry;
 use Illuminate\Contracts\Routing\ResponseFactory;
 use Illuminate\Database\Connection;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\File;
 
 beforeEach(function (): void {
     app(ResponseFactory::class);
@@ -18,13 +18,11 @@ beforeEach(function (): void {
 
 it('returns 503 instead of 500 when database connectivity throws a non-exception throwable', function (): void {
     DB::shouldReceive('connection')
-        ->zeroOrMoreTimes()
+        ->once()
         ->andThrow(new TypeError('Database password must be a string.'));
+    DB::shouldReceive('transaction')->once()->andThrow(new TypeError('Tenant key database unavailable.'));
 
-    File::shouldReceive('exists')->once()->andReturn(true);
-    File::shouldReceive('isReadable')->once()->andReturn(true);
-
-    $response = app(HealthController::class)->ready(healthyRuntimeHeartbeatService());
+    $response = app(HealthController::class)->ready(healthyRuntimeHeartbeatService(), app(TenantKekRegistry::class));
 
     expect($response->getStatusCode())->toBe(503)
         ->and(json_decode($response->getContent(), true, flags: JSON_THROW_ON_ERROR))
@@ -38,14 +36,11 @@ it('returns 503 instead of 500 when tenant-key checks throw a non-exception thro
     $connection->shouldReceive('getPdo')->once()->andReturn(new PDO('sqlite::memory:'));
 
     DB::shouldReceive('connection')->once()->andReturn($connection);
-    DB::shouldReceive('connection')
-        ->zeroOrMoreTimes()
+    DB::shouldReceive('transaction')
+        ->once()
         ->andThrow(new TypeError('Tenant key database connection must be configured.'));
 
-    File::shouldReceive('exists')->once()->andReturn(true);
-    File::shouldReceive('isReadable')->once()->andReturn(true);
-
-    $response = app(HealthController::class)->ready(healthyRuntimeHeartbeatService());
+    $response = app(HealthController::class)->ready(healthyRuntimeHeartbeatService(), app(TenantKekRegistry::class));
 
     expect($response->getStatusCode())->toBe(503)
         ->and(json_decode($response->getContent(), true, flags: JSON_THROW_ON_ERROR))

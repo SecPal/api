@@ -60,6 +60,9 @@ return [
     'frontend_url' => env('FRONTEND_URL', null),
 
     'kek_path' => env('KEK_PATH', storage_path('app/keys/kek.key')),
+    'tenant_kek_id' => env('TENANT_KEK_ID', ''),
+    'tenant_kek_generation' => env('TENANT_KEK_GENERATION'),
+    'tenant_kek_fingerprint' => env('TENANT_KEK_FINGERPRINT', ''),
 
     /*
     |--------------------------------------------------------------------------

@@ -26,9 +26,8 @@ class PasswordResetRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'token' => ['required', 'string'],
-            'email' => ['required', 'email'],
-            'password' => ['required', Password::defaults(), 'confirmed'],
+            'token' => ['required', 'string', 'max:128'],
+            'password' => ['required', Password::defaults()],
         ];
     }
 
@@ -41,10 +40,7 @@ class PasswordResetRequest extends FormRequest
     {
         return [
             'token.required' => 'Reset token is required.',
-            'email.required' => 'Email address is required.',
-            'email.email' => 'Please provide a valid email address.',
             'password.required' => 'Password is required.',
-            'password.confirmed' => 'Password confirmation does not match.',
         ];
     }
 }

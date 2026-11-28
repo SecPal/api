@@ -35,18 +35,8 @@ updates:
       interval: "daily"
       time: "04:00"
       timezone: "Europe/Berlin"
-    groups:
-      shared-no-op-workflow-pins:
-        patterns:
-          - "SecPal/.github/.github/workflows/reusable-check-conflict-markers.yml"
-          - "SecPal/.github/.github/workflows/reusable-pr-size.yml"
-      shared-github-workflows:
-        patterns:
-          - "SecPal/.github/.github/workflows/*"
-      shared-github-workflows-security:
-        applies-to: "security-updates"
-        patterns:
-          - "SecPal/.github/.github/workflows/*"
+    # Shared SecPal pins use the full commit SHA and its exact immutable release annotation.
+    # Propose each component and merge authority independently.
     commit-message:
       prefix: "chore"
       include: "scope"

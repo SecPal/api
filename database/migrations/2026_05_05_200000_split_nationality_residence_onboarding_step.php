@@ -57,7 +57,7 @@ return new class extends Migration
 
         $personalInformationSchema = [
             'title' => 'Personal Information Form',
-            'description' => 'Information required for onboarding; planned activities under §34a GewO can be completed later by HR for Bewacherregister export.',
+            'description' => 'Information required for onboarding; planned activities under §34a GewO can be completed later by HR for manual reporting in the Bewacherregister.',
             'type' => 'object',
             'properties' => [
                 'gender' => [
@@ -81,7 +81,7 @@ return new class extends Migration
                 'intended_activities' => [
                     'type' => 'array',
                     'title' => 'Intended Activities (§ 34a GewO)',
-                    'description' => 'Optional during onboarding; HR must align this with the assignment before Bewacherregister export if you skip it.',
+                    'description' => 'Optional during onboarding; HR must align this with the assignment before manual reporting in the Bewacherregister if you skip it.',
                     'items' => [
                         'type' => 'string',
                         'enum' => [
@@ -145,7 +145,7 @@ return new class extends Migration
             ->where('template_key', 'personal_information_form')
             ->update([
                 'name' => 'Personal Information Form',
-                'description' => 'Your personal details for onboarding; HR may need to complete additional Bewacherregister fields before export.',
+                'description' => 'Your personal details for onboarding; HR may need to complete additional Bewacherregister fields before manual reporting.',
                 'form_schema' => json_encode($personalInformationSchema, JSON_THROW_ON_ERROR),
                 'sort_order' => 1,
                 'updated_at' => $now,
@@ -232,7 +232,7 @@ return new class extends Migration
 
         $legacyPersonalInformationSchema = [
             'title' => 'Personal Information Form',
-            'description' => 'Information required for onboarding; planned activities under §34a GewO can be completed later by HR for Bewacherregister export.',
+            'description' => 'Information required for onboarding; planned activities under §34a GewO can be completed later by HR for manual reporting in the Bewacherregister.',
             'type' => 'object',
             'properties' => [
                 'gender' => [
@@ -265,7 +265,7 @@ return new class extends Migration
                 'intended_activities' => [
                     'type' => 'array',
                     'title' => 'Intended Activities (§ 34a GewO)',
-                    'description' => 'Optional during onboarding; HR must align this with the assignment before Bewacherregister export if you skip it.',
+                    'description' => 'Optional during onboarding; HR must align this with the assignment before manual reporting in the Bewacherregister if you skip it.',
                     'items' => [
                         'type' => 'string',
                         'enum' => [

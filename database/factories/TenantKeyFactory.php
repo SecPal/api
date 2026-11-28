@@ -9,6 +9,7 @@ namespace Database\Factories;
 
 use App\Models\Tenant;
 use App\Models\TenantKey;
+use App\Services\TenantKekRegistry;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -38,8 +39,14 @@ final class TenantKeyFactory extends Factory
     public function configure(): static
     {
         return $this->afterMaking(function (TenantKey $key): void {
-            TenantKey::ensureKekExists();
-            $key->fill(TenantKey::generateEnvelopeKeys($key->tenant_id));
+            $kek = app(TenantKekRegistry::class);
+            $kek->withLease(function () use ($key, $kek): void {
+                if (app()->environment('testing')) {
+                    TenantKey::ensureKekExists();
+                }
+                $kek->initialize();
+                $key->fill(TenantKey::generateEnvelopeKeys($key->tenant_id));
+            }, exclusive: true);
         });
     }
 

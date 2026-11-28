@@ -31,8 +31,7 @@ test('keys generate tenant command exists and is registered', function (): void 
 
 test('keys generate tenant command fails with KEK bootstrap guidance when the KEK file is missing', function (): void {
     $this->artisan('keys:generate-tenant')
-        ->expectsOutputToContain('KEK file not found')
-        ->expectsOutputToContain('php artisan keys:generate-kek')
+        ->expectsOutputToContain('externally provided Tenant KEK generation')
         ->assertExitCode(1);
 });
 

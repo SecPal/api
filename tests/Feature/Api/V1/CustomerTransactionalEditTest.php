@@ -12,6 +12,7 @@ use App\Models\Establishment;
 use App\Models\LegalEntity;
 use App\Models\OrganizationalUnit;
 use App\Models\Site;
+use App\Models\SiteAssignment;
 use App\Models\Tenant;
 use App\Models\TenantKey;
 use App\Models\User;
@@ -815,13 +816,18 @@ test('strong GET validator hashes the exact emitted body and is omitted for filt
         'customer_id' => $this->customer->id,
         'user_id' => $assignedUser->id,
     ]);
-    Site::factory()->create([
+    $site = Site::factory()->create([
         'tenant_id' => $this->tenant->id,
         'legal_entity_id' => $this->legalEntity->id,
         'customer_id' => $this->customer->id,
         'establishment_id' => $this->establishments[0]->id,
         'access_instructions' => 'Gate-dependent instructions',
         'notes' => 'Gate-dependent notes',
+    ]);
+    SiteAssignment::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'site_id' => $site->id,
+        'user_id' => $assignedUser->id,
     ]);
     $siteUpdateChecks = 0;
     Gate::before(static function (User $user, string $ability) use (&$siteUpdateChecks): ?bool {
@@ -837,7 +843,9 @@ test('strong GET validator hashes the exact emitted body and is omitted for filt
 
     $response = $this->withToken($this->token)
         ->getJson("/v1/customers/{$this->customer->id}")
-        ->assertOk();
+        ->assertOk()
+        ->assertJsonPath('data.assignments.0.user.email', $assignedUser->emailForDisplay())
+        ->assertJsonMissingPath('data.sites.0.assignments');
 
     expect($response->headers->get('ETag'))
         ->toBe(CustomerRepresentationETag::strong($response->json()))

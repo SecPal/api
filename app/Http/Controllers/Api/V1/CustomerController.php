@@ -17,6 +17,7 @@ use App\Models\Site;
 use App\Models\User;
 use App\Services\CustomerService;
 use App\Services\CustomerTransactionalEditService;
+use App\Services\GlobalIdentity\IdentityDisplay;
 use App\Support\CustomerRepresentationETag;
 use App\Support\LikePattern;
 use Illuminate\Database\Eloquent\Builder;
@@ -42,6 +43,7 @@ class CustomerController extends Controller
     public function __construct(
         private readonly CustomerService $customerService,
         private readonly CustomerTransactionalEditService $transactionalEditService,
+        private readonly IdentityDisplay $identityDisplay,
     ) {}
 
     /**
@@ -91,6 +93,8 @@ class CustomerController extends Controller
         $perPage = $request->integer('per_page', 15);
         $customers = $query->paginate($perPage);
 
+        $this->identityDisplay->prepare($customers, 'assignments.user');
+
         return CustomerResource::collection($customers);
     }
 
@@ -115,6 +119,8 @@ class CustomerController extends Controller
 
         $customer = $this->customerService->create($user, $tenantId, $request->validated());
         $customer = $this->customerService->loadVisibleCustomerEstablishments($user, $tenantId, $customer);
+
+        $this->identityDisplay->prepare($customer, 'assignments.user');
 
         return response()->json([
             'data' => new CustomerResource($customer),
@@ -156,6 +162,8 @@ class CustomerController extends Controller
             );
         }
 
+        $this->identityDisplay->prepare($customer, 'assignments.user');
+
         /** @var array{data: array<string, mixed>} $body */
         $body = (new CustomerResource($customer))->response(request())->getData(true);
         $response = response()->json($body);
@@ -185,6 +193,8 @@ class CustomerController extends Controller
                 'customer_establishments' => $request->input('customer_establishments'),
             ],
         );
+
+        $this->identityDisplay->prepare($customer, 'assignments.user');
 
         return response()->json([
             'data' => new CustomerResource($customer),
@@ -217,6 +227,8 @@ class CustomerController extends Controller
             $request->validated()
         );
         $customer = $this->customerService->loadVisibleCustomerEstablishments($user, $tenantId, $customer);
+
+        $this->identityDisplay->prepare($customer, 'assignments.user');
 
         return response()->json([
             'data' => new CustomerResource($customer),
@@ -273,7 +285,10 @@ class CustomerController extends Controller
             $sites->where('type', $request->string('type')->toString());
         }
 
-        return SiteResource::collection($sites->paginate($perPage));
+        $paginatedSites = $sites->paginate($perPage);
+        $this->identityDisplay->prepare($paginatedSites, 'assignments.user');
+
+        return SiteResource::collection($paginatedSites);
     }
 
     /**

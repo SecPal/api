@@ -5,8 +5,6 @@
 
 namespace App\Services;
 
-use App\Mail\AccountDeactivatedMail;
-use App\Mail\WelcomeActiveMail;
 use App\Models\Employee;
 use App\Models\User;
 use App\Repositories\DomainAccessRepository;
@@ -14,7 +12,6 @@ use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use RuntimeException;
@@ -466,6 +463,8 @@ class EmployeeLifecycleService
 
     private function deprovisionUserAccount(User $user, int $tenantId, bool $deleteUser = false): void
     {
+        app(GlobalIdentity\IdentityLifecycle::class)->revokeForDeletedAccount($user->id);
+
         $this->clearRuntimeAccess($user, $tenantId);
 
         DB::table('user_internal_organizational_scopes')
@@ -484,10 +483,6 @@ class EmployeeLifecycleService
             ->where('authenticatable_id', $user->id)
             ->delete();
 
-        DB::table('password_reset_tokens')
-            ->where('email', $user->email)
-            ->delete();
-
         DB::table('push_device_registrations')
             ->where('user_id', $user->id)
             ->delete();
@@ -501,9 +496,11 @@ class EmployeeLifecycleService
             return;
         }
 
+        app(GlobalIdentity\IdentityLifecycle::class)->replaceProvenAddress(
+            $user, 'deleted-user+'.$user->id.'@secpal.dev',
+        );
         $user->forceFill([
             'name' => 'Deleted User',
-            'email' => 'deleted-user+'.$user->id.'@secpal.dev',
             'email_verified_at' => null,
             'password' => Hash::make(Str::random(64)),
             'remember_token' => null,
@@ -661,7 +658,7 @@ class EmployeeLifecycleService
         }
 
         try {
-            Mail::to($user->email)->queue(new WelcomeActiveMail($employee));
+            \App\Jobs\DeliverEmployeeAccountNotice::dispatch($employee->id, $user->id, $user->email_version, true);
         } catch (\Throwable $throwable) {
             Log::error('User account activation mail dispatch failed', [
                 'employee_id' => $employee->id,
@@ -680,7 +677,7 @@ class EmployeeLifecycleService
         }
 
         try {
-            Mail::to($user->email)->queue(new AccountDeactivatedMail($employee));
+            \App\Jobs\DeliverEmployeeAccountNotice::dispatch($employee->id, $user->id, $user->email_version, false);
         } catch (\Throwable $throwable) {
             Log::error('User account deactivation mail dispatch failed', [
                 'employee_id' => $employee->id,

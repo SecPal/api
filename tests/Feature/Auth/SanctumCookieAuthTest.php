@@ -65,14 +65,14 @@ describe('httpOnly Cookie Authentication Flow', function () {
         $this->withHeaders(spaHeaders([
             'X-XSRF-TOKEN' => issueSpaCsrfToken($this),
         ]))->postJson('/v1/auth/login', [
-            'email' => $user->email,
+            'email' => $user->emailForDisplay(),
             'password' => 'password123',
         ])->assertOk();
 
         $this->withHeaders(spaHeaders())->getJson('/v1/me')
             ->assertOk()
             ->assertJson([
-                'email' => $user->email,
+                'email' => $user->emailForDisplay(),
             ]);
     });
 

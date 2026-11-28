@@ -6,7 +6,7 @@
 namespace App\Support;
 
 /**
- * Rolling calendar lookback (years) shared by BWR export address-history validation
+ * Rolling calendar lookback (years) shared by manual BWR reporting address-history validation
  * and onboarding residential-address-history submit validation.
  */
 final class AddressHistoryLookback

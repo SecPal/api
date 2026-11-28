@@ -12,6 +12,8 @@ This document defines the encryption patterns used in SecPal for protecting sens
 - [Overview](#overview)
 - [Encryption Architecture](#encryption-architecture)
 - [Global Identity Key Wrapping](#global-identity-key-wrapping)
+- [Global User Email](#global-user-email)
+- [Identity Operation Delivery](#identity-operation-delivery)
 - [Pattern 1: Field-Level Encryption with Blind Indexes](#pattern-1-field-level-encryption-with-blind-indexes)
 - [Pattern 2: JSON Encryption](#pattern-2-json-encryption)
 - [When NOT to Encrypt](#when-not-to-encrypt)
@@ -150,8 +152,193 @@ synthetic vector in `GlobalIdentityKeyTest.php` pins the encoding and ciphertext
 Provider errors identify the failed operation without including paths, key
 material or underlying exception text. An unavailable exact root or an
 unauthenticated envelope aborts the operation. Provisioning is explicit and
-independent of application boot. The key registry, authentication integration
-and deployment qualification have their own delivery issues.
+independent of application boot. Set `GLOBAL_IDENTITY_ROOT_DIRECTORY` to the
+authorized custody directory when using the Laravel working-key registry.
+
+### Working-key registry
+
+`GlobalIdentityWorkingKeyRegistry::initialize` takes an already provisioned
+root reference. It commits all required purposes in one PostgreSQL transaction.
+The registry stores the purpose, stable key ID and version, lifecycle and
+timestamps, exact root reference, wrapping metadata, and the binary nonce and
+wrapped key. A retry authenticates the existing active entries against the
+supplied root.
+
+Use `withActiveKey` for bounded cryptography and associated database writes in
+the callback. The registry holds a shared transaction-scoped lock through
+commit. Keep network calls and other external I/O out of the callback. Store the
+supplied working-key reference with the result. For an existing encrypted
+record, use `withKey` with the expected purpose and stored key reference. It
+resolves only the exact version and its recorded root. Both methods provide key
+bytes only for the callback and clear the registry's local copy afterward.
+Mark the callback's key parameter with `#[SensitiveParameter]`.
+
+`stage` verifies and stores one candidate for the next working-key version.
+Retries authenticate and return the same candidate. `activate` verifies it before atomically moving the current key to
+`decrypt-only` and the candidate to `write-active`. Candidate and retired
+versions are unavailable to consumers. These registry primitives have no
+command or HTTP entry point. Operational rotation and retirement are tracked
+in [#3116](https://github.com/SecPal/api/issues/3116), and custody and restore
+qualification are tracked in
+[SecPal/deployment#527](https://github.com/SecPal/deployment/issues/527).
+
+## Global User Email
+
+`GlobalEmailSchema::apply` installs the encrypted email fields and PostgreSQL
+constraints through the ordinary clean migration. Seeders and test fixtures use
+`GlobalIdentityAccounts` to create and find User identities. Existing-installation
+conversion has a separate operational scope.
+
+`GlobalEmailRepository` preserves the validated original address in the
+authenticated envelope. Exact lookup returns the User ID from the binary
+HMAC and its normalization and key versions. Display and delivery use a
+callback for an explicitly authorized User ID and expected email version.
+Delivery converts the domain to ASCII A-labels and preserves local-part case.
+The delivery protocol uses `checkEmailVersionForDispatch` in its final
+transaction before committing permission to send. That check locks the
+version row until commitment. Transport runs after the transaction commits.
+
+The write policy supplies an explicit set of accepted lookup key versions for
+normalization V1 and identifies the write version. Writes hold the registry
+lease and take PostgreSQL transaction-scoped locks for all accepted candidates
+in stable order. An independently wrapped HMAC key separates pending
+reservations from the user lookup index. During mixed lookup-key versions, the
+rotation table keeps alternate binary indexes for the same User. The caller
+owns operation state and expiry. Hold the applicable operation lock when
+consuming or releasing a reservation. The rotation and recovery workflow
+belongs to [#3116](https://github.com/SecPal/api/issues/3116).
+
+## Identity Operation Delivery
+
+The shared protocol stores the SHA-256 verifier of an independently generated
+256-bit token. A temporary authenticated envelope retains the exact token for
+the worker. The token and any stored recipient use separate working-key
+purposes. Both authenticate the immutable operation context using the shared
+V1 envelope and length-delimited encoder. Each optional operation identifier
+has a distinct absent marker.
+
+The caller creates the operation within its business transaction and
+dispatches `DeliverGlobalIdentityOperation` with the operation UUID. The job
+runs after commitment. Integrations consume a token inside the transaction that
+applies its business effect. The protocol checks the verifier, the current
+subject and the operation lifetime before recording consumption.
+
+Delivery claims an attempt under a row lock. Recipient resolution and
+rendering occur after the claim commits. The worker rechecks the attempt, lease,
+fence and subject in the short dispatch transaction. After that transaction
+commits, the transport receives the message and the full V1 idempotency key
+when supported. Provider-reference lookup takes precedence over supported key
+lookup. Repetition of an ambiguous attempt requires an authoritative absent
+result and explicit provider support within the first dispatch's idempotency
+window. Reconciliation uses the provider account bound to the attempt. Key
+lookup and repetition require a key authorized at the original dispatch.
+A late result cannot revive an invalidated operation.
+
+The isolated restore entry point quarantines the restored operations first.
+The recovery owner supplies the backup epoch and sequence and observes the
+latest journal sequence independently. The journal authenticator verifies a
+checkpoint bound to the exact contiguous entries. Verified terminal entries
+tombstone matching operations. An absent terminal entry alone leaves the
+restored operation quarantined, since later dispatch may be unobserved.
+
+The deployment custody and restore rehearsal belong to
+[SecPal/deployment#527](https://github.com/SecPal/deployment/issues/527).
+
+## Global Identity bootstrap and development fixture
+
+The migration role runs the ordinary schema migration. A separately authorized
+provisioner creates the exact versioned Global Identity root outside the checkout,
+database and writable container layer. The application configuration
+`GLOBAL_IDENTITY_ROOT_DIRECTORY` names the absolute in-container directory. Use an
+immutable regular `<root-id>.<version>.key` containing 32 random bytes. The
+directory and file must report the reader's effective UID with modes `0500` or
+`0700` and `0400` or `0600`, respectively. Keep the root independent of the
+Tenant KEK, `APP_KEY`, and PostgreSQL credentials.
+
+After the migration, run the explicit registry bootstrap from the authorized
+one-shot API context with the exact root mounted read-only. The bootstrap
+context can read identity state and create the wrapped working-key records.
+
+```bash
+php artisan identity:bootstrap development 1 --force --no-interaction
+```
+
+For a private `local`, `testing` or `demo` environment, the API command below
+prepares the synthetic `test@example.com` login and its development permissions.
+Pass the synthetic password through a private standard-input stream. The command
+expects a single line with 8 to 72 bytes.
+
+```bash
+php artisan identity:seed-preview --no-interaction < /run/secpal/preview/test-account-password
+```
+
+For the API container identity `10001:10001`, map the isolated host owner into
+that identity in the rootless user namespace. Mount the root directory at
+`/run/secpal/identity` read-only with the qualified SELinux label. Shared API/worker
+bind mounts on the isolated host use the maintained `:ro,z` convention where
+required by the runtime definitions. The bootstrap context, PHP-FPM, and workers
+that process identity operations receive the mount. The scheduler also needs
+it when running employee-retention deletion that anonymizes a linked User.
+Nginx, PostgreSQL and
+workers without identity operations have no root access. Keep the fixture input
+private to the one-shot command. Normal application startup consumes existing
+authority. Missing authority fails closed.
+
+`GLOBAL_IDENTITY_MAILER` selects a dedicated non-logging transport for identity
+mail. Use a confined SMTP sink for a development preview. Tests may use the
+in-memory array transport in a test environment.
+
+### Global Identity rotation and incident recovery
+
+Run `php artisan identity:rotation OPERATION_UUID ACTION --batch=100` in the
+authorized maintenance context. Its `GlobalIdentityRotationAuthority`
+supplies the exact approved source and target references for each action. It
+validates current backup, recovery, approval and monitoring evidence before
+the API takes database locks. Missing authority stops the command. Production
+custody and the authoritative RecoverySet remain with the deployment owner.
+
+Start creates the durable checkpoint. Advance processes up to the specified
+batch limit and status reports the current phase and count. Pause and resume
+keep the current checkpoint while authorized incident work proceeds. Complete
+requires the verification phase and fresh authority approval. Index completion
+continues with bounded cleanup of the previous projection. Retire requires
+fresh retention approval and zero live references, and keeps the wrapped
+record in the registry. The deployment recovery owner handles root retention.
+
+Root rewrap authenticates each exact old wrapper and wraps the same working key
+under the approved target root with a fresh nonce. Resume a paused root rewrap
+before starting another root rewrap. Keep both versioned root
+files available throughout the transition and for every backup that references
+them. Restore a missing exact authority through its recovery owner. Permanent
+loss of the final required root makes the corresponding data unrecoverable.
+
+During blind-index rotation the registry selects both lookup versions.
+Backfill verifies each old index and stores its new projection before promotion.
+New writes protect both versions and pending reservations retain their claimed
+address. Extend old-only reservations through their authorized operation before
+cleanup, or let the operation expire. Cleanup switches new writes to the active
+version before deleting the remaining old representations in batches.
+Reservation-key activation waits for the previous reservation references to drain.
+
+Delivery compromise fences the affected version immediately, then revokes
+and clears the affected proofs before activating a replacement key. An approved
+reissue uses a fresh operation, verifier and envelope and records its incident
+reference. An approved pending email-change replacement keeps its existing
+address reservation through the revocation and transfers it in the replacement
+transaction. A previously delivered proof can remain usable for confirmed key
+loss without compromise. Recover the exact required key where authorized.
+If exact recovery is unavailable, the approved loss operation clears the
+affected undelivered proofs and can reissue eligible operations.
+The invitation owner revalidates a replacement and supplies the authorized
+recipient through the invitation operation subject.
+
+Account-scoped incident batches take their account fences in stable order,
+then lock the source operations before revalidating their replacement
+checkpoints. Reservation changes take the shared registry lease before
+locking a reservation.
+The same account lifecycle invalidates live proofs and cancels pending
+replacements, including their recipient envelopes and email reservations.
+The invitation domain determines whether each tenant invitation remains current.
 
 ## Pattern 1: Field-Level Encryption with Blind Indexes
 

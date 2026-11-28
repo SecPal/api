@@ -9,6 +9,7 @@
 use App\Models\TenantKey;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\DB;
 use Tests\Support\TenantKeyReadabilityOverride;
 
 uses(RefreshDatabase::class);
@@ -17,6 +18,8 @@ function resetTenantSetupCommandTestState(): void
 {
     TenantKeyReadabilityOverride::clear();
     TenantKey::query()->delete();
+    DB::table('tenant_kek_state')->delete();
+    DB::table('tenant_kek_generations')->delete();
     cleanupTestKekFile();
     TenantKey::setKekPath(getTestKekPath());
 }
@@ -61,9 +64,6 @@ describe('tenant:setup Command', function () {
 
         $this->artisan('tenant:setup')
             ->expectsOutput('SecPal Tenant Key Setup')
-            ->expectsOutput('=======================')
-            ->expectsOutputToContain('Checking KEK file')
-            ->expectsOutputToContain('Generating and wrapping tenant keys')
             ->expectsOutput('Tenant key setup complete!')
             ->expectsOutputToContain('php artisan app:validate-setup')
             ->assertExitCode(0);
@@ -85,8 +85,7 @@ describe('tenant:setup Command', function () {
 
         $this->artisan('tenant:setup')
             ->expectsOutput('SecPal Tenant Key Setup')
-            ->expectsOutputToContain('KEK file not found')
-            ->expectsOutputToContain('php artisan keys:generate-kek')
+            ->expectsOutputToContain('externally provided Tenant KEK generation')
             ->assertExitCode(1);
 
         // Verify no tenant key was created
@@ -104,7 +103,6 @@ describe('tenant:setup Command', function () {
         $this->artisan('tenant:setup')
             ->expectsOutput('SecPal Tenant Key Setup')
             ->expectsOutputToContain('Tenant key already exists')
-            ->expectsOutputToContain('Aborting setup')
             ->assertExitCode(0);
 
         // Verify count didn't change
@@ -121,21 +119,20 @@ describe('tenant:setup Command', function () {
         $countBefore = TenantKey::count();
 
         $this->artisan('tenant:setup')
-            ->expectsOutputToContain('KEK file has insecure permissions')
-            ->expectsOutputToContain('chmod 600')
+            ->expectsOutputToContain('externally provided Tenant KEK generation')
             ->assertExitCode(1);
 
         expect(TenantKey::count())->toBe($countBefore);
     });
 
-    test('fails with a targeted message when KEK file is not readable', function (): void {
+    test('fails with redacted guidance when the KEK file is not readable', function (): void {
         TenantKey::generateKek();
         TenantKeyReadabilityOverride::markUnreadable(TenantKey::getKekPath());
 
         $countBefore = TenantKey::count();
 
         $this->artisan('tenant:setup')
-            ->expectsOutputToContain('KEK file is not readable by this process')
+            ->expectsOutputToContain('externally provided Tenant KEK generation')
             ->assertExitCode(1);
 
         expect(TenantKey::count())->toBe($countBefore);
@@ -215,7 +212,7 @@ describe('tenant:setup Command', function () {
 
         // Command will fail when trying to load corrupted KEK
         $this->artisan('tenant:setup')
-            ->expectsOutputToContain('Failed')
+            ->expectsOutputToContain('externally provided Tenant KEK generation')
             ->assertExitCode(1);
 
         // Verify no tenant key was created
@@ -255,6 +252,6 @@ describe('tenant:setup Command', function () {
         $command = Artisan::all()['tenant:setup'];
 
         expect($command->getName())->toBe('tenant:setup');
-        expect($command->getDescription())->toBe('Tenant key setup for new deployments');
+        expect($command->getDescription())->toBe('Set up the first tenant with externally provisioned KEK material');
     });
 });

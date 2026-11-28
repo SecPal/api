@@ -12,11 +12,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- Rewrap Tenant DEKs and index keys against an externally approved KEK
+  generation in one PostgreSQL transaction. Startup validates the exact
+  committed generation, and rotation preserves business ciphertext and
+  historical recovery inputs (refs #3098).
+
+- Update the Nginx runtime to 1.30.8 for CVE-2026-132779 (refs #3061).
+
+- Encrypt global User email and MFA material with the Global Identity key
+  hierarchy. Use exact keyed lookup for sign-in and operation-bound mailbox
+  proof for reset, verification and email changes (refs #3102).
+
+- Update `web-token/jwt-library` to 4.1.11 to fix twelve advisories in the
+  Web Push dependency (refs #3141).
+
+- Update Symfony HttpKernel, HttpFoundation, Mailer, Routing, and Serializer
+  to 8.1.12 to fix the API dependency advisories (refs #3139).
+
+- Restore native PHP-FPM builds with Alpine `libxml2` 2.13.9-r5, which retains
+  the fix for CVE-2026-86144 (refs #3139).
+
 ### Changed
 
 - Separate functional tenants from their encryption keys in the clean
   PostgreSQL baseline. Functional references use `tenants.id`, and wrapped
   keys authenticate their tenant and purpose (refs #3098).
+
+- Add approved, resumable Global Identity rotations for root and working keys,
+  including dual-version lookup, incident revocation and controlled replacement
+  of delivery proofs. Account lifecycle revocation cancels pending replacements,
+  and replacement eligibility for tenant invitations follows the invitation
+  domain (refs #3116).
+
+- The clean PostgreSQL installation now creates encrypted User email fields
+  and replaces the legacy reset and email-verification endpoints with the
+  OpenAPI identity-operation endpoints. Mailbox proof consumption is independent
+  of browser sessions, and successful password resets revoke pending address
+  changes. The preview login requires explicit Global Identity bootstrap and
+  the preview fixture command (refs #3102).
 
 - Store customer and site house numbers in `house_number` separately from the
   street name. Site address display and customer duplicate detection include
@@ -35,6 +70,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Add the shared identity operation delivery protocol, authenticated token
+  envelopes, dispatch fencing and terminal-journal quarantine (refs #3101).
+
+- Add the encrypted global email repository, versioned blind indexes,
+  reservation primitives and PostgreSQL schema for the coordinated identity
+  cutover (refs #3100, #3102).
+
+- Persist purpose-separated Global Identity working keys with exact-version
+  resolution and transactional initialization and activation (refs #3099).
+
 - Add the versioned Global Identity root file provider and authenticated
   working-key wrapping boundary (refs #3097).
 
@@ -43,6 +88,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Buildah evidence (refs #2639).
 
 ### Removed
+
+- Remove BWR CSV/XML generation, protected download and the obsolete
+  `employees.export` permission. Report dates and authority outcomes are
+  recorded through the existing employee and BWR status endpoints (refs #3117).
 
 - Retire the FrankenPHP API runtime from source, native CI and publication.
   PHP 8.4-FPM and Nginx are the supported API runtime pair (refs #2994).

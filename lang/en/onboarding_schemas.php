@@ -10,7 +10,7 @@ return [
             'description' => 'Your personal details for onboarding; HR may complete further Bewacherregister fields later.',
             'schema' => [
                 'title' => 'Personal Information',
-                'description' => 'Information required for onboarding; planned activities under Section 34a GewO can be completed later by HR for Bewacherregister export.',
+                'description' => 'Information required for onboarding; planned activities under Section 34a GewO can be completed later by HR for manual reporting in the Bewacherregister.',
             ],
             'fields' => [
                 'gender' => [
@@ -25,7 +25,7 @@ return [
                 'previous_names' => ['title' => 'Previous Names'],
                 'intended_activities' => [
                     'title' => 'Intended Activities (Section 34a GewO)',
-                    'description' => 'Optional during onboarding; HR must confirm or enter these before Bewacherregister export if you skip them.',
+                    'description' => 'Optional during onboarding; HR must confirm or enter these before manual reporting in the Bewacherregister if you skip them.',
                     'enum' => [
                         'door_control' => 'Door control',
                         'event_security' => 'Event security',

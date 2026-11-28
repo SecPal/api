@@ -49,7 +49,7 @@ test('keys generate kek command refuses to overwrite an existing KEK file', func
 
     $this->artisan('keys:generate-kek')
         ->expectsOutputToContain('KEK file already exists at:')
-        ->expectsOutputToContain('php artisan keys:rotate-kek')
+        ->expectsOutputToContain('Refusing to overwrite an existing KEK')
         ->assertExitCode(1);
 
     expect(file_get_contents(TenantKey::getKekPath()))->toBe($originalContents);

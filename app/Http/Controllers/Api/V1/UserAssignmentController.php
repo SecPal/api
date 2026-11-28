@@ -10,6 +10,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\Api\V1\CustomerAssignmentResource;
 use App\Http\Resources\Api\V1\SiteAssignmentResource;
+use App\Services\GlobalIdentity\IdentityDisplay;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -27,6 +28,8 @@ use Illuminate\Http\Request;
  */
 class UserAssignmentController extends Controller
 {
+    public function __construct(private readonly IdentityDisplay $identityDisplay) {}
+
     /**
      * Get current user's customer assignments.
      *
@@ -52,6 +55,8 @@ class UserAssignmentController extends Controller
             ->get();
 
         $this->hydrateCustomerUpdateFlags($assignments, $user, $tenantId);
+
+        $this->identityDisplay->prepare($assignments, 'user');
 
         return response()->json([
             'data' => CustomerAssignmentResource::collection($assignments),
@@ -83,6 +88,8 @@ class UserAssignmentController extends Controller
             ->get();
 
         $this->hydrateSiteUpdateFlags($assignments, $user, $tenantId);
+
+        $this->identityDisplay->prepare($assignments, 'user');
 
         return response()->json([
             'data' => SiteAssignmentResource::collection($assignments),

@@ -62,6 +62,7 @@ test('throws targeted exception when KEK file is not readable', function (): voi
 
 test('generates envelope keys with correct structure', function (): void {
     TenantKey::generateKek();
+    app(App\Services\TenantProvisioner::class)->setup();
 
     $keys = TenantKey::generateEnvelopeKeys(1);
 
@@ -75,6 +76,7 @@ test('generates envelope keys with correct structure', function (): void {
 
 test('generates unique nonces for each key generation', function (): void {
     TenantKey::generateKek();
+    app(App\Services\TenantProvisioner::class)->setup();
 
     $keys1 = TenantKey::generateEnvelopeKeys(1);
     $keys2 = TenantKey::generateEnvelopeKeys(1);

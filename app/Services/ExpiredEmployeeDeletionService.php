@@ -241,6 +241,10 @@ class ExpiredEmployeeDeletionService
 
     private function anonymizeLinkedUser(User $user): void
     {
+        app(GlobalIdentity\IdentityLifecycle::class)->replaceProvenAddress(
+            $user, 'deleted-user+'.$user->id.'@secpal.dev',
+        );
+
         $this->userDeviceAccessCleanupService->deletePushRegistrations($user);
 
         $raw = config('permission.table_names.model_has_roles', 'model_has_roles');
@@ -278,15 +282,8 @@ class ExpiredEmployeeDeletionService
         $user->tokens()->delete();
         $user->passkeyCredentials()->delete();
 
-        // Clear password reset tokens for the current (pre-anonymization) email to prevent
-        // token reuse if the address is later registered again.
-        DB::table('password_reset_tokens')
-            ->where('email', $user->email)
-            ->delete();
-
         $user->forceFill([
             'name' => 'Deleted User',
-            'email' => 'deleted-user+'.$user->id.'@secpal.dev',
             'email_verified_at' => null,
             'password' => Hash::make(Str::random(64)),
             'remember_token' => null,

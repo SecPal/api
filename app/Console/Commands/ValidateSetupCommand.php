@@ -9,6 +9,7 @@
 namespace App\Console\Commands;
 
 use App\Models\TenantKey;
+use App\Services\TenantKekRegistry;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
@@ -61,7 +62,7 @@ class ValidateSetupCommand extends Command
      *
      * @return int Command exit code (0 = success, 1 = failure)
      */
-    public function handle(): int
+    public function handle(TenantKekRegistry $kek): int
     {
         $this->newLine();
         $this->line('<fg=cyan;options=bold>SecPal Setup Validation</>');
@@ -71,7 +72,7 @@ class ValidateSetupCommand extends Command
         $checks = [
             'database' => $this->checkDatabase(),
             'tenant_keys' => $this->checkTenantKeys(),
-            'kek_file' => $this->checkKekFile(),
+            'kek_file' => $this->checkKekFile($kek),
             'storage' => $this->checkStorage(),
             'extensions' => $this->checkExtensions(),
         ];
@@ -146,26 +147,12 @@ class ValidateSetupCommand extends Command
      *
      * @return bool True if KEK file exists and is readable
      */
-    private function checkKekFile(): bool
+    private function checkKekFile(TenantKekRegistry $kek): bool
     {
-        $kekPath = TenantKey::getKekPath();
-
-        if (! File::exists($kekPath)) {
-            $this->line('❌ <fg=red>KEK file:</> Not found at '.$kekPath);
-
-            return false;
-        }
-
-        if (! File::isReadable($kekPath)) {
-            $this->line('❌ <fg=red>KEK file:</> Not readable at '.$kekPath);
-
-            return false;
-        }
-
         try {
-            TenantKey::assertSecureKekPermissions($kekPath);
-        } catch (\RuntimeException $e) {
-            $this->line('❌ <fg=red>KEK file:</> '.$e->getMessage());
+            $kek->withKey(static fn (): null => null);
+        } catch (\Throwable) {
+            $this->line('❌ <fg=red>KEK file:</> Exact committed Tenant KEK generation unavailable');
 
             return false;
         }
@@ -238,9 +225,7 @@ class ValidateSetupCommand extends Command
         }
 
         if (! $checks['kek_file']) {
-            $kekPath = TenantKey::getKekPath();
-            $this->line('<fg=yellow>KEK file missing or unreadable at:</> '.$kekPath);
-            $this->line('<fg=yellow>Ensure KEK file exists with proper permissions (0600)</>');
+            $this->line('<fg=yellow>Verify the external KEK mount, permissions and exact generation metadata.</>');
         }
 
         if (! $checks['storage']) {

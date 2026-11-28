@@ -1061,11 +1061,3 @@ msgstr "This endpoint requires a browser session context. Use /v1/auth/token for
 #: /app/Http/Controllers/Api/V1/CustomerAssignmentController.php:100
 msgid "Assignment already exists for this user and role"
 msgstr "Assignment already exists for this user and role"
-
-#: /app/Http/Controllers/Api/V1/EmployeeController.php:407
-msgid "BWR export is only available for employees with status not_registered."
-msgstr "BWR export is only available for employees with status not_registered."
-
-#: /app/Http/Controllers/Api/V1/EmployeeController.php:423
-msgid "Employee is not ready for BWR export."
-msgstr "Employee is not ready for BWR export."
