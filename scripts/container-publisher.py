@@ -313,7 +313,7 @@ def evidence_time(value):
         raise ValueError('publisher-evidence-time') from None
 
 
-def build_evidence(records, index_digest, sboms, scans, smokes, source_security, run_id, attempt, generated_at, *, expected_source, source_security_schema):
+def build_evidence(records, index_digest, sboms, scans, smokes, source_security, run_id, attempt, generated_at, *, expected_source, source_security_schema, build_origin=None, risk_states=None):
     if (len(records)!=2 or [r['subject']['platform'] for r in records]!=list(PLATFORMS)
             or records[0]['source']!=records[1]['source']
             or records[0]['builder']!=records[1]['builder']
@@ -333,7 +333,8 @@ def build_evidence(records, index_digest, sboms, scans, smokes, source_security,
             raise ValueError('publisher-incomplete-evidence')
     for record in records:
         subject = record['subject']; target=subject['manifest_digest']; p=subject['platform']; arch=p.split('/')[1]
-        if record['runner_architecture']!=arch or record['workflow_run_id']!=run_id or record['workflow_run_attempt']!=attempt:
+        producer_run,producer_attempt = build_origin or (run_id,attempt)
+        if record['runner_architecture']!=arch or record['workflow_run_id']!=producer_run or record['workflow_run_attempt']!=producer_attempt:
             raise ValueError('publisher-native-build-binding')
         sbom = [s for s in sboms if s['platform']==p]
         smoke = [s for s in smokes if s['platform']==p]
@@ -353,7 +354,7 @@ def build_evidence(records, index_digest, sboms, scans, smokes, source_security,
             raise ValueError('publisher-scan-set')
         for scan in own:
             expected = sbom[0]['spdx_sha256'] if scan['scanner']=='grype' else target
-            if (scan['subject_digest']!=expected or scan['status']!='SUCCEEDED' or scan['policy_result']!='CLEAN'
+            if (scan['subject_digest']!=expected or scan['status']!='SUCCEEDED' or scan['policy_result']!=(risk_states or {}).get(target,'CLEAN')
                     or not re.fullmatch(r'sha256:[0-9a-f]{64}',scan['evidence_sha256'])
                     or not re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+',scan['scanner_version'])
                     or not scan['database']['identity']
@@ -424,7 +425,7 @@ def github(endpoint):
     return json.loads(run(['gh','api','--hostname','github.com','--method','GET',endpoint]))
 
 
-def candidate_context(commit, run_id, execution_attempt, *, api=github):
+def candidate_context(commit, run_id, execution_attempt, *, api=github, retained=False):
     """Observe the one original candidate; failed-job retries do not select new builds."""
     if (not re.fullmatch(r'[a-f0-9]{40}',commit) or not re.fullmatch(r'[1-9][0-9]*',run_id)
             or not re.fullmatch(r'[1-9][0-9]*',execution_attempt)):
@@ -471,6 +472,9 @@ def candidate_context(commit, run_id, execution_attempt, *, api=github):
               'Build native API candidates / Native API (amd64)',
               'Build native API candidates / Native API (arm64)',
               'Published native runtime (amd64)','Published native runtime (arm64)'}
+    if retained:
+        required.remove('Repository Security / Accept API Repository Security')
+        required.difference_update('Build native API candidates / Native API ('+arch+')' for arch in ('amd64','arm64'))
     required.update('Attest candidate index platforms and Syft artifacts ('+role+')'
                     for role in RUNTIME_COMPONENTS)
     selected=[j for j in jobs['jobs'] if j['name'] in required]
@@ -570,7 +574,7 @@ def observe_candidate(root, prepared, scan_root):
     return platforms
 
 
-def publication_admission(root, prepared, scan_root):
+def publication_admission(root, prepared, scan_root, *, risk_rows=None):
     # Recheck original observations under current policy for both platforms.
     scan_root=Path(scan_root)
     platforms=observe_candidate(root,prepared,scan_root)
@@ -594,15 +598,25 @@ def publication_admission(root, prepared, scan_root):
                        or r['evidence_sha256']!=digest(read_bytes(scan_root/arch/'raw'/(r['scanner']+'.json')))
                        for r in records)):
             raise ValueError('publisher-artifact-evidence')
-        if policy['gate_state']!='CLEAN':
-            raise ValueError('publisher-runtime-security-not-clean')
+        if risk_rows is None:
+            if policy['gate_state'] != 'CLEAN':
+                raise ValueError('publisher-runtime-security-not-clean')
+            continue
+        bound = risk_rows[evaluation['subject']['platform']]
+        _, policy_owner = security_modules(root)
+        original = dict(policy, evaluated_at=evaluation['evaluated_at'])
+        if (bound['evaluation'] != evaluation
+                or bound['policy_result_sha256'] != policy_owner._document_digest(original)
+                or bound['spdx_association_sha256'] != digest(read_bytes(scan_root/arch/'sbom/association.json'))
+                or bound['raw'] != {row['scanner']: row['evidence_sha256'] for row in records}):
+            raise ValueError('publisher-retained-scan-substitution')
 
 
-def complete(prepared, scan_root, smoke_root, root, output):
+def complete(prepared, scan_root, smoke_root, root, output, *, retained=None):
     Path(output).unlink(missing_ok=True)
     runtime = read(Path(prepared)/'source.json')['runtime']
     expected=source(root,os.environ['GITHUB_SHA'],runtime)
-    context=candidate_context(os.environ['GITHUB_SHA'],os.environ['GITHUB_RUN_ID'],os.environ['GITHUB_RUN_ATTEMPT'])
+    context=candidate_context(os.environ['GITHUB_SHA'],os.environ['GITHUB_RUN_ID'],os.environ['GITHUB_RUN_ATTEMPT'], retained=os.environ.get('PUBLISH_RETAINED') == 'true')
     value=read(Path(prepared)/'prepared.json')
     sboms=read(Path(prepared)/'sboms.json')
     scans=[]
@@ -613,13 +627,30 @@ def complete(prepared, scan_root, smoke_root, root, output):
     if fresh_source.is_file():
         admit_source_security(read(fresh_source),expected['commit'],evidence_now(),schema=source_security_schema(root))
         (Path(prepared)/'source-security.json').write_bytes(read_bytes(fresh_source))
-    publication_admission(root,prepared,scan_root)
+    extra = {}
+    if retained is None:
+        publication_admission(root,prepared,scan_root)
+    else:
+        evidence, receipt = retained
+        rows = retained_component(evidence, receipt, runtime, value)
+        if evidence['evidence']['source_security_sha256'] != digest(canonical(read(Path(prepared)/'source-security.json')) + b'\n'):
+            # The source scanner artifact is preserved separately from the canonical publication copy.
+            original_source = Path(prepared).parent/'retained-source-security.json'
+            if (evidence['evidence']['source_security_sha256'] != digest(read_bytes(original_source))
+                    or read(original_source) != read(Path(prepared)/'source-security.json')):
+                raise ValueError('publisher-retained-source-security-substitution')
+        publication_admission(root, prepared, scan_root, risk_rows=rows)
+        producer=evidence['evidence']['producer']
+        extra = dict(build_origin=(producer['run_id'], producer['run_attempt']),
+                     risk_states={p['subject']['oci_digest']: p['gate_state'] for p in receipt['policy_results']})
     result=build_evidence(
         value['records'],value['index_digest'],sboms,scans,smokes,
         read(Path(prepared)/'source-security.json'),context['run_id'],context['run_attempt'],
         evidence_now(),
-        expected_source=expected,source_security_schema=source_security_schema(root),
+        expected_source=expected,source_security_schema=source_security_schema(root),**extra,
     )
+    if retained is not None:
+        result['extensions'][SOURCE]['qualification_producer'] = retained[0]['evidence']['producer']
     if context['execution_attempt']!=context['run_attempt']:
         result['extensions'][SOURCE]['acceptance_execution']=dict(
             run_id=context['run_id'],run_attempt=context['execution_attempt'],commit=os.environ['GITHUB_SHA'])
@@ -734,7 +765,44 @@ def qualify_unpublished_pair(root, native, scan_root, output, *, require_clean=F
                                      run_id=run_id, run_attempt=attempt)))
 
 
-def assemble_runtime_pair(documents, commit, generated_at):
+def read_retained_release(root, prepared):
+    prepared = Path(prepared)
+    evidence_path = prepared/'risk-evidence.json'
+    receipt_path = prepared/'risk-admission.json'
+    if not evidence_path.exists() and not receipt_path.exists():
+        if os.environ.get('PUBLISH_RETAINED') == 'true':
+            raise ValueError('publisher-retained-pair-receipt-missing')
+        return None
+    evidence, receipt = read(evidence_path), read(receipt_path)
+    _, policy_owner = security_modules(root)
+    subject, rows = policy_owner._risk_subject(evidence)
+    recorded_results = receipt['policy_results']
+    if (receipt['admission'] != 'ADMITTED_WITH_KNOWN_FINDINGS'
+            or receipt['source'] != evidence['source']
+            or receipt['source'] != {'repository': 'SecPal/api', 'commit': os.environ['GITHUB_SHA']}
+            or receipt['evidence_sha256'] != policy_owner._document_digest(evidence)
+            or any(receipt[key] != value for key, value in subject.items())
+            or len(recorded_results) != 4
+            or any(bound['policy_result_sha256'] != policy_owner._document_digest(
+                dict(result, evaluated_at=bound['evaluation']['evaluated_at']))
+                for bound, result in zip(rows, recorded_results, strict=True))):
+        raise ValueError('publisher-retained-pair-receipt')
+    return evidence, receipt
+
+
+def retained_component(evidence, receipt, runtime, prepared):
+    rows = {row['evaluation']['subject']['platform']: row for row in evidence['components'][runtime]['platforms']}
+    scope = receipt['components'][runtime]
+    if (prepared['index_digest'] != scope['index_digest']
+            or {entry['subject']['platform']: entry['subject']['manifest_digest'] for entry in prepared['records']}
+            != scope['platforms']
+            or any(entry['subject']['config_digest'] != rows[entry['subject']['platform']]['config_digest']
+                   for entry in prepared['records'])):
+        raise ValueError('publisher-retained-pair-substitution')
+    return rows
+
+
+def assemble_runtime_pair(documents, commit, generated_at, *, receipt=None):
     """Bind the two existing complete per-image admissions into one artifact."""
     if (set(documents) != set(RUNTIME_COMPONENTS)
             or not re.fullmatch(r'[a-f0-9]{40}', commit)):
@@ -745,6 +813,11 @@ def assemble_runtime_pair(documents, commit, generated_at):
     workflow = None
     images = {}
     indexes = set()
+    states = {} if receipt is None else {
+        row['subject']['oci_digest']: row['gate_state'] for row in receipt['policy_results']
+    }
+    if receipt is not None and (len(states) != 4 or set(receipt['components']) != set(RUNTIME_COMPONENTS)):
+        raise ValueError('publisher-runtime-pair-incomplete-admission')
     for component in RUNTIME_COMPONENTS:
         document = documents[component]
         source_record = document['source']
@@ -767,6 +840,9 @@ def assemble_runtime_pair(documents, commit, generated_at):
         if not re.fullmatch(r'sha256:[a-f0-9]{64}', index_digest) or index_digest in indexes:
             raise ValueError('publisher-runtime-pair-index')
         indexes.add(index_digest)
+        if receipt is not None and receipt['components'][component] != {
+                'index_digest': index_digest, 'platforms': {p['platform']: p['manifest_digest'] for p in subjects}}:
+            raise ValueError('publisher-runtime-pair-admission-scope')
         if len(document['scans']) != 4 or len(document['sboms']) != 2 or len(document['smoke_tests']) != 2:
             raise ValueError('publisher-runtime-pair-incomplete')
         for subject in subjects:
@@ -774,7 +850,7 @@ def assemble_runtime_pair(documents, commit, generated_at):
             sboms = [v for v in document['sboms'] if v['platform'] == subject['platform']]
             smokes = [v for v in document['smoke_tests'] if v['platform'] == subject['platform']]
             if (sorted(v['scanner'] for v in own) != ['grype','trivy']
-                    or any(v['status'] != 'SUCCEEDED' or v['policy_result'] != 'CLEAN' for v in own)
+                    or any(v['status'] != 'SUCCEEDED' or v['policy_result'] != states.get(subject['manifest_digest'], 'CLEAN') for v in own)
                     or len(sboms) != 1 or sboms[0]['subject_digest'] != subject['manifest_digest']
                     or len(smokes) != 1 or smokes[0]['digest'] != subject['manifest_digest']
                     or smokes[0]['result'] != 'SUCCEEDED'):
@@ -790,36 +866,47 @@ def assemble_runtime_pair(documents, commit, generated_at):
                 raise ValueError('publisher-runtime-pair-smoke-companions')
         images[component] = dict(reference=REPOSITORY+'@'+index_digest, platforms=subjects,
                                  build_evidence_sha256=digest(canonical(document)+b'\n'))
-    return dict(schema_version='1.0.0', generated_at=generated_at,
+    pair = dict(schema_version='1.0.0', generated_at=generated_at,
                 source=dict(repository=SOURCE,commit=commit), workflow=workflow, images=images)
+    if receipt is not None:
+        pair['artifact_security_admission_sha256'] = digest(canonical(receipt)+b'\n')
+    return pair
 
 
 def complete_runtime_pair(root, prepared, scan_root, smoke_root, output):
     """No pair exists until both existing full evidence paths succeed."""
     Path(output).unlink(missing_ok=True)
     documents = {}
+    retained = read_retained_release(root, prepared)
     for component in RUNTIME_COMPONENTS:
         own = Path(prepared)/component
-        complete(own,Path(scan_root)/component,smoke_root,root,own/'build-evidence.json')
+        complete(own,Path(scan_root)/component,smoke_root,root,own/'build-evidence.json',retained=retained)
         documents[component] = read(own/'build-evidence.json')
-    write(output,assemble_runtime_pair(documents,os.environ['GITHUB_SHA'],evidence_now()))
+    write(output,assemble_runtime_pair(documents,os.environ['GITHUB_SHA'],evidence_now(),
+                                      receipt=retained[1] if retained else None))
 
 
 def recheck_runtime_pair(root, prepared, scan_root, smoke_root):
-    context=candidate_context(os.environ['GITHUB_SHA'],os.environ['GITHUB_RUN_ID'],os.environ['GITHUB_RUN_ATTEMPT'])
+    context=candidate_context(os.environ['GITHUB_SHA'],os.environ['GITHUB_RUN_ID'],os.environ['GITHUB_RUN_ATTEMPT'], retained=os.environ.get('PUBLISH_RETAINED') == 'true')
     documents = {}
+    retained = read_retained_release(root, prepared)
     for component in RUNTIME_COMPONENTS:
         own = Path(prepared)/component
-        publication_admission(root,own,Path(scan_root)/component)
+        if retained:
+            rows = retained_component(*retained, component, read(own/'prepared.json'))
+            publication_admission(root,own,Path(scan_root)/component,risk_rows=rows)
+        else:
+            publication_admission(root,own,Path(scan_root)/component)
         document = read(own/'build-evidence.json')
         smokes = native_smokes(smoke_root,context['run_id'],context['run_attempt'],component)
         if (document['smoke_tests']!=smokes or 'artifact_security_admission' in document['extensions'][SOURCE]
-                or any(s['policy_result']!='CLEAN' for s in document['scans'])):
+                or (retained is None and any(s['policy_result']!='CLEAN' for s in document['scans']))):
             raise ValueError('publisher-admission-evidence-changed')
         documents[component] = document
-    retained = read(Path(prepared)/'runtime-pair.json')
-    expected = assemble_runtime_pair(documents,os.environ['GITHUB_SHA'],retained['generated_at'])
-    if retained != expected:
+    document_pair = read(Path(prepared)/'runtime-pair.json')
+    expected = assemble_runtime_pair(documents,os.environ['GITHUB_SHA'],document_pair['generated_at'],
+                                     receipt=retained[1] if retained else None)
+    if document_pair != expected:
         raise ValueError('publisher-runtime-pair-substitution')
 
 
@@ -905,7 +992,7 @@ def main():
     elif args.command=='admission-pair':
         recheck_runtime_pair(args.root,args.prepared,args.scan_root,args.smoke_root)
     elif args.command=='candidate-context':
-        context=candidate_context(os.environ['GITHUB_SHA'],os.environ['GITHUB_RUN_ID'],os.environ['GITHUB_RUN_ATTEMPT'])
+        context=candidate_context(os.environ['GITHUB_SHA'],os.environ['GITHUB_RUN_ID'],os.environ['GITHUB_RUN_ATTEMPT'], retained=os.environ.get('PUBLISH_RETAINED') == 'true')
         write(args.output,context)
         with open(os.environ['GITHUB_OUTPUT'],'a') as output:
             output.write('candidate_attempt='+context['run_attempt']+'\nscan_attempt='+context['scan_attempt']+'\n')
