@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 declare(strict_types=1);
@@ -35,8 +35,8 @@ return new class extends Migration
 
             // 🔐 Tenant Isolation
             $table->foreignId('tenant_id')
-                ->constrained('tenant_keys')
-                ->cascadeOnDelete();
+                ->constrained('tenants')
+                ->restrictOnDelete();
 
             // 📝 Minimal Metadata
             $table->string('log_name')->nullable();
@@ -65,8 +65,8 @@ return new class extends Migration
         Schema::create('activity_log_archive', function (Blueprint $table) {
             $table->uuid('id')->primary();
             $table->foreignId('tenant_id')
-                ->constrained('tenant_keys')
-                ->cascadeOnDelete();
+                ->constrained('tenants')
+                ->restrictOnDelete();
             $table->string('log_name')->nullable();
             $table->timestamp('created_at')->index();
             $table->string('event_hash', 64)->nullable();

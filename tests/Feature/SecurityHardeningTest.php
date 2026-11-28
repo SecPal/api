@@ -1,19 +1,20 @@
 <?php
 
 /*
- * SPDX-FileCopyrightText: 2025 SecPal Contributors
+ * SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
  *
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 use App\Models\Person;
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 /**
- * @property TenantKey $tenant
+ * @property Tenant $tenant
  */
 uses(RefreshDatabase::class);
 
@@ -24,8 +25,8 @@ beforeEach(function (): void {
     TenantKey::generateKek();
 
     // Create tenant
-    $keys = TenantKey::generateEnvelopeKeys();
-    $this->tenant = TenantKey::create($keys);
+
+    $this->tenant = Tenant::factory()->create();
 });
 
 afterEach(function (): void {
@@ -102,7 +103,7 @@ describe('No Plaintext in Database', function () {
 
     test('tenant keys are wrapped and not in plaintext', function (): void {
         $rawRow = DB::table('tenant_keys')
-            ->where('id', $this->tenant->id)
+            ->where('tenant_id', $this->tenant->id)
             ->first();
 
         // Wrapped keys should be base64-encoded ciphertext

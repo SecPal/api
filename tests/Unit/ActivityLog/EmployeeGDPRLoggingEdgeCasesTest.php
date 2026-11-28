@@ -5,7 +5,7 @@
 
 use App\Models\Activity;
 use App\Models\Employee;
-use App\Models\TenantKey;
+use App\Models\Tenant;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Auth;
@@ -20,13 +20,13 @@ use Illuminate\Support\Facades\Auth;
  * - Multiple encrypted fields simultaneously
  * - System updates without authentication
  *
- * @property TenantKey $tenant
+ * @property Tenant $tenant
  * @property User $user
  */
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {
-    $this->tenant = TenantKey::factory()->create();
+    $this->tenant = Tenant::factory()->create();
     $this->user = User::factory()->create([
         'tenant_id' => $this->tenant->id,
     ]);

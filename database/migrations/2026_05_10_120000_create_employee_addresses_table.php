@@ -15,7 +15,7 @@ return new class extends Migration
         Schema::create('employee_addresses', function (Blueprint $table) {
             $table->uuid('id')->primary();
             $table->foreignUuid('employee_id')->constrained('employees')->cascadeOnDelete();
-            $table->foreignId('tenant_id')->constrained('tenant_keys')->cascadeOnDelete();
+            $table->foreignId('tenant_id')->constrained('tenants')->restrictOnDelete();
 
             $table->text('street_enc')->nullable();
             $table->text('house_number_enc')->nullable();

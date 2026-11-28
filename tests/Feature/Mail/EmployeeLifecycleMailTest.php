@@ -18,6 +18,7 @@ use App\Models\Employee;
 use App\Models\EmployeeQualification;
 use App\Models\OrganizationalUnit;
 use App\Models\Qualification;
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use App\Models\User;
 use App\Services\GlobalIdentity\GlobalEmailRepository;
@@ -27,7 +28,7 @@ use Illuminate\Mail\Mailer;
 use Illuminate\Support\Facades\Mail;
 
 /**
- * @property TenantKey $tenant
+ * @property Tenant $tenant
  * @property OrganizationalUnit $orgUnit
  */
 uses(RefreshDatabase::class);
@@ -37,8 +38,8 @@ beforeEach(function () {
     incrementTestKekCounter();
     TenantKey::setKekPath(getTestKekPath());
     TenantKey::generateKek();
-    $keys = TenantKey::generateEnvelopeKeys();
-    $this->tenant = TenantKey::create($keys);
+
+    $this->tenant = Tenant::factory()->create();
 
     $this->orgUnit = OrganizationalUnit::create([
         'tenant_id' => $this->tenant->id,

@@ -13,6 +13,7 @@ use App\Models\LegalEntity;
 use App\Models\OrganizationalUnit;
 use App\Models\Site;
 use App\Models\SiteAssignment;
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -25,7 +26,7 @@ beforeEach(function (): void {
     incrementTestKekCounter();
     TenantKey::setKekPath(getTestKekPath());
     TenantKey::generateKek();
-    $this->tenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+    $this->tenant = Tenant::factory()->create();
     app(PermissionRegistrar::class)->setPermissionsTeamId($this->tenant->id);
     Artisan::call('db:seed', ['--class' => 'RolesAndPermissionsSeeder']);
     $this->user = User::factory()->create(['tenant_id' => $this->tenant->id]);
@@ -127,7 +128,7 @@ test('customer link candidates are active, same-domain, unlinked, and informatio
         'tenant_id' => $this->tenant->id,
         'legal_entity_id' => $otherLegalEntity->id,
     ]);
-    $foreignTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+    $foreignTenant = Tenant::factory()->create();
     $foreignLegalEntity = LegalEntity::factory()->forTenant((string) $foreignTenant->id)->create();
     $foreignCustomer = Customer::factory()->create([
         'tenant_id' => $foreignTenant->id,
@@ -158,7 +159,7 @@ test('customer link candidates fail without relationship authority and hide fore
         'tenant_id' => $this->tenant->id,
         'legal_entity_id' => $legalEntity->id,
     ]);
-    $foreignTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+    $foreignTenant = Tenant::factory()->create();
     $foreignLegalEntity = LegalEntity::factory()->forTenant((string) $foreignTenant->id)->create();
     $foreignEstablishment = Establishment::factory()->create([
         'tenant_id' => $foreignTenant->id,
@@ -241,7 +242,7 @@ test('domain lookups cascade through authorized same-tenant records with minimal
         'customer_id' => $unlinkedCustomer->id,
     ]);
 
-    $foreignTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+    $foreignTenant = Tenant::factory()->create();
     $foreignLegalEntity = LegalEntity::factory()->forTenant((string) $foreignTenant->id)->create();
     Establishment::factory()->create([
         'tenant_id' => $foreignTenant->id,
@@ -274,7 +275,7 @@ test('domain lookups reject foreign-tenant and ineffective organizational access
     givePermissionWithTenant($this->user, $this->tenant->id, 'customers.create');
     givePermissionWithTenant($this->user, $this->tenant->id, 'customers.read');
 
-    $foreignTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+    $foreignTenant = Tenant::factory()->create();
     $foreignLegalEntity = LegalEntity::factory()->forTenant((string) $foreignTenant->id)->create();
     $foreignEstablishment = Establishment::factory()->create([
         'tenant_id' => $foreignTenant->id,

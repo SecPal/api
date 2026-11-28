@@ -5,6 +5,7 @@
 
 use App\Models\Employee;
 use App\Models\OrganizationalUnit;
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -49,8 +50,8 @@ test('employees table scopes employee number uniqueness to tenant_id', function 
 });
 
 test('employees table allows duplicate employee numbers across tenants', function (): void {
-    $tenantOne = TenantKey::create(TenantKey::generateEnvelopeKeys());
-    $tenantTwo = TenantKey::create(TenantKey::generateEnvelopeKeys());
+    $tenantOne = Tenant::factory()->create();
+    $tenantTwo = Tenant::factory()->create();
 
     $unitOne = OrganizationalUnit::factory()->create([
         'tenant_id' => $tenantOne->id,
@@ -77,7 +78,7 @@ test('employees table allows duplicate employee numbers across tenants', functio
 });
 
 test('employees table rejects duplicate employee numbers within the same tenant', function (): void {
-    $tenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+    $tenant = Tenant::factory()->create();
 
     $unit = OrganizationalUnit::factory()->create([
         'tenant_id' => $tenant->id,

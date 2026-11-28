@@ -7,18 +7,18 @@ use App\Models\Activity;
 use App\Models\Customer;
 use App\Models\Employee;
 use App\Models\Site;
-use App\Models\TenantKey;
+use App\Models\Tenant;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 /**
- * @property TenantKey $tenant
+ * @property Tenant $tenant
  * @property User $user
  */
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {
-    $this->tenant = TenantKey::factory()->create();
+    $this->tenant = Tenant::factory()->create();
     $this->user = User::factory()->create([
         'tenant_id' => $this->tenant->id,
     ]);
@@ -232,7 +232,7 @@ test('site update logs location and status changes', function (): void {
 });
 
 test('activity logs are tenant-isolated', function (): void {
-    $tenant2 = TenantKey::factory()->create();
+    $tenant2 = Tenant::factory()->create();
 
     $employee1 = Employee::factory()->create(['tenant_id' => $this->tenant->id]);
     $employee2 = Employee::factory()->create(['tenant_id' => $tenant2->id]);

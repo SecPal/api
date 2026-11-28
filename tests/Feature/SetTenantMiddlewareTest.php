@@ -6,6 +6,7 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -56,8 +57,8 @@ describe('SetTenant Middleware', function (): void {
 
     it('accepts tenant ID from path parameter', function (): void {
         // Create tenant with envelope keys
-        $keys = TenantKey::generateEnvelopeKeys();
-        $tenant = TenantKey::create($keys);
+
+        $tenant = Tenant::factory()->create();
 
         $response = $this->getJson("/tenants/{$tenant->id}/test");
 
@@ -69,8 +70,8 @@ describe('SetTenant Middleware', function (): void {
     });
 
     it('accepts tenant ID from X-Tenant header', function (): void {
-        $keys = TenantKey::generateEnvelopeKeys();
-        $tenant = TenantKey::create($keys);
+
+        $tenant = Tenant::factory()->create();
 
         $response = $this->getJson('/api/test', [
             'X-Tenant' => (string) $tenant->id,
@@ -84,11 +85,10 @@ describe('SetTenant Middleware', function (): void {
     });
 
     it('prioritizes path parameter over X-Tenant header', function (): void {
-        $keys1 = TenantKey::generateEnvelopeKeys();
-        $tenant1 = TenantKey::create($keys1);
 
-        $keys2 = TenantKey::generateEnvelopeKeys();
-        $tenant2 = TenantKey::create($keys2);
+        $tenant1 = Tenant::factory()->create();
+
+        $tenant2 = Tenant::factory()->create();
 
         $response = $this->getJson("/tenants/{$tenant1->id}/test", [
             'X-Tenant' => (string) $tenant2->id,
@@ -102,8 +102,8 @@ describe('SetTenant Middleware', function (): void {
     });
 
     it('sets Spatie Permission team ID correctly', function (): void {
-        $keys = TenantKey::generateEnvelopeKeys();
-        $tenant = TenantKey::create($keys);
+
+        $tenant = Tenant::factory()->create();
 
         $this->getJson("/tenants/{$tenant->id}/test");
 
@@ -113,11 +113,10 @@ describe('SetTenant Middleware', function (): void {
     });
 
     it('prevents cross-tenant access', function (): void {
-        $keys1 = TenantKey::generateEnvelopeKeys();
-        $tenant1 = TenantKey::create($keys1);
 
-        $keys2 = TenantKey::generateEnvelopeKeys();
-        $tenant2 = TenantKey::create($keys2);
+        $tenant1 = Tenant::factory()->create();
+
+        $tenant2 = Tenant::factory()->create();
 
         // First request sets tenant1
         $this->getJson("/tenants/{$tenant1->id}/test");
@@ -135,13 +134,22 @@ describe('SetTenant Middleware', function (): void {
     it('handles invalid tenant ID gracefully', function (): void {
         $response = $this->getJson('/tenants/invalid/test');
 
-        // Should treat 'invalid' as 0 and return 404
         $response->assertStatus(404);
     });
 
+    it('rejects a key UUID whose decimal prefix equals the functional tenant ID', function (): void {
+        $tenant = Tenant::query()->create();
+        $key = TenantKey::factory()->for($tenant)->create([
+            'id' => sprintf('%08d-aaaa-4aaa-8aaa-aaaaaaaaaaaa', $tenant->id),
+        ]);
+
+        $this->getJson("/tenants/{$key->id}/test")->assertNotFound();
+        $this->getJson('/api/test', ['X-Tenant' => $key->id])->assertNotFound();
+    });
+
     it('stores tenant_id in request for controller access', function (): void {
-        $keys = TenantKey::generateEnvelopeKeys();
-        $tenant = TenantKey::create($keys);
+
+        $tenant = Tenant::factory()->create();
 
         $response = $this->getJson("/tenants/{$tenant->id}/test");
 
@@ -153,7 +161,7 @@ describe('SetTenant Middleware', function (): void {
     });
 
     it('allows an authenticated user to access their own tenant route', function (): void {
-        $tenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+        $tenant = Tenant::factory()->create();
         $user = User::factory()->create(['tenant_id' => $tenant->id]);
 
         $response = $this->actingAs($user)->getJson("/tenants/{$tenant->id}/test");
@@ -166,8 +174,8 @@ describe('SetTenant Middleware', function (): void {
     });
 
     it('returns 403 when an authenticated user targets a different tenant in the path', function (): void {
-        $tenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
-        $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+        $tenant = Tenant::factory()->create();
+        $otherTenant = Tenant::factory()->create();
         $user = User::factory()->create(['tenant_id' => $tenant->id]);
 
         $response = $this->actingAs($user)->getJson("/tenants/{$otherTenant->id}/test");
@@ -179,8 +187,8 @@ describe('SetTenant Middleware', function (): void {
     });
 
     it('returns 403 when an authenticated user targets a different tenant via the X-Tenant header', function (): void {
-        $tenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
-        $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+        $tenant = Tenant::factory()->create();
+        $otherTenant = Tenant::factory()->create();
         $user = User::factory()->create(['tenant_id' => $tenant->id]);
 
         $response = $this->actingAs($user)->getJson('/api/test', [

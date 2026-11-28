@@ -8,7 +8,7 @@ declare(strict_types=1);
 namespace App\Repositories;
 
 use App\Models\Customer;
-use App\Models\TenantKey;
+use App\Models\Tenant;
 use Illuminate\Support\Facades\DB;
 
 final class CustomerRepository
@@ -20,7 +20,7 @@ final class CustomerRepository
 
     public function lockTenant(int $tenantId): void
     {
-        TenantKey::query()
+        Tenant::query()
             ->select('id')
             ->whereKey($tenantId)
             ->lockForUpdate()

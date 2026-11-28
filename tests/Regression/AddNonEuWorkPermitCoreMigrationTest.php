@@ -159,7 +159,8 @@ DB::purge('sqlite');
 DB::setDefaultConnection('sqlite');
 
 Schema::create('tenant_keys', function (Illuminate\Database\Schema\Blueprint $table): void {
-        $table->id();
+        $table->uuid('id')->primary();
+        $table->foreignId('tenant_id');
         $table->binary('dek_wrapped')->nullable();
         $table->binary('dek_nonce')->nullable();
         $table->binary('idx_wrapped')->nullable();
@@ -183,7 +184,7 @@ Schema::create('employee_documents', function (Illuminate\Database\Schema\Bluepr
     $table->foreign('employee_id')->references('id')->on('employees')->cascadeOnDelete();
 });
 
-DB::table('tenant_keys')->insert(['id' => 1]);
+DB::table('tenant_keys')->insert(['id' => '44444444-4444-4444-8444-444444444444', 'tenant_id' => 1]);
 DB::table('employees')->insert([
     [
         'id' => '11111111-1111-1111-1111-111111111111',
@@ -284,7 +285,8 @@ DB::purge('sqlite');
 DB::setDefaultConnection('sqlite');
 
 Schema::create('tenant_keys', function (Illuminate\Database\Schema\Blueprint $table): void {
-        $table->id();
+        $table->uuid('id')->primary();
+        $table->foreignId('tenant_id');
         $table->binary('dek_wrapped')->nullable();
         $table->binary('dek_nonce')->nullable();
         $table->binary('idx_wrapped')->nullable();
@@ -309,7 +311,7 @@ Schema::table('employees', function (Illuminate\Database\Schema\Blueprint $table
     $table->index('work_permit_expiry', 'idx_employees_work_permit_expiry');
 });
 
-DB::table('tenant_keys')->insert(['id' => 1]);
+DB::table('tenant_keys')->insert(['id' => '44444444-4444-4444-8444-444444444444', 'tenant_id' => 1]);
 DB::table('employees')->insert([
     [
         'id' => '11111111-1111-1111-1111-111111111111',

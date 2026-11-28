@@ -5,6 +5,7 @@
 
 use App\Models\Activity;
 use App\Models\Permission;
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -29,11 +30,11 @@ afterEach(function (): void {
 });
 
 /**
- * @return array{tenant: TenantKey, registrar: PermissionRegistrar, admin: User, targetUser: User, crossTenantUser: User}
+ * @return array{tenant: Tenant, registrar: PermissionRegistrar, admin: User, targetUser: User, crossTenantUser: User}
  */
 function createMfaAdminResetContext(): array
 {
-    $tenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+    $tenant = Tenant::factory()->create();
 
     /** @var PermissionRegistrar $registrar */
     $registrar = app(PermissionRegistrar::class);
@@ -44,7 +45,7 @@ function createMfaAdminResetContext(): array
     $admin = User::factory()->create(['tenant_id' => $tenant->id]);
     $targetUser = User::factory()->create(['tenant_id' => $tenant->id]);
 
-    $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+    $otherTenant = Tenant::factory()->create();
     $crossTenantUser = User::factory()->create(['tenant_id' => $otherTenant->id]);
 
     givePermissionWithTenant($admin, $tenant->id, 'users.reset_mfa');

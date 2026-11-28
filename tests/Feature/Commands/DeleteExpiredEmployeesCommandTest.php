@@ -17,7 +17,7 @@ use App\Models\OnboardingSubmissionFile;
 use App\Models\OrganizationalUnit;
 use App\Models\Site;
 use App\Models\SiteAssignment;
-use App\Models\TenantKey;
+use App\Models\Tenant;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
@@ -38,7 +38,7 @@ afterEach(function (): void {
 });
 
 test('it deletes expired terminated employees, removes local files, and anonymizes linked users', function (): void {
-    $tenant = TenantKey::factory()->create();
+    $tenant = Tenant::factory()->create();
     $user = User::factory()->create([
         'tenant_id' => $tenant->id,
         'name' => 'Jane Doe',
@@ -126,7 +126,7 @@ test('it deletes expired terminated employees, removes local files, and anonymiz
 });
 
 test('it preserves activity causer rank context before deleting expired employees', function (): void {
-    $tenant = TenantKey::factory()->create();
+    $tenant = Tenant::factory()->create();
     $orgUnit = OrganizationalUnit::factory()->create([
         'tenant_id' => $tenant->id,
     ]);
@@ -172,8 +172,8 @@ test('it preserves activity causer rank context before deleting expired employee
 test('it deletes push registrations when anonymizing a linked user', function (): void {
     Carbon::setTestNow(Carbon::parse('2026-06-30 12:00:00 UTC'));
 
-    $tenant = TenantKey::factory()->create();
-    $otherTenant = TenantKey::factory()->create();
+    $tenant = Tenant::factory()->create();
+    $otherTenant = Tenant::factory()->create();
     $user = User::factory()->create([
         'tenant_id' => $tenant->id,
         'email' => 'android.cleanup@secpal.dev',
@@ -253,7 +253,7 @@ test('it deletes push registrations when anonymizing a linked user', function ()
 });
 
 test('it erases customer and site assignment history during retention deletion', function (): void {
-    $tenant = TenantKey::factory()->create();
+    $tenant = Tenant::factory()->create();
     $user = User::factory()->create([
         'tenant_id' => $tenant->id,
     ]);
@@ -327,7 +327,7 @@ test('it erases customer and site assignment history during retention deletion',
 });
 
 test('it supports dry run without deleting employee records', function (): void {
-    $tenant = TenantKey::factory()->create();
+    $tenant = Tenant::factory()->create();
 
     $employee = Employee::factory()
         ->for($tenant, 'tenant')
@@ -346,8 +346,8 @@ test('it supports dry run without deleting employee records', function (): void 
 });
 
 test('it limits deletion to the selected tenant', function (): void {
-    $tenantA = TenantKey::factory()->create();
-    $tenantB = TenantKey::factory()->create();
+    $tenantA = Tenant::factory()->create();
+    $tenantB = Tenant::factory()->create();
 
     $employeeA = Employee::factory()
         ->for($tenantA, 'tenant')
@@ -376,7 +376,7 @@ test('it limits deletion to the selected tenant', function (): void {
 });
 
 test('it deletes every expired employee across multiple chunks', function (): void {
-    $tenant = TenantKey::factory()->create();
+    $tenant = Tenant::factory()->create();
 
     Employee::factory()
         ->count(55)
@@ -396,7 +396,7 @@ test('it deletes every expired employee across multiple chunks', function (): vo
 });
 
 test('it skips and logs suspicious file paths that fall outside the employees/ prefix', function (): void {
-    $tenant = TenantKey::factory()->create();
+    $tenant = Tenant::factory()->create();
 
     $employee = Employee::factory()
         ->for($tenant, 'tenant')
@@ -426,7 +426,7 @@ test('it skips and logs suspicious file paths that fall outside the employees/ p
 });
 
 test('it revokes reset operations for the pre-anonymization identity version', function (): void {
-    $tenant = TenantKey::factory()->create();
+    $tenant = Tenant::factory()->create();
     $user = User::factory()->create([
         'tenant_id' => $tenant->id,
         'email' => 'jane.doe@secpal.dev',

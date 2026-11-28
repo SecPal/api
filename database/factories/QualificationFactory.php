@@ -6,7 +6,7 @@
 namespace Database\Factories;
 
 use App\Models\Qualification;
-use App\Models\TenantKey;
+use App\Models\Tenant;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -22,12 +22,7 @@ class QualificationFactory extends Factory
     public function definition(): array
     {
         // Get the most recently created tenant from the current test context.
-        $tenant = TenantKey::query()->latest('id')->first();
-        if (! $tenant) {
-            TenantKey::ensureKekExists();
-            $keys = TenantKey::generateEnvelopeKeys();
-            $tenant = TenantKey::create($keys);
-        }
+        $tenant = Tenant::query()->latest('id')->first() ?? Tenant::factory()->create();
 
         $category = fake()->randomElement([
             'bewachv_34a',

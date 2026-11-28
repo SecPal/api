@@ -1,9 +1,10 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -71,8 +72,8 @@ describe('CreateOrganizationalUnitClosuresTable Migration', function () {
     });
 
     test('self-reference entry with depth 0 is valid', function (): void {
-        $keys = TenantKey::generateEnvelopeKeys();
-        $tenant = TenantKey::create($keys);
+
+        $tenant = Tenant::factory()->create();
         $unitId = Str::uuid()->toString();
 
         // Create organizational unit
@@ -102,8 +103,8 @@ describe('CreateOrganizationalUnitClosuresTable Migration', function () {
     });
 
     test('self-reference entry with depth greater than 0 is rejected', function (): void {
-        $keys = TenantKey::generateEnvelopeKeys();
-        $tenant = TenantKey::create($keys);
+
+        $tenant = Tenant::factory()->create();
         $unitId = Str::uuid()->toString();
 
         // Create organizational unit
@@ -125,8 +126,8 @@ describe('CreateOrganizationalUnitClosuresTable Migration', function () {
     })->throws(PDOException::class);
 
     test('parent-child relationship with depth 1 is valid', function (): void {
-        $keys = TenantKey::generateEnvelopeKeys();
-        $tenant = TenantKey::create($keys);
+
+        $tenant = Tenant::factory()->create();
         $parentId = Str::uuid()->toString();
         $childId = Str::uuid()->toString();
 
@@ -173,8 +174,8 @@ describe('CreateOrganizationalUnitClosuresTable Migration', function () {
     });
 
     test('cascade delete removes closures when organizational unit is deleted', function (): void {
-        $keys = TenantKey::generateEnvelopeKeys();
-        $tenant = TenantKey::create($keys);
+
+        $tenant = Tenant::factory()->create();
         $parentId = Str::uuid()->toString();
         $childId = Str::uuid()->toString();
 
@@ -231,8 +232,8 @@ describe('CreateOrganizationalUnitClosuresTable Migration', function () {
     });
 
     test('get all descendants query pattern works efficiently', function (): void {
-        $keys = TenantKey::generateEnvelopeKeys();
-        $tenant = TenantKey::create($keys);
+
+        $tenant = Tenant::factory()->create();
         $companyId = Str::uuid()->toString();
         $divisionId = Str::uuid()->toString();
         $departmentId = Str::uuid()->toString();

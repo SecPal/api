@@ -8,12 +8,13 @@
 
 use App\Models\Permission;
 use App\Models\Person;
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 /**
- * @property TenantKey $tenant
+ * @property Tenant $tenant
  * @property User $user
  * @property mixed $token
  */
@@ -26,8 +27,8 @@ beforeEach(function (): void {
 
     // generateKek() will create the directory if needed
     TenantKey::generateKek();
-    $keys = TenantKey::generateEnvelopeKeys();
-    $this->tenant = TenantKey::create($keys);
+
+    $this->tenant = Tenant::factory()->create();
 
     // Create test user with token
     $this->user = User::factory()->create();
@@ -322,8 +323,8 @@ describe('GET /v1/tenants/{tenant}/persons/by-email', function () {
 
     test('enforces tenant isolation', function (): void {
         // Create another tenant and person
-        $keys2 = TenantKey::generateEnvelopeKeys();
-        $tenant2 = TenantKey::create($keys2);
+
+        $tenant2 = Tenant::factory()->create();
 
         $person2 = new Person;
         $person2->tenant_id = $tenant2->id;

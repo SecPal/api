@@ -44,6 +44,7 @@ api_env="${tmp_dir}/api.env"
 cert_dir="${tmp_dir}/postgres-certs"
 socket_dir="${tmp_dir}/fpm-socket"
 secret_root="${tmp_dir}/runtime-secrets"
+next_secret_root="${tmp_dir}/runtime-secrets-next"
 bootstrap_checkout="${GITHUB_WORKSPACE:-$(pwd)}/.context/runtime-contracts"
 bootstrap_commit=bf2282e3e112ac003360ecb3dff390eafe282dbd
 bootstrap_source="$bootstrap_checkout/scripts/production-secret-bootstrap.php"
@@ -183,13 +184,27 @@ printf '%s' "$app_db_password" > "$secret_root/database/postgres-password"
 cp "$cert_dir/ca.crt" "$secret_root/database/postgres-ca.crt"
 chmod 0400 "$secret_root/api/app-key" "$secret_root/api/app-previous-keys" "$secret_root/database/"*
 chmod 0600 "$secret_root/api/tenant-kek"
+tenant_kek_fingerprint=$(sha256sum "$secret_root/api/tenant-kek")
+operation='synthetic-target-tenant-kek-input'
+cp -a "$secret_root" "$next_secret_root"
+rm "$next_secret_root/api/tenant-kek"
+dd if=/dev/urandom of="$next_secret_root/api/tenant-kek" bs=32 count=1 status=none
+chmod 0600 "$next_secret_root/api/tenant-kek"
+next_tenant_kek_fingerprint=$(sha256sum "$next_secret_root/api/tenant-kek")
+operation='runtime-bootstrap-configuration'
 printf '%s\n' 'auto_prepend_file=/run/secpal/bootstrap/production-secret-bootstrap.php' > "$bootstrap_ini"
 {
     printf 'TRUSTED_PROXIES=%s\nAPP_URL=https://api.secpal.dev\nFRONTEND_URL=https://app.secpal.dev\n' "$trusted_proxy"
     printf 'CORS_ALLOWED_ORIGINS=https://app.secpal.dev\nSANCTUM_STATEFUL_DOMAINS=app.secpal.dev\n'
     printf 'ADDRESS_DATA_IMPORT_ON_SETUP=false\nMAIL_MAILER=array\nGLOBAL_IDENTITY_ROOT_DIRECTORY=/run/secpal/identity\n'
+    printf 'TENANT_KEK_ID=94809506-5191-4ace-ac35-c38a96579271\nTENANT_KEK_GENERATION=1\nTENANT_KEK_FINGERPRINT=%s\n' \
+        "${tenant_kek_fingerprint%% *}"
 } >"$api_env"
 chmod 0600 "$api_env"
+next_api_env="${tmp_dir}/api-next.env"
+sed '/^TENANT_KEK_GENERATION=/d; /^TENANT_KEK_FINGERPRINT=/d' "$api_env" > "$next_api_env"
+printf 'TENANT_KEK_GENERATION=2\nTENANT_KEK_FINGERPRINT=%s\n' "${next_tenant_kek_fingerprint%% *}" >> "$next_api_env"
+chmod 0600 "$next_api_env"
 operation='postgres-start'
 podman run -d --label "$owner_label" --name "$postgres" --network "$network" --network-alias "$db_host" \
     -e POSTGRES_DB=secpal -e POSTGRES_USER=secpal -e POSTGRES_PASSWORD="$db_password" \
@@ -209,6 +224,13 @@ until podman exec "$postgres" pg_isready -h 127.0.0.1 -U secpal -d secpal >/dev/
     sleep 1
 done
 run_api() {
+    if [ "${1:-}" = --tenant-kek-maintenance ]; then
+        shift
+        set -- -v "$next_secret_root/api/tenant-kek:/run/secpal/rotation/tenant-kek:ro,z" \
+            -e "SMOKE_TENANT_KEK_FINGERPRINT=${next_tenant_kek_fingerprint%% *}" "$image" "$@"
+    else
+        set -- "$image" "$@"
+    fi
     podman run --rm --userns=keep-id:uid=10001,gid=10001 --user=10001:10001 \
         --network "$network" --env-file "$api_env" --read-only --cap-drop=all --security-opt=no-new-privileges \
         --mount type=tmpfs,destination=/tmp,tmpfs-mode=0700,chown=true \
@@ -219,7 +241,7 @@ run_api() {
         -v "$secret_root:/run/secpal/secrets:ro,z" \
         -v "$identity_root:/run/secpal/identity:ro,z" \
         -v "$bootstrap_source:/run/secpal/bootstrap/production-secret-bootstrap.php:ro,z" \
-        -v "$bootstrap_ini:/usr/local/etc/php/conf.d/zzz-secpal-bootstrap.ini:ro,z" "$image" "$@" 2>/dev/null
+        -v "$bootstrap_ini:/usr/local/etc/php/conf.d/zzz-secpal-bootstrap.ini:ro,z" "$@" 2>/dev/null
 }
 settle_scheduled_work() {
     operation='scheduler-run'
@@ -274,17 +296,17 @@ run_api php artisan tinker --execute='throw_unless(DB::scalar("SELECT NOT rolsup
 # A real Sanctum token is captured locally; it is never printed in CI logs.
 operation='auth-token-fixture'
 # shellcheck disable=SC2016 # PHP variables must remain literal.
-token_output=$(run_api php artisan tinker --execute='$tenant = \App\Models\TenantKey::firstOrFail(); $user = app(\App\Services\GlobalIdentity\GlobalIdentityAccounts::class)->create((new \App\Models\User)->forceFill(["tenant_id" => $tenant->id, "name" => "Container smoke", "email_verified_at" => now(), "password" => bin2hex(random_bytes(32))]), "container-smoke@secpal.dev"); echo "SMOKE-TOKEN:".$user->issueApiToken("container-smoke")->plainTextToken;')
+token_output=$(run_api php artisan tinker --execute='$tenant = \App\Models\Tenant::firstOrFail(); $user = app(\App\Services\GlobalIdentity\GlobalIdentityAccounts::class)->create((new \App\Models\User)->forceFill(["tenant_id" => $tenant->id, "name" => "Container smoke", "email_verified_at" => now(), "password" => bin2hex(random_bytes(32))]), "container-smoke@secpal.dev"); echo "SMOKE-TOKEN:".$user->issueApiToken("container-smoke")->plainTextToken;')
 smoke_token=$(printf '%s\n' "$token_output" | sed -n 's/^SMOKE-TOKEN://p')
 test -n "$smoke_token"
 # Seed only disposable smoke data; use real application permissions and encryption.
 operation='employee-upload-fixture'
 # shellcheck disable=SC2016 # PHP variables must remain literal.
-employee_output=$(run_api php artisan tinker --execute='$tenant = \App\Models\TenantKey::firstOrFail(); $user = app(\App\Services\GlobalIdentity\GlobalIdentityAccounts::class)->find("CONTAINER-SMOKE@SECPAL.DEV"); throw_unless($user instanceof \App\Models\User); $registrar = app(\Spatie\Permission\PermissionRegistrar::class); $registrar->setPermissionsTeamId($tenant->id); foreach (["employee_document.read", "employee_document.write"] as $permission) { $user->givePermissionTo(\App\Models\Permission::findOrCreate($permission, "sanctum")); } $registrar->forgetCachedPermissions(); $legal = \App\Models\LegalEntity::forceCreate(["tenant_id" => $tenant->id, "name" => "Container smoke"]); $site = \App\Models\Establishment::forceCreate(["tenant_id" => $tenant->id, "legal_entity_id" => $legal->id, "name" => "Container smoke"]); $employee = \App\Models\Employee::withoutEvents(fn () => \App\Models\Employee::forceCreate(["tenant_id" => $tenant->id, "legal_entity_id" => $legal->id, "establishment_id" => $site->id, "employee_number" => "CONTAINER-SMOKE", "first_name" => "Container", "last_name" => "Smoke", "contract_type" => "full_time", "status" => "applicant"])); echo "SMOKE-EMPLOYEE:".$employee->id;')
+employee_output=$(run_api php artisan tinker --execute='$tenant = \App\Models\Tenant::firstOrFail(); $user = app(\App\Services\GlobalIdentity\GlobalIdentityAccounts::class)->find("CONTAINER-SMOKE@SECPAL.DEV"); throw_unless($user instanceof \App\Models\User); $registrar = app(\Spatie\Permission\PermissionRegistrar::class); $registrar->setPermissionsTeamId($tenant->id); foreach (["employee_document.read", "employee_document.write"] as $permission) { $user->givePermissionTo(\App\Models\Permission::findOrCreate($permission, "sanctum")); } $registrar->forgetCachedPermissions(); $legal = \App\Models\LegalEntity::forceCreate(["tenant_id" => $tenant->id, "name" => "Container smoke"]); $site = \App\Models\Establishment::forceCreate(["tenant_id" => $tenant->id, "legal_entity_id" => $legal->id, "name" => "Container smoke"]); $employee = \App\Models\Employee::withoutEvents(fn () => \App\Models\Employee::forceCreate(["tenant_id" => $tenant->id, "legal_entity_id" => $legal->id, "establishment_id" => $site->id, "employee_number" => "CONTAINER-SMOKE", "first_name" => "Container", "last_name" => "Smoke", "contract_type" => "full_time", "status" => "applicant"])); echo "SMOKE-EMPLOYEE:".$employee->id;')
 smoke_employee=$(printf '%s\n' "$employee_output" | sed -n 's/^SMOKE-EMPLOYEE://p')
 test -n "$smoke_employee"
 operation='activity-hash-fixture'
-run_api php artisan tinker --execute='\App\Models\Activity::create(["tenant_id" => \App\Models\TenantKey::firstOrFail()->id, "log_name" => "system", "description" => "container queue smoke", "properties" => []]);' >/dev/null
+run_api php artisan tinker --execute='\App\Models\Activity::create(["tenant_id" => \App\Models\Tenant::firstOrFail()->id, "log_name" => "system", "description" => "container queue smoke", "properties" => []]);' >/dev/null
 operation='hash-chain-worker-drain'
 run_api php artisan queue:work --queue=activity-hash-chain --stop-when-empty --tries=1 --timeout=60 --max-time=60 >/dev/null
 operation='activity-hash-and-failed-jobs'
@@ -292,20 +314,23 @@ operation='activity-hash-and-failed-jobs'
 run_api php artisan tinker --execute='$activity = \App\Models\Activity::where("description", "container queue smoke")->firstOrFail(); throw_unless(preg_match("/^[a-f0-9]{64}$/", (string) $activity->event_hash) === 1); throw_unless(DB::table("failed_jobs")->count() === 0);' >/dev/null
 operation='php-fpm-socket-directory'
 mkdir -m 0700 "$socket_dir"
-operation='php-fpm-start'
-podman run -d --label "$owner_label" --name "$fpm" --network "$network" --env-file "$api_env" \
-    --userns=keep-id:uid=10001,gid=10001 --user=10001:10001 \
-    --read-only --cap-drop=all --security-opt=no-new-privileges \
-    --mount type=tmpfs,destination=/tmp,tmpfs-mode=0700,chown=true \
-    --mount type=tmpfs,destination=/config,tmpfs-mode=0750,chown=true \
-    --mount type=tmpfs,destination=/data,tmpfs-mode=0750,chown=true \
-    --mount type=tmpfs,destination=/app/storage,tmpfs-mode=0750,chown=true \
-    --mount type=tmpfs,destination=/app/bootstrap/cache,tmpfs-mode=0750,chown=true \
-    -v "$socket_dir:/run/secpal-fpm:rw,z" \
-    -v "$secret_root:/run/secpal/secrets:ro,z" \
+start_fpm() {
+    podman run -d --label "$owner_label" --name "$fpm" --network "$network" --env-file "$api_env" \
+        --userns=keep-id:uid=10001,gid=10001 --user=10001:10001 \
+        --read-only --cap-drop=all --security-opt=no-new-privileges \
+        --mount type=tmpfs,destination=/tmp,tmpfs-mode=0700,chown=true \
+        --mount type=tmpfs,destination=/config,tmpfs-mode=0750,chown=true \
+        --mount type=tmpfs,destination=/data,tmpfs-mode=0750,chown=true \
+        --mount type=tmpfs,destination=/app/storage,tmpfs-mode=0750,chown=true \
+        --mount type=tmpfs,destination=/app/bootstrap/cache,tmpfs-mode=0750,chown=true \
+        -v "$socket_dir:/run/secpal-fpm:rw,z" \
+        -v "$secret_root:/run/secpal/secrets:ro,z" \
         -v "$identity_root:/run/secpal/identity:ro,z" \
-    -v "$bootstrap_source:/run/secpal/bootstrap/production-secret-bootstrap.php:ro,z" \
-    -v "$bootstrap_ini:/usr/local/etc/php/conf.d/zzz-secpal-bootstrap.ini:ro,z" "$image" >/dev/null
+        -v "$bootstrap_source:/run/secpal/bootstrap/production-secret-bootstrap.php:ro,z" \
+        -v "$bootstrap_ini:/usr/local/etc/php/conf.d/zzz-secpal-bootstrap.ini:ro,z" "$image" >/dev/null
+}
+operation='php-fpm-start'
+start_fpm
 operation='nginx-start'
 podman run -d --label "$owner_label" --name "$api" --network "$network" \
     --userns=keep-id:uid=10001,gid=10001 --user=10001:10001 \
@@ -472,6 +497,71 @@ operation='fpm-socket-mode'
 test "$(podman exec "$fpm" stat -c '%a' /run/secpal-fpm/api.sock)" = 660
 operation='fpm-no-tcp-listener'
 podman exec "$client" php /tmp/assert-port-closed.php "$fpm" 9000
+operation='tenant-kek-rotation-with-external-inputs'
+# The synthetic maintenance collaborator is injected in this single process.
+# shellcheck disable=SC2016 # PHP variables must remain literal.
+rotation_result=$(run_api --tenant-kek-maintenance php artisan tinker --execute='
+    try {
+        $step = "source-mount";
+        $source = app(\App\Services\TenantKekReference::class);
+        $sourcePath = \App\Models\TenantKey::getKekPath();
+        throw_unless(is_readable($sourcePath) && ! is_writable($sourcePath));
+        $step = "target-mount";
+        $targetPath = "/run/secpal/rotation/tenant-kek";
+        throw_unless(is_readable($targetPath) && ! is_writable($targetPath));
+        $step = "maintenance-approval";
+        $target = new \App\Services\TenantKekReference($source->id, 2, (string) getenv("SMOKE_TENANT_KEK_FINGERPRINT"));
+        $operation = (string) \Illuminate\Support\Str::uuid();
+        $plan = new \App\Services\TenantKekRotationPlan($operation, $source, $target, $sourcePath, $targetPath);
+        app()->instance(\App\Contracts\TenantKekRotationAuthority::class, new class($plan) implements \App\Contracts\TenantKekRotationAuthority {
+            public function __construct(private \App\Services\TenantKekRotationPlan $plan) {}
+            public function approvedPlan(string $operationId): \App\Services\TenantKekRotationPlan {
+                throw_unless($operationId === $this->plan->operationId);
+                return $this->plan;
+            }
+        });
+        $step = "rewrap-commit";
+        throw_unless(\Illuminate\Support\Facades\Artisan::call("keys:rotate-kek", ["operation" => $operation]) === 0);
+        throw_unless(str_contains(\Illuminate\Support\Facades\Artisan::output(), "rewrap committed"));
+        $step = "commit-reconciliation";
+        throw_unless(\Illuminate\Support\Facades\Artisan::call("keys:rotate-kek", ["operation" => $operation]) === 0);
+        throw_unless(str_contains(\Illuminate\Support\Facades\Artisan::output(), "already committed"));
+        echo "verified", PHP_EOL;
+    } catch (\Throwable) {
+        echo $step, PHP_EOL;
+    }
+')
+case "$rotation_result" in
+    verified) ;;
+    source-mount|target-mount|maintenance-approval|rewrap-commit|commit-reconciliation)
+        operation="tenant-kek-$rotation_result"; exit 1 ;;
+    *) exit 1 ;;
+esac
+operation='old-tenant-kek-runtime-unready'
+assert_http /health/live 200 '"status":"alive"'
+assert_http /health/ready 503 '"status":"not_ready"'
+operation='tenant-kek-mount-integrity'
+test "$(sha256sum "$secret_root/api/tenant-kek")" = "$tenant_kek_fingerprint"
+test "$(sha256sum "$next_secret_root/api/tenant-kek")" = "$next_tenant_kek_fingerprint"
+operation='old-tenant-kek-fpm-shutdown'
+podman stop --time 10 "$fpm" >/dev/null
+test "$(podman inspect --format '{{.State.ExitCode}}' "$fpm")" -eq 0
+podman rm "$fpm" >/dev/null
+api_env="$next_api_env"
+secret_root="$next_secret_root"
+operation='committed-tenant-kek-fpm-start'
+start_fpm
+settle_scheduled_work
+wait_for_http
+operation='rewrapped-tenant-ciphertext'
+# shellcheck disable=SC2016 # PHP variables must remain literal.
+rewrapped=$(run_api php artisan tinker --execute='
+    $employee = \App\Models\Employee::where("employee_number", "CONTAINER-SMOKE")->firstOrFail();
+    throw_unless($employee->first_name === "Container");
+    throw_unless(\App\Models\TenantKey::forTenant($employee->tenant_id)->kek_generation === 2);
+    echo "SMOKE-REWRAPPED", PHP_EOL;
+')
+test "$rewrapped" = SMOKE-REWRAPPED
 operation='fpm-graceful-shutdown'
 podman stop --time 10 "$fpm" >/dev/null
 test "$(podman inspect --format '{{.State.ExitCode}}' "$fpm")" -eq 0

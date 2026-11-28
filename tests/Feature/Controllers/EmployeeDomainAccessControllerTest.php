@@ -16,6 +16,7 @@ use App\Models\OrganizationalUnit;
 use App\Models\Qualification;
 use App\Models\Site;
 use App\Models\SiteAssignment;
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -28,7 +29,7 @@ beforeEach(function (): void {
     incrementTestKekCounter();
     TenantKey::setKekPath(getTestKekPath());
     TenantKey::generateKek();
-    $this->tenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+    $this->tenant = Tenant::factory()->create();
     app(PermissionRegistrar::class)->setPermissionsTeamId($this->tenant->id);
     Artisan::call('db:seed', ['--class' => 'RolesAndPermissionsSeeder']);
     $this->user = User::factory()->create(['tenant_id' => $this->tenant->id]);

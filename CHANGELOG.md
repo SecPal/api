@@ -19,6 +19,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Monitor the current release and the predecessor still referenced by Deployment
   on both native platforms.
 
+- Rewrap Tenant DEKs and index keys against an externally approved KEK
+  generation in one PostgreSQL transaction. Startup validates the exact
+  committed generation, and rotation preserves business ciphertext and
+  historical recovery inputs (refs #3098).
+
+- Fence tenant ciphertext writes against DEK rotation and check the complete
+  tenant key inventory during setup and readiness (refs #3098).
+
 - Update the Nginx runtime to 1.30.8 for CVE-2026-132779 (refs #3061).
 
 - Encrypt global User email and MFA material with the Global Identity key
@@ -35,6 +43,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the fix for CVE-2026-86144 (refs #3139).
 
 ### Changed
+
+- Separate functional tenants from their encryption keys in the clean
+  PostgreSQL baseline. Functional references use `tenants.id`, and wrapped
+  keys authenticate their tenant and purpose (refs #3098).
 
 - Add approved, resumable Global Identity rotations for root and working keys,
   including dual-version lookup, incident revocation and controlled replacement

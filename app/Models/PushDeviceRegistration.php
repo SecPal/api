@@ -9,7 +9,6 @@ namespace App\Models;
 
 use App\Support\BootstrapContract;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use RuntimeException;
 
@@ -50,7 +49,7 @@ use RuntimeException;
  * @property-write string|null $push_token_plain
  * @property-read string|null $push_token_dec
  */
-class PushDeviceRegistration extends Model
+class PushDeviceRegistration extends TenantEncryptedModel
 {
     use HasUuids;
 
@@ -198,11 +197,11 @@ class PushDeviceRegistration extends Model
     }
 
     /**
-     * @return BelongsTo<TenantKey, $this>
+     * @return BelongsTo<Tenant, $this>
      */
     public function tenant(): BelongsTo
     {
-        return $this->belongsTo(TenantKey::class, 'tenant_id');
+        return $this->belongsTo(Tenant::class, 'tenant_id');
     }
 
     /**

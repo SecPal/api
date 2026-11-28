@@ -25,7 +25,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property \Illuminate\Support\Carbon|null $inactive_at
  * @property \Illuminate\Support\Carbon $created_at
  * @property \Illuminate\Support\Carbon $updated_at
- * @property-read TenantKey $tenant
+ * @property-read Tenant $tenant
  * @property-read \Illuminate\Database\Eloquent\Collection<int, CostCenterAllocation> $costCenterAllocations
  */
 class InternalCostCenter extends Model
@@ -61,10 +61,10 @@ class InternalCostCenter extends Model
         ];
     }
 
-    /** @return BelongsTo<TenantKey, $this> */
+    /** @return BelongsTo<Tenant, $this> */
     public function tenant(): BelongsTo
     {
-        return $this->belongsTo(TenantKey::class, 'tenant_id');
+        return $this->belongsTo(Tenant::class, 'tenant_id');
     }
 
     /** @return HasMany<CostCenterAllocation, $this> */

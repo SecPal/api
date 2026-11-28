@@ -9,11 +9,12 @@ use App\Models\CostCenter;
 use App\Models\Customer;
 use App\Models\OrganizationalUnit;
 use App\Models\Site;
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 /**
- * @property TenantKey $tenant
+ * @property Tenant $tenant
  * @property Customer $customer
  * @property OrganizationalUnit $organizationalUnit
  * @property Site $site
@@ -22,8 +23,8 @@ uses(RefreshDatabase::class);
 
 beforeEach(function (): void {
     TenantKey::ensureKekExists();
-    $keys = TenantKey::generateEnvelopeKeys();
-    $this->tenant = TenantKey::create($keys);
+
+    $this->tenant = Tenant::factory()->create();
 
     $this->customer = Customer::factory()->create(['tenant_id' => $this->tenant->id]);
     $this->organizationalUnit = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
@@ -39,7 +40,7 @@ test('cost center has required relationships', function (): void {
         'site_id' => $this->site->id,
     ]);
 
-    expect($costCenter->tenant)->toBeInstanceOf(TenantKey::class)
+    expect($costCenter->tenant)->toBeInstanceOf(Tenant::class)
         ->and($costCenter->site)->toBeInstanceOf(Site::class);
 });
 
@@ -162,8 +163,8 @@ test('active scope filters active cost centers', function (): void {
 });
 
 test('forTenant scope filters cost centers by tenant', function (): void {
-    $keys2 = TenantKey::generateEnvelopeKeys();
-    $tenant2 = TenantKey::create($keys2);
+
+    $tenant2 = Tenant::factory()->create();
     $customer2 = Customer::factory()->create(['tenant_id' => $tenant2->id]);
     $orgUnit2 = OrganizationalUnit::factory()->create(['tenant_id' => $tenant2->id]);
     $site2 = Site::factory()->create([

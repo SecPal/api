@@ -6,6 +6,7 @@
 declare(strict_types=1);
 
 use App\Exceptions\GlobalIdentityKeyException;
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use App\Models\User;
 use App\Services\GlobalIdentity\FileGlobalIdentityRootProvider;
@@ -45,6 +46,8 @@ it('seeds encrypted identities after ordinary migrations and explicit bootstrap'
     $directory = sys_get_temp_dir().'/secpal-seed-root-'.bin2hex(random_bytes(12));
     mkdir($directory, 0700);
     try {
+        TenantKey::setKekPath($directory.'/tenant-kek');
+        TenantKey::generateKek();
         $root = new GlobalIdentityKeyReference('root', 1);
         (new FileGlobalIdentityRootProvider($directory))->provision($root);
         config(['global_identity.root_directory' => $directory]);
@@ -53,6 +56,7 @@ it('seeds encrypted identities after ordinary migrations and explicit bootstrap'
             ->and(Schema::hasColumn('users', 'email'))->toBeFalse()
             ->and(DB::table('users')->whereNotNull('email_idx')->count())->toBeGreaterThan(0);
     } finally {
+        TenantKey::setKekPath(null);
         (new Filesystem)->deleteDirectory($directory);
     }
 });
@@ -71,7 +75,7 @@ it('serializes concurrent user creation and reservations under two accepted key 
         $keys->activate($keys->stage(Purpose::UserEmailLookup));
         $repository = app(GlobalEmailRepository::class);
         $versions = new GlobalEmailLookupVersions(2, [1, 2]);
-        $tenantId = TenantKey::factory()->create()->id;
+        $tenantId = Tenant::factory()->create()->id;
 
         $create = globalEmailWorker($directory, $this->schema, $tenantId, 'create', 'first@secpal.app');
         $workers[] = $create;
@@ -141,7 +145,7 @@ it('serializes lookup activation and account writes against the rotation project
         config(['global_identity.root_directory' => $directory]);
         $keys = app(GlobalIdentityWorkingKeyRegistry::class);
         $keys->initialize($root);
-        $tenant = TenantKey::factory()->create();
+        $tenant = Tenant::factory()->create();
         $accounts = app(GlobalIdentityAccounts::class);
         $user = $accounts->create(new User(['name' => 'Fixture', 'password' => 'test-password', 'tenant_id' => $tenant->id]), 'Old@secpal.app');
         $worker = globalEmailWorker($directory, $this->schema, $tenant->id, 'rotate_lookup', 'unused');

@@ -11,7 +11,7 @@ use App\Console\Commands\MonitorOpenTimestamp;
 use App\Contracts\ProcessExecutor;
 use App\Models\Activity;
 use App\Models\OrganizationalUnit;
-use App\Models\TenantKey;
+use App\Models\Tenant;
 use App\Services\OpenTimestampService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Log;
@@ -80,7 +80,7 @@ test('command warns about high pending count', function () {
     $this->app->instance(OpenTimestampService::class, $otsService);
 
     // Create a tenant and organizational unit for activities
-    $tenant = TenantKey::factory()->create();
+    $tenant = Tenant::factory()->create();
     $unit = OrganizationalUnit::factory()->create(['tenant_id' => $tenant->id]);
 
     // Create 150 activities with merkle_root but no ots_proof
@@ -119,7 +119,7 @@ test('command does not warn when pending count below threshold', function () {
     $this->app->instance(OpenTimestampService::class, $otsService);
 
     // Create a tenant and organizational unit for activities
-    $tenant = TenantKey::factory()->create();
+    $tenant = Tenant::factory()->create();
     $unit = OrganizationalUnit::factory()->create(['tenant_id' => $tenant->id]);
 
     // Create only 50 activities (below threshold of 100)

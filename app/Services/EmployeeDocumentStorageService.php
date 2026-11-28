@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 namespace App\Services;
@@ -8,6 +8,7 @@ namespace App\Services;
 use App\Exceptions\EmployeeDocumentFileNotFoundException;
 use App\Models\Employee;
 use App\Models\EmployeeDocument;
+use App\Models\TenantKey;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -29,10 +30,7 @@ class EmployeeDocumentStorageService
             throw new \RuntimeException('Failed to read uploaded employee document');
         }
 
-        $tenant = $employee->tenant;
-        if ($tenant === null) {
-            throw new \RuntimeException('Employee must belong to a tenant');
-        }
+        $tenantKey = TenantKey::forTenant($employee->tenant_id);
 
         $mimeType = $file->getMimeType();
         if ($mimeType === null) {
@@ -44,7 +42,7 @@ class EmployeeDocumentStorageService
             throw new \RuntimeException('Failed to determine employee document size');
         }
 
-        $encrypted = $tenant->encrypt($content);
+        $encrypted = $tenantKey->encrypt($content);
         $path = sprintf('employees/%s/documents/%s.enc', $employee->id, Str::uuid()->toString());
 
         $blob = json_encode([
@@ -92,10 +90,7 @@ class EmployeeDocumentStorageService
             throw new \RuntimeException('Employee document is missing its employee relation');
         }
 
-        $tenant = $employee->tenant;
-        if ($tenant === null) {
-            throw new \RuntimeException('Employee document employee must belong to a tenant');
-        }
+        $tenantKey = TenantKey::forTenant($employee->tenant_id);
 
         $ciphertext = base64_decode($decoded['ciphertext'], true);
         $nonce = base64_decode($decoded['nonce'], true);
@@ -103,7 +98,7 @@ class EmployeeDocumentStorageService
             throw new \RuntimeException('Employee document blob is not valid base64 data');
         }
 
-        return $tenant->decrypt($ciphertext, $nonce);
+        return $tenantKey->decrypt($ciphertext, $nonce);
     }
 
     /**

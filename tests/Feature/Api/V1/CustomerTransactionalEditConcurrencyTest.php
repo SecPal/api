@@ -10,6 +10,7 @@ use App\Models\Establishment;
 use App\Models\LegalEntity;
 use App\Models\Site;
 use App\Models\SiteAssignment;
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use App\Models\User;
 use Illuminate\Database\Events\QueryExecuted;
@@ -34,7 +35,7 @@ beforeEach(function (): void {
     cleanupTestKekFile();
     TenantKey::generateKek();
 
-    $this->tenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+    $this->tenant = Tenant::factory()->create();
     app(PermissionRegistrar::class)->setPermissionsTeamId($this->tenant->id);
     Artisan::call('db:seed', ['--class' => 'RolesAndPermissionsSeeder']);
 
@@ -60,7 +61,7 @@ afterEach(function (): void {
 });
 
 test('invalid edit validation does not block another tenants database writer', function (): void {
-    $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+    $otherTenant = Tenant::factory()->create();
     $otherCustomer = Customer::factory()->create(['tenant_id' => $otherTenant->id, 'is_active' => true]);
     config(['database.connections.customer_edit_writer' => DB::connection()->getConfig()]);
     $writer = DB::connection('customer_edit_writer');

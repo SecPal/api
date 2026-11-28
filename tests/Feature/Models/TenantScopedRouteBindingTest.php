@@ -13,25 +13,27 @@ use App\Models\OrganizationalUnit;
 use App\Models\Person;
 use App\Models\Qualification;
 use App\Models\Site;
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use App\Models\User;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Request;
+use Illuminate\Routing\Route;
 
 use function Pest\Laravel\actingAs;
 
 uses(RefreshDatabase::class);
 
 /**
- * @return array{tenant: TenantKey, otherTenant: TenantKey}
+ * @return array{tenant: Tenant, otherTenant: Tenant}
  */
 function createTenantRouteBindingContext(): array
 {
-    $tenantKeys = TenantKey::generateEnvelopeKeys();
-    $tenant = TenantKey::create($tenantKeys);
 
-    $otherTenantKeys = TenantKey::generateEnvelopeKeys();
-    $otherTenant = TenantKey::create($otherTenantKeys);
+    $tenant = Tenant::factory()->create();
+
+    $otherTenant = Tenant::factory()->create();
 
     $authUser = User::factory()->create([
         'tenant_id' => $tenant->id,
@@ -178,6 +180,18 @@ test('tenant route binding rejects invalid UUID values before querying UUID prim
     expect(fn () => (new Customer)->resolveRouteBindingQuery(Customer::query(), '1'))
         ->toThrow(ModelNotFoundException::class)
         ->and(fn () => (new Employee)->resolveRouteBindingQuery(Employee::query(), '1'))
+        ->toThrow(ModelNotFoundException::class);
+});
+
+test('an invalid tenant parameter cannot leave a route binding unscoped', function (): void {
+    $owner = Tenant::factory()->create();
+    $customer = Customer::factory()->create(['tenant_id' => $owner->id]);
+    $key = $owner->key()->firstOrFail();
+    $route = (new Route(['GET'], '/tenants/{tenant}', fn () => null))
+        ->bind(Request::create("/tenants/{$key->id}"));
+    request()->setRouteResolver(fn () => $route);
+
+    expect(fn () => (new Customer)->resolveRouteBindingQuery(Customer::query(), $customer->id)->first())
         ->toThrow(ModelNotFoundException::class);
 });
 

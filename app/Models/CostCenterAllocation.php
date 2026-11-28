@@ -20,7 +20,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property string $service_booking_id
  * @property string $internal_cost_center_id
  * @property int $share_bps
- * @property-read TenantKey $tenant
+ * @property-read Tenant $tenant
  * @property-read ServiceBooking $serviceBooking
  * @property-read InternalCostCenter $internalCostCenter
  */
@@ -49,10 +49,10 @@ class CostCenterAllocation extends Model
         ];
     }
 
-    /** @return BelongsTo<TenantKey, $this> */
+    /** @return BelongsTo<Tenant, $this> */
     public function tenant(): BelongsTo
     {
-        return $this->belongsTo(TenantKey::class, 'tenant_id');
+        return $this->belongsTo(Tenant::class, 'tenant_id');
     }
 
     /** @return BelongsTo<ServiceBooking, $this> */

@@ -7,6 +7,7 @@ use App\Models\Employee;
 use App\Models\OnboardingFormSubmission;
 use App\Models\OnboardingFormTemplate;
 use App\Models\OrganizationalUnit;
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use App\Models\User;
 use App\Policies\OnboardingFormSubmissionPolicy;
@@ -15,7 +16,7 @@ use Illuminate\Support\Facades\Artisan;
 use Spatie\Permission\PermissionRegistrar;
 
 /**
- * @property TenantKey $tenant
+ * @property Tenant $tenant
  * @property PermissionRegistrar $registrar
  * @property OnboardingFormSubmissionPolicy $policy
  */
@@ -25,8 +26,8 @@ beforeEach(function (): void {
     incrementTestKekCounter();
     TenantKey::setKekPath(getTestKekPath());
     TenantKey::generateKek();
-    $keys = TenantKey::generateEnvelopeKeys();
-    $this->tenant = TenantKey::create($keys);
+
+    $this->tenant = Tenant::factory()->create();
 
     $this->registrar = app(PermissionRegistrar::class);
     $this->registrar->setPermissionsTeamId($this->tenant->id);
@@ -182,8 +183,8 @@ test('user with onboarding.write but non-pre-contract employee status cannot cre
 
 test('pre-contract employee from a different tenant cannot create submissions in current tenant', function (): void {
     // Create a second tenant
-    $otherKeys = TenantKey::generateEnvelopeKeys();
-    $otherTenant = TenantKey::create($otherKeys);
+
+    $otherTenant = Tenant::factory()->create();
 
     // User has a pre_contract employee record in the OTHER tenant only
     $userFromOtherTenant = User::factory()->create();

@@ -6,7 +6,7 @@
 declare(strict_types=1);
 
 use App\Exceptions\GlobalIdentityKeyException;
-use App\Models\TenantKey;
+use App\Models\Tenant;
 use App\Models\User;
 use App\Services\GlobalIdentity\FileGlobalIdentityRootProvider;
 use App\Services\GlobalIdentity\GlobalEmailLookupVersions;
@@ -32,7 +32,7 @@ beforeEach(function (): void {
     config(['global_identity.root_directory' => $this->rootDirectory]);
     $this->registry = app(GlobalIdentityWorkingKeyRegistry::class);
     $this->registry->initialize($root);
-    $this->tenant = TenantKey::factory()->create();
+    $this->tenant = Tenant::factory()->create();
     $this->repository = app(GlobalEmailRepository::class);
     $this->versions = new GlobalEmailLookupVersions(1, [1]);
 });

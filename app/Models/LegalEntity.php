@@ -32,10 +32,10 @@ class LegalEntity extends Model
         return ['tenant_id' => 'integer', 'is_active' => 'boolean'];
     }
 
-    /** @return BelongsTo<TenantKey, $this> */
+    /** @return BelongsTo<Tenant, $this> */
     public function tenant(): BelongsTo
     {
-        return $this->belongsTo(TenantKey::class);
+        return $this->belongsTo(Tenant::class);
     }
 
     /** @return HasMany<Establishment, $this> */

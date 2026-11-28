@@ -32,7 +32,7 @@ use Illuminate\Support\Facades\DB;
  * - Unlimited hierarchy depth support
  *
  * @property string $id UUID primary key
- * @property int $tenant_id Foreign key to tenant_keys
+ * @property int $tenant_id Foreign key to tenants
  * @property string $type Enum: holding, company, region, branch, division, department, custom
  * @property string $name Display name of the organizational unit
  * @property string|null $custom_type_name Custom type name when type='custom'
@@ -45,7 +45,7 @@ use Illuminate\Support\Facades\DB;
  * @property \Illuminate\Support\Carbon $created_at
  * @property \Illuminate\Support\Carbon $updated_at
  * @property \Illuminate\Support\Carbon|null $deleted_at
- * @property-read TenantKey $tenant The tenant this unit belongs to
+ * @property-read Tenant $tenant The tenant this unit belongs to
  * @property-read OrganizationalUnit|null $parent The direct parent unit
  * @property-read Collection<int, OrganizationalUnit> $children Direct child units
  * @property-read Collection<int, OrganizationalUnit> $ancestors All ancestor units (ordered by depth, closest first)
@@ -157,11 +157,11 @@ class OrganizationalUnit extends Model
     /**
      * Get the tenant that owns this organizational unit.
      *
-     * @return BelongsTo<TenantKey, $this>
+     * @return BelongsTo<Tenant, $this>
      */
     public function tenant(): BelongsTo
     {
-        return $this->belongsTo(TenantKey::class, 'tenant_id');
+        return $this->belongsTo(Tenant::class, 'tenant_id');
     }
 
     /**

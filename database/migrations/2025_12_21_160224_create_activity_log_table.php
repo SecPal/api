@@ -1,7 +1,7 @@
 <?php
 
 /**
- * SPDX-FileCopyrightText: 2025 SecPal Contributors
+ * SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
@@ -38,8 +38,8 @@ return new class extends Migration
 
             // 🔐 Tenant + Organizational Scope Isolation
             $table->foreignId('tenant_id')
-                ->constrained('tenant_keys')
-                ->cascadeOnDelete();
+                ->constrained('tenants')
+                ->restrictOnDelete();
             $table->foreignUuid('organizational_unit_id')->nullable()
                 ->constrained('organizational_units')->nullOnDelete();
 

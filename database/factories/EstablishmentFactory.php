@@ -9,7 +9,7 @@ namespace Database\Factories;
 
 use App\Models\Establishment;
 use App\Models\LegalEntity;
-use App\Models\TenantKey;
+use App\Models\Tenant;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /** @extends Factory<Establishment> */
@@ -20,11 +20,7 @@ class EstablishmentFactory extends Factory
     /** @return array<string, mixed> */
     public function definition(): array
     {
-        $tenant = TenantKey::query()->latest('id')->first();
-        if (! $tenant) {
-            TenantKey::ensureKekExists();
-            $tenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
-        }
+        $tenant = Tenant::query()->latest('id')->first() ?? Tenant::factory()->create();
 
         return [
             'tenant_id' => $tenant->id,

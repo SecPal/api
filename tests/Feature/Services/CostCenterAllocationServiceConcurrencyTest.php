@@ -11,6 +11,7 @@ use App\Models\Activity;
 use App\Models\CostCenterAllocation;
 use App\Models\InternalCostCenter;
 use App\Models\ServiceBooking;
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use App\Models\User;
 use App\Services\CostCenterAllocationService;
@@ -63,7 +64,7 @@ afterEach(function (): void {
     TenantKey::setKekPath(null);
 });
 
-function costCenterConcurrencyActor(TenantKey $tenant): User
+function costCenterConcurrencyActor(Tenant $tenant): User
 {
     $actor = User::factory()->create(['tenant_id' => $tenant->id]);
     foreach (['internal_cost_centers.deactivate', 'cost_center_allocations.update'] as $permission) {
@@ -158,7 +159,7 @@ function runConcurrentCostCenterOperations(User $actor, array $operations): Illu
 }
 
 test('concurrent deactivation commits exactly one terminal transition and audit', function (): void {
-    $tenant = TenantKey::factory()->create();
+    $tenant = Tenant::factory()->create();
     $actor = costCenterConcurrencyActor($tenant);
     $center = InternalCostCenter::factory()->forTenant($tenant->id)->create();
 
@@ -174,7 +175,7 @@ test('concurrent deactivation commits exactly one terminal transition and audit'
 });
 
 test('concurrent complete replacements commit one whole snapshot without merging', function (): void {
-    $tenant = TenantKey::factory()->create();
+    $tenant = Tenant::factory()->create();
     $actor = costCenterConcurrencyActor($tenant);
     $booking = ServiceBooking::factory()->forTenant($tenant->id)->create();
     $centers = InternalCostCenter::factory()->count(2)->create(['tenant_id' => $tenant->id]);
@@ -199,7 +200,7 @@ test('concurrent complete replacements commit one whole snapshot without merging
 });
 
 test('deactivation and replacement race cannot newly allocate after deactivation wins', function (): void {
-    $tenant = TenantKey::factory()->create();
+    $tenant = Tenant::factory()->create();
     $actor = costCenterConcurrencyActor($tenant);
     $booking = ServiceBooking::factory()->forTenant($tenant->id)->create();
     $original = CostCenterAllocation::factory()->createCompleteSplit($booking)->sole();

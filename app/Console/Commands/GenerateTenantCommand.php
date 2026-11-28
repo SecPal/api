@@ -8,14 +8,14 @@
 
 namespace App\Console\Commands;
 
-use App\Models\TenantKey;
+use App\Services\TenantProvisioner;
 use Illuminate\Console\Command;
+use Throwable;
 
 /**
  * Generate a new tenant with envelope keys.
  *
- * This command creates a new tenant entry in the tenant_keys table
- * with fresh DEK and idx_key wrapped by the current KEK.
+ * Creates a functional tenant and its envelope keys in one transaction.
  */
 class GenerateTenantCommand extends Command
 {
@@ -36,32 +36,21 @@ class GenerateTenantCommand extends Command
     /**
      * Execute the console command.
      */
-    public function handle(): int
+    public function handle(TenantProvisioner $provisioner): int
     {
         $this->info('Generating new tenant envelope keys...');
 
-        $kekPath = TenantKey::getKekPath();
-
-        if (! file_exists($kekPath)) {
-            $this->error('❌ KEK file not found at: '.$kekPath);
-            $this->comment('Generate KEK first with:');
-            $this->line('   php artisan keys:generate-kek');
-
-            return Command::FAILURE;
-        }
-
         try {
-            $keys = TenantKey::generateEnvelopeKeys();
-            $tenant = TenantKey::create($keys);
+            $key = $provisioner->create();
 
-            $this->info("✅ Successfully created tenant {$tenant->id}");
-            $this->line('   DEK wrapped: '.strlen($tenant->dek_wrapped).' bytes');
-            $this->line('   idx_key wrapped: '.strlen($tenant->idx_wrapped).' bytes');
-            $this->line("   Key version: {$tenant->key_version}");
+            $this->info("✅ Successfully created tenant {$key->tenant_id}");
+            $this->line('   DEK wrapped: '.strlen($key->dek_wrapped).' bytes');
+            $this->line('   idx_key wrapped: '.strlen($key->idx_wrapped).' bytes');
+            $this->line("   Key version: {$key->key_version}");
 
             return Command::SUCCESS;
-        } catch (\Exception $e) {
-            $this->error('❌ Failed to generate tenant: '.$e->getMessage());
+        } catch (Throwable) {
+            $this->error('Failed to generate tenant. Verify the database and the externally provided Tenant KEK generation.');
 
             return Command::FAILURE;
         }

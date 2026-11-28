@@ -1,10 +1,11 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use App\Models\Employee;
 use App\Models\OnboardingFormTemplate;
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use App\Models\User;
 use App\Policies\OnboardingFormTemplatePolicy;
@@ -13,7 +14,7 @@ use Illuminate\Support\Facades\Artisan;
 use Spatie\Permission\PermissionRegistrar;
 
 /**
- * @property TenantKey $tenant
+ * @property Tenant $tenant
  * @property PermissionRegistrar $registrar
  * @property OnboardingFormTemplatePolicy $policy
  */
@@ -23,8 +24,8 @@ beforeEach(function (): void {
     incrementTestKekCounter();
     TenantKey::setKekPath(getTestKekPath());
     TenantKey::generateKek();
-    $keys = TenantKey::generateEnvelopeKeys();
-    $this->tenant = TenantKey::create($keys);
+
+    $this->tenant = Tenant::factory()->create();
 
     $this->registrar = app(PermissionRegistrar::class);
     $this->registrar->setPermissionsTeamId($this->tenant->id);
@@ -77,8 +78,8 @@ test('pre-contract employees can view individual templates without onboarding.re
 
 test('pre-contract employee from a different tenant cannot view templates in current tenant', function (): void {
     // Create a second tenant
-    $otherKeys = TenantKey::generateEnvelopeKeys();
-    $otherTenant = TenantKey::create($otherKeys);
+
+    $otherTenant = Tenant::factory()->create();
 
     // User has pre_contract employee in OTHER tenant only
     $userFromOtherTenant = User::factory()->create();

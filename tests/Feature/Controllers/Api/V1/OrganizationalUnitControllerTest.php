@@ -6,6 +6,7 @@
 use App\Models\Customer;
 use App\Models\OrganizationalUnit;
 use App\Models\OrganizationalUnitClosure;
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use App\Models\User;
 use App\Models\UserInternalOrganizationalScope;
@@ -22,7 +23,7 @@ use function Pest\Laravel\postJson;
 uses(RefreshDatabase::class);
 
 /**
- * @property TenantKey $tenant
+ * @property Tenant $tenant
  * @property PermissionRegistrar $registrar
  * @property User $user
  * @property OrganizationalUnit $rootUnit
@@ -34,8 +35,8 @@ beforeEach(function () {
     TenantKey::generateKek();
 
     // Create tenant
-    $keys = TenantKey::generateEnvelopeKeys();
-    $this->tenant = TenantKey::create($keys);
+
+    $this->tenant = Tenant::factory()->create();
 
     // Set tenant context for permission system
     $this->registrar = app(PermissionRegistrar::class);
@@ -1494,8 +1495,8 @@ describe('OrganizationalUnitController - Permission-Based Filtering (Need-to-Kno
 
     test('user cannot access organizational units from different tenant (cross-tenant isolation)', function () {
         // Arrange: Create a second tenant with its own organizational unit
-        $otherTenantKeys = TenantKey::generateEnvelopeKeys();
-        $otherTenant = TenantKey::create($otherTenantKeys);
+
+        $otherTenant = Tenant::factory()->create();
 
         $otherTenantUnit = OrganizationalUnit::factory()->create([
             'tenant_id' => $otherTenant->id,
@@ -1656,7 +1657,7 @@ describe('OrganizationalUnitController - Hierarchy', function () {
             'access_level' => 'manage',
         ]);
 
-        $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+        $otherTenant = Tenant::factory()->create();
         $foreignParent = OrganizationalUnit::factory()->create([
             'tenant_id' => $otherTenant->id,
             'name' => 'Foreign Parent',

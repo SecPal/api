@@ -10,14 +10,14 @@ declare(strict_types=1);
 use App\Models\Activity;
 use App\Models\Employee;
 use App\Models\OrganizationalUnit;
-use App\Models\TenantKey;
+use App\Models\Tenant;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
 
 /**
- * @property TenantKey $tenant
+ * @property Tenant $tenant
  * @property User $user
  */
 uses(RefreshDatabase::class);
@@ -25,7 +25,7 @@ uses(RefreshDatabase::class);
 beforeEach(function () {
     // Create tenant for tests
     Queue::fake([App\Jobs\SubmitMerkleRootToOpenTimestamp::class]);
-    $this->tenant = TenantKey::factory()->create();
+    $this->tenant = Tenant::factory()->create();
     $this->user = User::factory()->create(['tenant_id' => $this->tenant->id]);
 });
 
@@ -110,7 +110,7 @@ test('hash chain is deterministic', function () {
 });
 
 test('hash chain respects tenant isolation', function () {
-    $tenant2 = TenantKey::factory()->create();
+    $tenant2 = Tenant::factory()->create();
     $user2 = User::factory()->create(['tenant_id' => $tenant2->id]);
 
     // Create log for tenant 1
@@ -407,7 +407,7 @@ test('activity belongs to tenant', function () {
         'description' => 'Test log',
     ]);
 
-    expect($log->tenant)->toBeInstanceOf(TenantKey::class)
+    expect($log->tenant)->toBeInstanceOf(Tenant::class)
         ->and($log->tenant->id)->toBe($this->tenant->id);
 });
 
@@ -679,7 +679,7 @@ test('accepts a soft-deleted organizational_unit_id from the same tenant', funct
 })->group('security', 'issue-1268');
 
 test('throws exception when organizational_unit_id belongs to different tenant', function () {
-    $otherTenant = TenantKey::factory()->create();
+    $otherTenant = Tenant::factory()->create();
     $otherOrgUnit = OrganizationalUnit::factory()->create([
         'tenant_id' => $otherTenant->id,
     ]);
@@ -706,7 +706,7 @@ test('throws exception when organizational_unit_id belongs to different tenant',
 })->group('security', 'issue-402');
 
 test('throws exception when a soft-deleted organizational_unit_id belongs to different tenant', function () {
-    $otherTenant = TenantKey::factory()->create();
+    $otherTenant = Tenant::factory()->create();
     $otherOrgUnit = OrganizationalUnit::factory()->create([
         'tenant_id' => $otherTenant->id,
     ]);

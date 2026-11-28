@@ -5,7 +5,7 @@
 
 namespace Database\Factories;
 
-use App\Models\TenantKey;
+use App\Models\Tenant;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -21,7 +21,7 @@ class OnboardingFormTemplateFactory extends Factory
     public function definition(): array
     {
         return [
-            'tenant_id' => TenantKey::factory(),
+            'tenant_id' => Tenant::factory(),
             'name' => fake()->sentence(3),
             'template_key' => null,
             'description' => fake()->sentence(),

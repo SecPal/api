@@ -4,6 +4,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -78,8 +79,8 @@ describe('CreateUserInternalOrganizationalScopesTable Migration', function () {
     });
 
     test('access_level column accepts valid enum values', function (): void {
-        $keys = TenantKey::generateEnvelopeKeys();
-        $tenant = TenantKey::create($keys);
+
+        $tenant = Tenant::factory()->create();
         $unitId = Str::uuid()->toString();
 
         // Create organizational unit
@@ -117,8 +118,8 @@ describe('CreateUserInternalOrganizationalScopesTable Migration', function () {
     });
 
     test('access_level column rejects invalid enum values', function (): void {
-        $keys = TenantKey::generateEnvelopeKeys();
-        $tenant = TenantKey::create($keys);
+
+        $tenant = Tenant::factory()->create();
         $user = User::factory()->create();
         $unitId = Str::uuid()->toString();
 
@@ -144,8 +145,8 @@ describe('CreateUserInternalOrganizationalScopesTable Migration', function () {
     })->throws(PDOException::class);
 
     test('include_descendants defaults to false', function (): void {
-        $keys = TenantKey::generateEnvelopeKeys();
-        $tenant = TenantKey::create($keys);
+
+        $tenant = Tenant::factory()->create();
         $user = User::factory()->create();
         $unitId = Str::uuid()->toString();
         $scopeId = Str::uuid()->toString();
@@ -175,8 +176,8 @@ describe('CreateUserInternalOrganizationalScopesTable Migration', function () {
     });
 
     test('access_level defaults to read', function (): void {
-        $keys = TenantKey::generateEnvelopeKeys();
-        $tenant = TenantKey::create($keys);
+
+        $tenant = Tenant::factory()->create();
         $user = User::factory()->create();
         $unitId = Str::uuid()->toString();
         $scopeId = Str::uuid()->toString();
@@ -206,8 +207,8 @@ describe('CreateUserInternalOrganizationalScopesTable Migration', function () {
     });
 
     test('cascade delete removes scopes when user is deleted', function (): void {
-        $keys = TenantKey::generateEnvelopeKeys();
-        $tenant = TenantKey::create($keys);
+
+        $tenant = Tenant::factory()->create();
         $user = User::factory()->create();
         $unitId = Str::uuid()->toString();
         $scopeId = Str::uuid()->toString();
@@ -246,8 +247,8 @@ describe('CreateUserInternalOrganizationalScopesTable Migration', function () {
     });
 
     test('cascade delete removes scopes when organizational unit is deleted', function (): void {
-        $keys = TenantKey::generateEnvelopeKeys();
-        $tenant = TenantKey::create($keys);
+
+        $tenant = Tenant::factory()->create();
         $user = User::factory()->create();
         $unitId = Str::uuid()->toString();
         $scopeId = Str::uuid()->toString();
@@ -288,8 +289,8 @@ describe('CreateUserInternalOrganizationalScopesTable Migration', function () {
     test('allows multiple scopes for same user-unit with different rank filters', function (): void {
         // Multiple scopes per user/unit are needed for "all employees" access
         // Example: One scope for non-leadership + one scope for leadership employees
-        $keys = TenantKey::generateEnvelopeKeys();
-        $tenant = TenantKey::create($keys);
+
+        $tenant = Tenant::factory()->create();
         $user = User::factory()->create();
         $unitId = Str::uuid()->toString();
 
@@ -339,8 +340,8 @@ describe('CreateUserInternalOrganizationalScopesTable Migration', function () {
     });
 
     test('same user can have scopes for different organizational units', function (): void {
-        $keys = TenantKey::generateEnvelopeKeys();
-        $tenant = TenantKey::create($keys);
+
+        $tenant = Tenant::factory()->create();
         $user = User::factory()->create();
         $unitId1 = Str::uuid()->toString();
         $unitId2 = Str::uuid()->toString();
@@ -395,8 +396,8 @@ describe('CreateUserInternalOrganizationalScopesTable Migration', function () {
     });
 
     test('include_descendants enables hierarchical access pattern', function (): void {
-        $keys = TenantKey::generateEnvelopeKeys();
-        $tenant = TenantKey::create($keys);
+
+        $tenant = Tenant::factory()->create();
         $user = User::factory()->create();
 
         $companyId = Str::uuid()->toString();

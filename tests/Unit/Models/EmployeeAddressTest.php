@@ -5,6 +5,7 @@
 
 use App\Models\Employee;
 use App\Models\EmployeeAddress;
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
@@ -14,8 +15,8 @@ beforeEach(function (): void {
     incrementTestKekCounter();
     TenantKey::setKekPath(getTestKekPath());
     TenantKey::generateKek();
-    $keys = TenantKey::generateEnvelopeKeys();
-    $this->tenant = TenantKey::create($keys);
+
+    $this->tenant = Tenant::factory()->create();
 });
 
 afterEach(function (): void {

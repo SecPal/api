@@ -16,6 +16,7 @@ use App\Models\CostCenterAllocation;
 use App\Models\Customer;
 use App\Models\InternalCostCenter;
 use App\Models\ServiceBooking;
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -149,7 +150,7 @@ test('declares tenant-safe foreign keys and downstream access indexes', function
 
 test('rejects cross-tenant contract customer associations', function (): void {
     $customer = Customer::factory()->create();
-    $otherTenant = TenantKey::factory()->create();
+    $otherTenant = Tenant::factory()->create();
 
     DB::table('contracts')->insert(contractPersistenceRow($customer, [
         'tenant_id' => $otherTenant->id,
@@ -214,7 +215,7 @@ test('allows customer and currency reassignment before booking history exists', 
 
 test('rejects cross-tenant booking contract associations', function (): void {
     $contract = Contract::factory()->create();
-    $otherTenant = TenantKey::factory()->create();
+    $otherTenant = Tenant::factory()->create();
 
     DB::table('service_bookings')->insert(serviceBookingPersistenceRow($contract, [
         'tenant_id' => $otherTenant->id,
@@ -300,7 +301,7 @@ test('prevents direct deletion of invoiced booking evidence', function (): void 
 
 test('scopes cost center codes to tenants and retains inactive centers', function (): void {
     $center = InternalCostCenter::factory()->create(['code' => 'OPS-42']);
-    $otherTenant = TenantKey::factory()->create();
+    $otherTenant = Tenant::factory()->create();
 
     InternalCostCenter::factory()->create([
         'tenant_id' => $otherTenant->id,
@@ -427,7 +428,7 @@ test('enforces allocation basis-point bounds', function (int $share): void {
 
 test('rejects cross-tenant and duplicate allocation identities', function (string $case): void {
     $booking = ServiceBooking::factory()->create();
-    $otherTenant = TenantKey::factory()->create();
+    $otherTenant = Tenant::factory()->create();
     $sameTenantCenter = InternalCostCenter::factory()->create(['tenant_id' => $booking->tenant_id]);
     $otherTenantCenter = InternalCostCenter::factory()->create(['tenant_id' => $otherTenant->id]);
 
@@ -575,7 +576,7 @@ test('default factories create a complete tenant-consistent allocation graph', f
 });
 
 test('aggregate relationships support bounded eager loading without hidden per-row queries', function (): void {
-    $tenant = TenantKey::factory()->create();
+    $tenant = Tenant::factory()->create();
 
     foreach (range(1, 2) as $index) {
         $contract = Contract::factory()->create(['tenant_id' => $tenant->id]);
@@ -608,7 +609,7 @@ test('aggregate relationships support bounded eager loading without hidden per-r
         ->and($queryCount)->toBe(5);
 });
 
-test('tenant erasure removes the complete contract management graph in dependency order', function (): void {
+test('restricts tenant deletion and preserves the contract management graph', function (): void {
     $allocation = CostCenterAllocation::factory()->create();
     $tenant = $allocation->tenant;
     $contractId = $allocation->serviceBooking->contract_id;
@@ -616,12 +617,12 @@ test('tenant erasure removes the complete contract management graph in dependenc
     $centerId = $allocation->internal_cost_center_id;
     $allocationId = $allocation->id;
 
-    $tenant->delete();
+    expect(fn () => DB::transaction(fn () => $tenant->delete()))->toThrow(QueryException::class, '23001');
 
-    expect(Contract::query()->whereKey($contractId)->exists())->toBeFalse()
-        ->and(ServiceBooking::query()->whereKey($bookingId)->exists())->toBeFalse()
-        ->and(InternalCostCenter::query()->whereKey($centerId)->exists())->toBeFalse()
-        ->and(CostCenterAllocation::query()->whereKey($allocationId)->exists())->toBeFalse();
+    expect(Contract::query()->whereKey($contractId)->exists())->toBeTrue()
+        ->and(ServiceBooking::query()->whereKey($bookingId)->exists())->toBeTrue()
+        ->and(InternalCostCenter::query()->whereKey($centerId)->exists())->toBeTrue()
+        ->and(CostCenterAllocation::query()->whereKey($allocationId)->exists())->toBeTrue();
 });
 
 test('the migration rolls back and reapplies without orphaned trigger functions', function (): void {

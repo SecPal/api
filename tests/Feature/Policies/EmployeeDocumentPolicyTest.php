@@ -6,6 +6,7 @@
 use App\Models\Employee;
 use App\Models\EmployeeDocument;
 use App\Models\OrganizationalUnit;
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use App\Models\User;
 use App\Policies\EmployeeDocumentPolicy;
@@ -14,7 +15,7 @@ use Illuminate\Support\Facades\Artisan;
 use Spatie\Permission\PermissionRegistrar;
 
 /**
- * @property TenantKey $tenant
+ * @property Tenant $tenant
  * @property PermissionRegistrar $registrar
  * @property EmployeeDocumentPolicy $policy
  */
@@ -24,8 +25,8 @@ beforeEach(function (): void {
     incrementTestKekCounter();
     TenantKey::setKekPath(getTestKekPath());
     TenantKey::generateKek();
-    $keys = TenantKey::generateEnvelopeKeys();
-    $this->tenant = TenantKey::create($keys);
+
+    $this->tenant = Tenant::factory()->create();
 
     $this->registrar = app(PermissionRegistrar::class);
     $this->registrar->setPermissionsTeamId($this->tenant->id);
@@ -76,7 +77,7 @@ test('document policies reject employees from another tenant', function (): void
     $user = User::factory()->create(['tenant_id' => $this->tenant->id]);
     givePermissionWithTenant($user, $this->tenant->id, 'employee_document.read');
     givePermissionWithTenant($user, $this->tenant->id, 'employee_document.write');
-    $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+    $otherTenant = Tenant::factory()->create();
     $employee = Employee::factory()->for($otherTenant, 'tenant')->create();
     $document = EmployeeDocument::factory()->for($employee)->create();
 

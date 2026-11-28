@@ -87,7 +87,7 @@ class ActivityLogService
             $targetTenantId = $user->tenant_id;
         } else {
             // Fallback: use lowest-id tenant key to ensure deterministic attribution
-            $firstTenant = \App\Models\TenantKey::orderBy('id')->first();
+            $firstTenant = \App\Models\Tenant::orderBy('id')->first();
             if ($firstTenant === null) {
                 // No tenant exists - skip activity logging (e.g. in tests without tenant setup)
                 return null;

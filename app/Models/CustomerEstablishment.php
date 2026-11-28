@@ -10,7 +10,6 @@ namespace App\Models;
 use App\Models\Concerns\EnforcesTenantRouteBinding;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -38,7 +37,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read Customer $customer
  * @property-read Establishment $establishment
  */
-class CustomerEstablishment extends Model
+class CustomerEstablishment extends TenantEncryptedModel
 {
     /** @use HasFactory<\Database\Factories\CustomerEstablishmentFactory> */
     use EnforcesTenantRouteBinding, HasFactory, HasUuids, SoftDeletes {
@@ -150,10 +149,10 @@ class CustomerEstablishment extends Model
         return $value;
     }
 
-    /** @return BelongsTo<TenantKey, $this> */
+    /** @return BelongsTo<Tenant, $this> */
     public function tenant(): BelongsTo
     {
-        return $this->belongsTo(TenantKey::class);
+        return $this->belongsTo(Tenant::class);
     }
 
     /** @return BelongsTo<Customer, $this> */

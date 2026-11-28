@@ -37,7 +37,7 @@ use Spatie\Activitylog\Support\LogOptions;
  * - Cost center management
  *
  * @property string $id UUID primary key
- * @property int $tenant_id Foreign key to tenant_keys
+ * @property int $tenant_id Foreign key to tenants
  * @property string $customer_id Foreign key to customers
  * @property string $legal_entity_id Foreign key to legal_entities
  * @property string $establishment_id Foreign key to establishments
@@ -57,7 +57,7 @@ use Spatie\Activitylog\Support\LogOptions;
  * @property \Illuminate\Support\Carbon|null $deleted_at
  * @property-read string $full_address Formatted full address string
  * @property-read bool $is_expired Whether the site validity period has expired
- * @property-read TenantKey $tenant The tenant this site belongs to
+ * @property-read Tenant $tenant The tenant this site belongs to
  * @property-read Customer $customer The customer that owns this site
  * @property-read LegalEntity $legalEntity The responsible Legal Entity
  * @property-read Establishment $establishment The responsible establishment
@@ -167,11 +167,11 @@ class Site extends Model
     /**
      * Get the tenant that owns this site.
      *
-     * @return BelongsTo<TenantKey, $this>
+     * @return BelongsTo<Tenant, $this>
      */
     public function tenant(): BelongsTo
     {
-        return $this->belongsTo(TenantKey::class, 'tenant_id');
+        return $this->belongsTo(Tenant::class, 'tenant_id');
     }
 
     /**

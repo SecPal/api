@@ -84,6 +84,12 @@ function spaOrigin(): string
     return 'https://app.secpal.dev';
 }
 
+/** Store an authenticated tenant key before varying its mount or metadata. */
+function seedTenantKeyPresence(): void
+{
+    App\Models\TenantKey::factory()->create();
+}
+
 function spaReferer(): string
 {
     return spaOrigin().'/';
@@ -222,7 +228,7 @@ function giveOrganizationalScope(
  */
 function grantEmployeeEstablishmentAccess(
     App\Models\User $user,
-    App\Models\TenantKey $tenant,
+    App\Models\Tenant $tenant,
     App\Models\LegalEntity $legalEntity,
     App\Models\Establishment $establishment,
     App\Models\OrganizationalUnit $scopeUnit,

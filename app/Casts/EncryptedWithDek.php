@@ -10,7 +10,9 @@ namespace App\Casts;
 
 use App\Exceptions\CorruptedEncryptedAttributeException;
 use App\Exceptions\TenantKeyDecryptionException;
+use App\Models\TenantEncryptedModel;
 use App\Models\TenantKey;
+use App\Services\TenantKekRegistry;
 use Illuminate\Contracts\Database\Eloquent\CastsAttributes;
 use Illuminate\Database\Eloquent\Model;
 
@@ -62,7 +64,7 @@ class EncryptedWithDek implements CastsAttributes
 
         // Get tenant and decrypt
         /** @var TenantKey $tenant */
-        $tenant = TenantKey::findOrFail($attributes['tenant_id']);
+        $tenant = TenantKey::forTenant($attributes['tenant_id'] ?? null);
 
         try {
             return $tenant->decrypt($ciphertext, $nonce);
@@ -79,7 +81,7 @@ class EncryptedWithDek implements CastsAttributes
      *
      * @param  array<string, mixed>  $attributes
      */
-    public function set(Model $model, string $key, mixed $value, array $attributes): ?string
+    public function set(Model $model, string $key, #[\SensitiveParameter] mixed $value, array $attributes): ?string
     {
         if ($value === null) {
             return null;
@@ -89,21 +91,19 @@ class EncryptedWithDek implements CastsAttributes
             throw new \RuntimeException("Expected string value for {$key}, got ".gettype($value));
         }
 
-        // Get tenant and encrypt
-        /** @var TenantKey $tenant */
-        $tenant = TenantKey::findOrFail($attributes['tenant_id']);
-        $encrypted = $tenant->encrypt($value);
-
-        // Store as JSON: {ciphertext: base64, nonce: base64}
-        $json = json_encode([
-            'ciphertext' => base64_encode($encrypted['ciphertext']),
-            'nonce' => base64_encode($encrypted['nonce']),
-        ]);
-
-        if ($json === false) {
-            throw new \RuntimeException("Failed to encode encrypted data for {$key}");
+        if (! $model instanceof TenantEncryptedModel) {
+            throw new \LogicException('Tenant DEK writes require a persistence fence.');
         }
 
-        return $json;
+        return app(TenantKekRegistry::class)->withLease(function () use ($model, $attributes, $value): string {
+            $tenantKey = TenantKey::forTenant($attributes['tenant_id'] ?? null);
+            $encrypted = $tenantKey->encrypt($value);
+            $model->rememberTenantDekWrite($tenantKey->tenant_id, $tenantKey->key_version);
+
+            return json_encode([
+                'ciphertext' => base64_encode($encrypted['ciphertext']),
+                'nonce' => base64_encode($encrypted['nonce']),
+            ], JSON_THROW_ON_ERROR);
+        });
     }
 }

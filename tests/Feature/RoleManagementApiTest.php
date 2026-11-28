@@ -9,6 +9,7 @@
 use App\Http\Requests\Api\V1\CreateRoleRequest;
 use App\Http\Requests\Api\V1\UpdateRoleRequest;
 use App\Models\Permission;
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -17,7 +18,7 @@ use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
 
 /**
- * @property TenantKey $tenant
+ * @property Tenant $tenant
  * @property PermissionRegistrar $registrar
  * @property User $user
  * @property mixed $token
@@ -59,7 +60,7 @@ function createRoleManagementRole(string $name, string $guardName = 'sanctum'): 
     return $role;
 }
 
-function createRoleManagementRoleInTenant(TenantKey $tenant, string $name, string $guardName = 'sanctum'): Role
+function createRoleManagementRoleInTenant(Tenant $tenant, string $name, string $guardName = 'sanctum'): Role
 {
     $registrar = app(PermissionRegistrar::class);
     $previousTeamId = $registrar->getPermissionsTeamId();
@@ -87,8 +88,8 @@ beforeEach(function (): void {
     incrementTestKekCounter();
     TenantKey::setKekPath(getTestKekPath());
     TenantKey::generateKek();
-    $keys = TenantKey::generateEnvelopeKeys();
-    $this->tenant = TenantKey::create($keys);
+
+    $this->tenant = Tenant::factory()->create();
 
     // Set tenant context for permission system
     $this->registrar = app(PermissionRegistrar::class);
@@ -196,7 +197,7 @@ describe('GET /v1/roles - List Roles', function () {
         $this->user->givePermissionTo('roles.read');
 
         createRoleManagementRole('Manager');
-        $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+        $otherTenant = Tenant::factory()->create();
         createRoleManagementRoleInTenant($otherTenant, 'Other Tenant Manager');
 
         $response = $this->withToken($this->token)
@@ -258,7 +259,7 @@ describe('POST /v1/roles - Create Role', function () {
 
     test('ignores spoofed tenant input when validating role creation uniqueness', function (): void {
         $manager = createRoleManagementRole('Manager');
-        $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+        $otherTenant = Tenant::factory()->create();
 
         $this->registrar->setPermissionsTeamId($otherTenant->id);
         $otherTenantManager = createRoleManagementRole('Manager');
@@ -318,7 +319,7 @@ describe('POST /v1/roles - Create Role', function () {
     test('allows creating a role when the same name exists in another tenant', function (): void {
         $this->user->givePermissionTo('roles.create');
 
-        $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+        $otherTenant = Tenant::factory()->create();
 
         $this->registrar->setPermissionsTeamId($otherTenant->id);
         createRoleManagementRole('Manager');
@@ -478,7 +479,7 @@ describe('GET /v1/roles/{id} - Get Role Details', function () {
     test('returns 404 when accessing a role from another tenant', function (): void {
         $this->user->givePermissionTo('roles.read');
 
-        $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+        $otherTenant = Tenant::factory()->create();
         $foreignRole = createRoleManagementRoleInTenant($otherTenant, 'Other Tenant Manager');
 
         $response = $this->withToken($this->token)
@@ -542,7 +543,7 @@ describe('PATCH /v1/roles/{id} - Update Role', function () {
     test('ignores spoofed tenant input when validating role updates', function (): void {
         $manager = createRoleManagementRole('Manager');
         createRoleManagementRole('Guard');
-        $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+        $otherTenant = Tenant::factory()->create();
 
         $this->registrar->setPermissionsTeamId($otherTenant->id);
         $otherTenantManager = createRoleManagementRole('Manager');
@@ -598,7 +599,7 @@ describe('PATCH /v1/roles/{id} - Update Role', function () {
         $this->user->givePermissionTo('roles.update');
         $role = createRoleManagementRole('Guard');
 
-        $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+        $otherTenant = Tenant::factory()->create();
 
         $this->registrar->setPermissionsTeamId($otherTenant->id);
         createRoleManagementRole('Manager');
@@ -669,7 +670,7 @@ describe('PATCH /v1/roles/{id} - Update Role', function () {
     test('returns 404 when updating a role from another tenant', function (): void {
         $this->user->givePermissionTo('roles.update');
 
-        $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+        $otherTenant = Tenant::factory()->create();
         $foreignRole = createRoleManagementRoleInTenant($otherTenant, 'Other Tenant Manager');
 
         $response = $this->withToken($this->token)
@@ -762,7 +763,7 @@ describe('DELETE /v1/roles/{id} - Delete Role', function () {
     test('returns 404 when deleting a role from another tenant', function (): void {
         $this->user->givePermissionTo('roles.delete');
 
-        $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+        $otherTenant = Tenant::factory()->create();
         $foreignRole = createRoleManagementRoleInTenant($otherTenant, 'Other Tenant Manager');
 
         $response = $this->withToken($this->token)

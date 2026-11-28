@@ -95,6 +95,7 @@ validation, and pull-request requirements.
 | Authentication                                           | [Authentication API documentation](docs/api/authentication.md)                    |
 | Authorization and RBAC                                   | [API access and authorization](docs/guides/permission-system.md)                  |
 | Encryption implementation patterns                       | [Encryption patterns](docs/guides/encryption-patterns.md)                         |
+| Tenant KEK bootstrap and runtime inputs                  | [Tenant KEK application interface](docs/tenant-kek.md)                            |
 | Activity integrity and operations                        | [Activity logging admin guide](docs/ACTIVITY_LOGGING_ADMIN_GUIDE.md)              |
 | Application security-event output                        | [Security-event contract](docs/security-events.md)                                |
 | BewachV and manual BWR reporting                         | [Bewacherregister reporting](docs/bewacherregister.md)                            |

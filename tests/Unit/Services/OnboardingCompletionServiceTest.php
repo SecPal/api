@@ -6,7 +6,7 @@
 use App\Models\Employee;
 use App\Models\OnboardingFormSubmission;
 use App\Models\OnboardingFormTemplate;
-use App\Models\TenantKey;
+use App\Models\Tenant;
 use App\Services\OnboardingCompletionService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
@@ -187,7 +187,7 @@ describe('OnboardingCompletionService::checkCompletion', function () {
             'onboarding_completed' => false,
         ]);
 
-        $otherTenant = TenantKey::factory()->create();
+        $otherTenant = Tenant::factory()->create();
 
         $systemTemplate = OnboardingFormTemplate::factory()->create([
             'tenant_id' => null,
@@ -532,7 +532,7 @@ describe('OnboardingCompletionService::getCompletionStatus', function () {
             'status' => Employee::STATUS_PRE_CONTRACT,
         ]);
 
-        $otherTenant = TenantKey::factory()->create();
+        $otherTenant = Tenant::factory()->create();
 
         OnboardingFormTemplate::factory()->create([
             'tenant_id' => null,

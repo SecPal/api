@@ -25,7 +25,7 @@ return new class extends Migration
         });
 
         /** @var Illuminate\Database\Eloquent\Collection<int, TenantKey> $tenantKeys */
-        $tenantKeys = TenantKey::all()->keyBy('id');
+        $tenantKeys = TenantKey::all()->keyBy('tenant_id');
 
         DB::table('employees')
             ->select(['id', 'tenant_id', 'phone'])
@@ -116,7 +116,7 @@ return new class extends Migration
                     }
 
                     /** @var TenantKey $tenantKey */
-                    $tenantKey = TenantKey::findOrFail($employee->tenant_id);
+                    $tenantKey = TenantKey::forTenant($employee->tenant_id);
                     $phone = $tenantKey->decrypt($ciphertext, $nonce);
 
                     DB::table('employees')

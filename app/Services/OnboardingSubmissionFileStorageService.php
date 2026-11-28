@@ -19,7 +19,7 @@ class OnboardingSubmissionFileStorageService
     public function prepare(UploadedFile $file, OnboardingFormSubmission $submission): array
     {
         $content = $this->readContent($file);
-        $tenant = $this->resolveTenant($submission);
+        $tenant = $this->resolveTenantKey($submission);
         $employee = $submission->employee;
         if ($employee === null) {
             throw new \RuntimeException('Onboarding submission is missing its employee relation');
@@ -74,7 +74,7 @@ class OnboardingSubmissionFileStorageService
             $file->getClientOriginalName(),
             $this->readContent($file),
         ]);
-        $tenant = $this->resolveTenant($submission);
+        $tenant = $this->resolveTenantKey($submission);
 
         return bin2hex($tenant->generateBlindIndex($fingerprintPayload));
     }
@@ -108,19 +108,14 @@ class OnboardingSubmissionFileStorageService
         return $payload;
     }
 
-    private function resolveTenant(OnboardingFormSubmission $submission): TenantKey
+    private function resolveTenantKey(OnboardingFormSubmission $submission): TenantKey
     {
         $employee = $submission->employee;
         if ($employee === null) {
             throw new \RuntimeException('Onboarding submission is missing its employee relation');
         }
 
-        $tenant = $employee->tenant;
-        if ($tenant === null) {
-            throw new \RuntimeException('Onboarding submission employee must belong to a tenant');
-        }
-
-        return $tenant;
+        return TenantKey::forTenant($employee->tenant_id);
     }
 
     private function sanitizeFilename(string $fileName): string

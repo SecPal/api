@@ -11,7 +11,7 @@ use App\Http\Requests\Api\V1\StoreSiteRequest;
 use App\Http\Requests\Api\V1\UpdateSiteRequest;
 use App\Http\Resources\SiteResource;
 use App\Models\Site;
-use App\Models\TenantKey;
+use App\Models\Tenant;
 use App\Services\GlobalIdentity\IdentityDisplay;
 use App\Services\OrganizationalUnitAssignmentService;
 use App\Support\LikePattern;
@@ -125,7 +125,7 @@ class SiteController extends Controller
         $validated['tenant_id'] = $tenantId;
 
         $site = DB::transaction(function () use ($tenantId, $validated): Site {
-            TenantKey::query()->select('id')->whereKey($tenantId)->lockForUpdate()->firstOrFail();
+            Tenant::query()->select('id')->whereKey($tenantId)->lockForUpdate()->firstOrFail();
 
             // Auto-generate site_number within the same transaction as the insert.
             if (! isset($validated['site_number'])) {

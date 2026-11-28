@@ -8,7 +8,7 @@
 
 namespace App\Http\Middleware;
 
-use App\Models\TenantKey;
+use App\Models\Tenant;
 use Closure;
 use Illuminate\Http\Request;
 use Spatie\Permission\PermissionRegistrar;
@@ -27,16 +27,16 @@ class SetTenant
      */
     public function handle(Request $request, Closure $next): Response
     {
-        $tenantId = $this->extractTenantId($request);
+        $selection = $request->route('tenant') ?? $request->header('X-Tenant');
 
-        if ($tenantId === null) {
+        if ($selection === null) {
             return response()->json([
                 'message' => __('Tenant ID is required. Please provide tenant ID in path (/tenants/{tenant}) or X-Tenant header.'),
             ], 400);
         }
 
-        // Verify tenant exists
-        if (! TenantKey::where('id', $tenantId)->exists()) {
+        $tenantId = $selection instanceof Tenant ? $selection->id : Tenant::parseId($selection);
+        if ($tenantId === null || ! Tenant::whereKey($tenantId)->exists()) {
             return response()->json([
                 'message' => __('Tenant not found. The specified tenant does not exist.'),
             ], 404);
@@ -55,29 +55,5 @@ class SetTenant
         $request->merge(['tenant_id' => $tenantId]);
 
         return $next($request);
-    }
-
-    /**
-     * Extract tenant ID from request path or header.
-     *
-     * Priority: path parameter > X-Tenant header
-     */
-    private function extractTenantId(Request $request): ?int
-    {
-        // Try to get from route parameter first
-        $tenantId = $request->route('tenant');
-
-        if ($tenantId !== null) {
-            return (int) $tenantId;
-        }
-
-        // Fallback to X-Tenant header
-        $headerTenant = $request->header('X-Tenant');
-
-        if ($headerTenant !== null) {
-            return (int) $headerTenant;
-        }
-
-        return null;
     }
 }

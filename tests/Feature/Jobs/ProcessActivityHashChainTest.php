@@ -1,7 +1,7 @@
 <?php
 
 /**
- * SPDX-FileCopyrightText: 2025 SecPal Contributors
+ * SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
@@ -9,7 +9,7 @@ declare(strict_types=1);
 
 use App\Jobs\ProcessActivityHashChain;
 use App\Models\Activity;
-use App\Models\TenantKey;
+use App\Models\Tenant;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
@@ -17,11 +17,11 @@ use Illuminate\Support\Facades\Queue;
 uses(RefreshDatabase::class);
 
 /**
- * @property TenantKey $tenant
+ * @property Tenant $tenant
  * @property User $user
  */
 beforeEach(function () {
-    $this->tenant = TenantKey::factory()->create();
+    $this->tenant = Tenant::factory()->create();
     $this->user = User::factory()->create(['tenant_id' => $this->tenant->id]);
     $this->actingAs($this->user);
 });
@@ -95,7 +95,7 @@ test('job builds hash chain correctly for subsequent logs', function () {
 
 test('job respects tenant isolation', function () {
     // Create second tenant
-    $tenant2 = TenantKey::factory()->create();
+    $tenant2 = Tenant::factory()->create();
 
     // Create log for tenant 1
     $log1 = Activity::create([

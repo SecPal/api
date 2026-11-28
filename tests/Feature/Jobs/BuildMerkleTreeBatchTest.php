@@ -9,7 +9,7 @@ declare(strict_types=1);
 
 use App\Jobs\BuildMerkleTreeBatch;
 use App\Models\Activity;
-use App\Models\TenantKey;
+use App\Models\Tenant;
 use App\Models\User;
 use App\Services\OpenTimestampService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -18,7 +18,7 @@ use Illuminate\Support\Facades\Queue;
 uses(RefreshDatabase::class);
 
 /**
- * @property TenantKey $tenant
+ * @property Tenant $tenant
  * @property User $user
  */
 beforeEach(function () {
@@ -26,7 +26,7 @@ beforeEach(function () {
     $this->mock(OpenTimestampService::class)
         ->shouldReceive('submit')
         ->andReturn('mock-ots-proof');
-    $this->tenant = TenantKey::factory()->create();
+    $this->tenant = Tenant::factory()->create();
     $this->user = User::factory()->create(['tenant_id' => $this->tenant->id]);
     $this->actingAs($this->user);
 });
@@ -179,7 +179,7 @@ test('merkle root is deterministic for same input', function () {
 // ============================================================================
 
 test('merkle tree respects tenant isolation', function () {
-    $tenant2 = TenantKey::factory()->create();
+    $tenant2 = Tenant::factory()->create();
 
     // Create logs for tenant 1
     $logs1 = collect(range(1, 2))->map(fn ($i) => Activity::create([

@@ -4,6 +4,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use App\Models\OrganizationalUnit;
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use App\Models\User;
 use App\Models\UserInternalOrganizationalScope;
@@ -13,7 +14,7 @@ use Illuminate\Support\Facades\Artisan;
 use Spatie\Permission\PermissionRegistrar;
 
 /**
- * @property TenantKey $tenant
+ * @property Tenant $tenant
  * @property User $user
  * @property OrganizationalUnitPolicy $policy
  * @property OrganizationalUnit $company
@@ -26,8 +27,8 @@ beforeEach(function (): void {
     incrementTestKekCounter();
     TenantKey::setKekPath(getTestKekPath());
     TenantKey::generateKek();
-    $keys = TenantKey::generateEnvelopeKeys();
-    $this->tenant = TenantKey::create($keys);
+
+    $this->tenant = Tenant::factory()->create();
 
     $this->user = User::factory()->create([
         'tenant_id' => $this->tenant->id,
@@ -318,7 +319,7 @@ describe('OrganizationalUnitPolicy', function () {
                 'include_descendants' => true,
             ]);
 
-            $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+            $otherTenant = Tenant::factory()->create();
             $foreignUnit = OrganizationalUnit::create([
                 'tenant_id' => $otherTenant->id,
                 'name' => 'Foreign Region',

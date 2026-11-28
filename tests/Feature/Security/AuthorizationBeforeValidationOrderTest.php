@@ -10,6 +10,7 @@ use App\Models\Customer;
 use App\Models\Employee;
 use App\Models\OrganizationalUnit;
 use App\Models\Site;
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -24,8 +25,7 @@ beforeEach(function (): void {
     TenantKey::setKekPath(getTestKekPath());
     TenantKey::generateKek();
 
-    $keys = TenantKey::generateEnvelopeKeys();
-    $this->tenant = TenantKey::create($keys);
+    $this->tenant = Tenant::factory()->create();
 
     $registrar = app(PermissionRegistrar::class);
     $registrar->setPermissionsTeamId($this->tenant->id);
@@ -62,7 +62,7 @@ afterEach(function (): void {
 });
 
 test('site creation returns 403 before validating foreign tenant references', function (): void {
-    $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+    $otherTenant = Tenant::factory()->create();
     $foreignCustomer = Customer::factory()->create(['tenant_id' => $otherTenant->id]);
     $foreignUnit = OrganizationalUnit::factory()->create(['tenant_id' => $otherTenant->id]);
 
@@ -83,7 +83,7 @@ test('site creation returns 403 before validating foreign tenant references', fu
 });
 
 test('site update returns 403 before validating foreign tenant references', function (): void {
-    $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+    $otherTenant = Tenant::factory()->create();
     $foreignCustomer = Customer::factory()->create(['tenant_id' => $otherTenant->id]);
     $foreignUnit = OrganizationalUnit::factory()->create(['tenant_id' => $otherTenant->id]);
 
@@ -97,7 +97,7 @@ test('site update returns 403 before validating foreign tenant references', func
 });
 
 test('customer assignment creation returns 403 before validating target user', function (): void {
-    $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+    $otherTenant = Tenant::factory()->create();
     $foreignUser = User::factory()->create(['tenant_id' => $otherTenant->id]);
 
     $response = $this->withToken($this->token)
@@ -112,7 +112,7 @@ test('customer assignment creation returns 403 before validating target user', f
 });
 
 test('site assignment creation returns 403 before validating target user', function (): void {
-    $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+    $otherTenant = Tenant::factory()->create();
     $foreignUser = User::factory()->create(['tenant_id' => $otherTenant->id]);
 
     $response = $this->withToken($this->token)
@@ -127,7 +127,7 @@ test('site assignment creation returns 403 before validating target user', funct
 });
 
 test('employee creation returns 403 before validating organizational unit access', function (): void {
-    $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+    $otherTenant = Tenant::factory()->create();
     $foreignUnit = OrganizationalUnit::factory()->create(['tenant_id' => $otherTenant->id]);
 
     $response = $this->withToken($this->token)->postJson('/v1/employees', [
@@ -147,7 +147,7 @@ test('employee creation returns 403 before validating organizational unit access
 });
 
 test('employee update returns 403 before validating organizational unit access', function (): void {
-    $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+    $otherTenant = Tenant::factory()->create();
     $foreignUnit = OrganizationalUnit::factory()->create(['tenant_id' => $otherTenant->id]);
 
     $response = $this->withToken($this->token)->patchJson("/v1/employees/{$this->employee->id}", [

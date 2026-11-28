@@ -8,6 +8,7 @@ declare(strict_types=1);
 
 use App\Models\Employee;
 use App\Models\OrganizationalUnit;
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -17,7 +18,7 @@ use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
 
 /**
- * @property TenantKey $tenant
+ * @property Tenant $tenant
  * @property OrganizationalUnit $orgUnit
  */
 uses(RefreshDatabase::class);
@@ -44,8 +45,8 @@ beforeEach(function () {
     incrementTestKekCounter();
     TenantKey::setKekPath(getTestKekPath());
     TenantKey::generateKek();
-    $keys = TenantKey::generateEnvelopeKeys();
-    $this->tenant = TenantKey::create($keys);
+
+    $this->tenant = Tenant::factory()->create();
     resetEmployeeObserverRbacState();
 
     // Create test roles
@@ -127,7 +128,7 @@ test('employee observer reuses existing user account in same tenant', function (
 test('employee observer does not reuse user account from another tenant', function () {
     Mail::fake();
 
-    $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+    $otherTenant = Tenant::factory()->create();
     $otherOrgUnit = OrganizationalUnit::create([
         'tenant_id' => $otherTenant->id,
         'name' => 'Other Department',

@@ -10,6 +10,7 @@ use App\Models\CustomerAssignment;
 use App\Models\Employee;
 use App\Models\OrganizationalUnit;
 use App\Models\Site;
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use App\Models\User;
 use App\Services\EmployeeLifecycleService;
@@ -170,8 +171,8 @@ describe('SPA Session Login', function () {
         TenantKey::generateKek();
 
         try {
-            $keys = TenantKey::generateEnvelopeKeys();
-            $tenant = TenantKey::create($keys);
+
+            $tenant = Tenant::factory()->create();
 
             $user = User::factory()->create([
                 'email' => 'retained-shared-user@secpal.dev',
@@ -223,8 +224,8 @@ describe('SPA Session Login', function () {
     });
 
     test('spa failed login logs real user tenant instead of client supplied tenant', function () {
-        $actualTenant = TenantKey::factory()->create();
-        $spoofedTenant = TenantKey::factory()->create();
+        $actualTenant = Tenant::factory()->create();
+        $spoofedTenant = Tenant::factory()->create();
         $email = 'spa-tenant-log-'.Str::uuid().'@secpal.dev';
 
         User::factory()->create([
@@ -452,8 +453,8 @@ describe('Auth Token Generation', function () {
         // falls back to TenantKey::orderBy('id')->first() for unknown emails, so this
         // tenant must be the one attributed in the audit log regardless of which tenant
         // the client supplied.
-        $lowestIdTenant = TenantKey::factory()->create();
-        $spoofedTenant = TenantKey::factory()->create();
+        $lowestIdTenant = Tenant::factory()->create();
+        $spoofedTenant = Tenant::factory()->create();
         $email = 'unknown-token-tenant-log-'.Str::uuid().'@secpal.dev';
 
         $response = $this->postJson('/v1/auth/token?tenant_id='.$spoofedTenant->id, [
@@ -1906,7 +1907,7 @@ describe('Organizational Scopes Authorization', function () {
     });
 
     test('hasOrganizationalScopes is true when user has scopes', function () {
-        $tenant = TenantKey::factory()->create();
+        $tenant = Tenant::factory()->create();
         $orgUnit = OrganizationalUnit::factory()->create([
             'tenant_id' => $tenant->id,
         ]);
@@ -1943,7 +1944,7 @@ describe('Organizational Scopes Authorization', function () {
     });
 
     test('hasCustomerAccess and hasSiteAccess are true when user has scoped customer-site access', function () {
-        $tenant = TenantKey::factory()->create();
+        $tenant = Tenant::factory()->create();
         $orgUnit = OrganizationalUnit::factory()->create([
             'tenant_id' => $tenant->id,
         ]);
@@ -2004,8 +2005,8 @@ describe('Tenant-Scoped Roles And Permissions In Authorization Data', function (
 
     test('me endpoint returns tenant-scoped roles and permissions', function () {
         // Create tenant
-        $keys = TenantKey::generateEnvelopeKeys();
-        $tenant = TenantKey::create($keys);
+
+        $tenant = Tenant::factory()->create();
 
         // Set tenant context and seed roles/permissions
         $registrar = app(Spatie\Permission\PermissionRegistrar::class);
@@ -2037,8 +2038,8 @@ describe('Tenant-Scoped Roles And Permissions In Authorization Data', function (
 
     test('login response returns tenant-scoped roles and permissions', function () {
         // Create tenant
-        $keys = TenantKey::generateEnvelopeKeys();
-        $tenant = TenantKey::create($keys);
+
+        $tenant = Tenant::factory()->create();
 
         // Set tenant context and seed roles/permissions
         $registrar = app(Spatie\Permission\PermissionRegistrar::class);

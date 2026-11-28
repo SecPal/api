@@ -51,6 +51,7 @@ use App\Services\GlobalIdentity\FileGlobalIdentityRootProvider;
 use App\Services\RuntimeHeartbeatService;
 use App\Services\SecurityEventRecorder;
 use App\Services\SystemProcessExecutor;
+use App\Services\TenantKekReference;
 use App\Services\WebPushDeliveryService;
 use App\Services\WebPushTransport;
 use App\Support\RuntimeInfrastructure;
@@ -86,6 +87,18 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(FileGlobalIdentityRootProvider::class, static fn (): FileGlobalIdentityRootProvider => new FileGlobalIdentityRootProvider(
             config()->string('global_identity.root_directory'),
         ));
+        $this->app->bind(TenantKekReference::class, static function (): TenantKekReference {
+            $configuredGeneration = config('app.tenant_kek_generation');
+            $generation = is_string($configuredGeneration) && preg_match('/\A[1-9][0-9]*\z/', $configuredGeneration)
+                ? filter_var($configuredGeneration, FILTER_VALIDATE_INT)
+                : false;
+
+            return new TenantKekReference(
+                config()->string('app.tenant_kek_id'),
+                $generation === false ? 0 : $generation,
+                config()->string('app.tenant_kek_fingerprint'),
+            );
+        });
         $this->app->bind(ProcessExecutor::class, SystemProcessExecutor::class);
         $this->app->bind(SecurityEventEmitter::class, BoundedSecurityEventEmitter::class);
         $this->app->bind(WebPushTransportInterface::class, WebPushTransport::class);

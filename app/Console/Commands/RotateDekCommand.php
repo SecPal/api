@@ -8,46 +8,34 @@
 
 namespace App\Console\Commands;
 
+use App\Exceptions\CorruptedEncryptedAttributeException;
 use App\Models\Person;
+use App\Models\Tenant;
 use App\Models\TenantKey;
+use App\Services\TenantKekRegistry;
 use Illuminate\Console\Command;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Support\Facades\DB;
+use SensitiveParameter;
+use Throwable;
 
 /**
- * Rotate the Data Encryption Key (DEK) for a specific tenant.
- *
- * This command:
- * 1. Generates a new DEK
- * 2. Re-encrypts all encrypted fields in the tenant's data
- * 3. Updates the tenant_keys table with the new wrapped DEK
- * 4. Increments the key_version
- *
- * Note: Blind indexes (idx_key) are NOT rotated here.
- * Use idx:rebuild if idx_key needs rotation.
+ * Rotate a tenant's DEK when only legacy Person records use it.
  */
 class RotateDekCommand extends Command
 {
-    /**
-     * The name and signature of the console command.
-     *
-     * @var string
-     */
+    /** @var string */
     protected $signature = 'keys:rotate-dek {tenant : The tenant ID}';
 
-    /**
-     * The console command description.
-     *
-     * @var string
-     */
-    protected $description = 'Rotate the DEK for a specific tenant and re-encrypt all data';
+    /** @var string */
+    protected $description = 'Rotate the DEK for a tenant with only legacy Person ciphertext';
 
-    /**
-     * Execute the console command.
-     */
     public function handle(): int
     {
-        $tenantId = $this->argument('tenant');
+        $argument = $this->argument('tenant');
+        $tenantId = Tenant::parseId($argument);
 
-        if (! is_int($tenantId) && ! is_string($tenantId)) {
+        if ($tenantId === null) {
             $this->error('The tenant argument must be a single tenant ID.');
 
             return Command::FAILURE;
@@ -56,115 +44,91 @@ class RotateDekCommand extends Command
         $this->info("Starting DEK rotation for tenant {$tenantId}...");
 
         try {
-            // Find tenant
-            $tenant = TenantKey::find($tenantId);
+            $result = app(TenantKekRegistry::class)->withLease(function () use ($tenantId): ?array {
+                $key = TenantKey::query()->where('tenant_id', $tenantId)->lockForUpdate()->firstOrFail();
 
-            if (! $tenant) {
-                $this->error("Tenant {$tenantId} not found.");
+                // Include soft-deleted records and employees that own encrypted files.
+                foreach (['employees', 'employee_addresses', 'customer_establishments', 'push_device_registrations'] as $table) {
+                    if (DB::table($table)->where('tenant_id', $tenantId)->exists()) {
+                        $this->error("DEK rotation requires support for ciphertext owned by {$table}.");
 
+                        return null;
+                    }
+                }
+
+                // Authenticate the assigned DEK even when there are no Person rows.
+                $oldDek = $key->unwrapDek();
+                sodium_memzero($oldDek);
+                $newDek = sodium_crypto_secretbox_keygen();
+                $this->info('✅ Generated new DEK');
+
+                try {
+                    $count = 0;
+                    $persons = Person::where('tenant_id', $tenantId)->lockForUpdate()->lazyById();
+                    foreach ($persons as $person) {
+                        $this->reencrypt($person, $newDek);
+                        $count++;
+                    }
+
+                    $oldVersion = $key->key_version;
+                    $key->replaceDek($newDek);
+                } finally {
+                    sodium_memzero($newDek);
+                }
+
+                return [$count, $oldVersion, $key->key_version];
+            }, exclusive: true);
+
+            if ($result === null) {
                 return Command::FAILURE;
             }
 
-            // Step 1: Unwrap old DEK
-            $oldDek = $tenant->unwrapDek();
-
-            // Step 2: Generate new DEK
-            $kek = TenantKey::loadKek();
-            $newDek = sodium_crypto_secretbox_keygen();
-            $dekNonce = random_bytes(SODIUM_CRYPTO_SECRETBOX_NONCEBYTES);
-            $dekWrapped = sodium_crypto_secretbox($newDek, $dekNonce, $kek);
-
-            sodium_memzero($kek);
-
-            $this->info('✅ Generated new DEK');
-
-            // Step 3: Re-encrypt all Person records with new DEK
-            $persons = Person::where('tenant_id', $tenantId)->get();
-            $this->info("Re-encrypting {$persons->count()} record(s)...");
-
-            $bar = $this->output->createProgressBar($persons->count());
-
-            foreach ($persons as $person) {
-                $updates = [];
-
-                // Process each encrypted field
-                foreach (['email_enc', 'phone_enc', 'note_enc'] as $field) {
-                    $encrypted = $person->getAttributes()[$field];
-                    if ($encrypted === null || ! is_string($encrypted)) {
-                        continue;
-                    }
-
-                    // Decrypt with old DEK
-                    $data = json_decode($encrypted, true);
-                    if (! is_array($data) || ! isset($data['ciphertext'], $data['nonce'])) {
-                        continue;
-                    }
-
-                    if (! is_string($data['ciphertext']) || ! is_string($data['nonce'])) {
-                        continue;
-                    }
-
-                    $ciphertext = base64_decode($data['ciphertext'], true);
-                    $nonce = base64_decode($data['nonce'], true);
-
-                    if ($ciphertext === false || $nonce === false) {
-                        $this->error("Failed to decode base64 for {$field} in person {$person->id}");
-
-                        continue;
-                    }
-
-                    $plaintext = sodium_crypto_secretbox_open($ciphertext, $nonce, $oldDek);
-
-                    if ($plaintext === false) {
-                        $this->error("Failed to decrypt {$field} for person {$person->id}");
-
-                        continue;
-                    }
-
-                    // Re-encrypt with new DEK
-                    $newNonce = random_bytes(SODIUM_CRYPTO_SECRETBOX_NONCEBYTES);
-                    $newCiphertext = sodium_crypto_secretbox($plaintext, $newNonce, $newDek);
-
-                    // Prepare JSON for direct DB update (bypass cast and observers)
-                    $updates[$field] = json_encode([
-                        'ciphertext' => base64_encode($newCiphertext),
-                        'nonce' => base64_encode($newNonce),
-                    ]);
-
-                    sodium_memzero($plaintext);
-                }
-
-                // Direct DB update to bypass cast and observers
-                if (! empty($updates)) {
-                    Person::where('id', $person->id)->update($updates);
-                }
-
-                $bar->advance();
-            }
-
-            $bar->finish();
-            $this->newLine();
-
-            // Step 4: Update tenant with new wrapped DEK and increment version
-            $oldVersion = $tenant->key_version;
-            $tenant->update([
-                'dek_wrapped' => $dekWrapped,
-                'dek_nonce' => $dekNonce,
-                'key_version' => $tenant->key_version + 1,
-            ]);
-
-            sodium_memzero($oldDek);
-            sodium_memzero($newDek);
-
-            $this->info("✅ Re-encrypted {$persons->count()} record(s)");
-            $this->info("✅ Updated tenant {$tenantId}: key_version {$oldVersion} → {$tenant->key_version}");
+            [$count, $oldVersion, $newVersion] = $result;
+            $this->info("✅ Re-encrypted {$count} record(s)");
+            $this->info("✅ Updated tenant {$tenantId}: key_version {$oldVersion} → {$newVersion}");
             $this->info('✅ DEK rotation complete!');
 
             return Command::SUCCESS;
-        } catch (\Exception $e) {
-            $this->error('❌ DEK rotation failed: '.$e->getMessage());
+        } catch (ModelNotFoundException) {
+            $this->error("Tenant {$tenantId} not found.");
+        } catch (CorruptedEncryptedAttributeException) {
+            $this->error('DEK rotation failed because a Person ciphertext could not be authenticated.');
+        } catch (Throwable) {
+            $this->error('DEK rotation failed. Verify the tenant key and database before retrying.');
+        }
 
-            return Command::FAILURE;
+        return Command::FAILURE;
+    }
+
+    private function reencrypt(Person $person, #[SensitiveParameter] string $newDek): void
+    {
+        $updates = [];
+
+        foreach (['email_enc', 'phone_enc', 'note_enc'] as $field) {
+            $plaintext = $person->getAttribute($field);
+
+            if ($plaintext === null) {
+                continue;
+            }
+
+            if (! is_string($plaintext)) {
+                throw new CorruptedEncryptedAttributeException("Unexpected decrypted value for {$field}.");
+            }
+
+            try {
+                $nonce = random_bytes(SODIUM_CRYPTO_SECRETBOX_NONCEBYTES);
+                $updates[$field] = json_encode([
+                    'ciphertext' => base64_encode(sodium_crypto_secretbox($plaintext, $nonce, $newDek)),
+                    'nonce' => base64_encode($nonce),
+                ], JSON_THROW_ON_ERROR);
+            } finally {
+                sodium_memzero($plaintext);
+            }
+        }
+
+        // Write the envelope directly to bypass casts and observers.
+        if ($updates !== []) {
+            Person::whereKey($person->id)->update($updates);
         }
     }
 }

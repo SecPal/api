@@ -7,6 +7,7 @@ use App\Models\Employee;
 use App\Models\EmployeeQualification;
 use App\Models\OrganizationalUnit;
 use App\Models\Qualification;
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use App\Models\User;
 use App\Policies\EmployeeQualificationPolicy;
@@ -15,7 +16,7 @@ use Illuminate\Support\Facades\Artisan;
 use Spatie\Permission\PermissionRegistrar;
 
 /**
- * @property TenantKey $tenant
+ * @property Tenant $tenant
  * @property PermissionRegistrar $registrar
  * @property EmployeeQualificationPolicy $policy
  */
@@ -25,8 +26,8 @@ beforeEach(function (): void {
     incrementTestKekCounter();
     TenantKey::setKekPath(getTestKekPath());
     TenantKey::generateKek();
-    $keys = TenantKey::generateEnvelopeKeys();
-    $this->tenant = TenantKey::create($keys);
+
+    $this->tenant = Tenant::factory()->create();
 
     $this->registrar = app(PermissionRegistrar::class);
     $this->registrar->setPermissionsTeamId($this->tenant->id);
@@ -100,7 +101,7 @@ test('qualification policies reject employees from another tenant', function ():
     $user = User::factory()->create(['tenant_id' => $this->tenant->id]);
     givePermissionWithTenant($user, $this->tenant->id, 'employee_qualification.read');
     givePermissionWithTenant($user, $this->tenant->id, 'employee_qualification.write');
-    $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+    $otherTenant = Tenant::factory()->create();
     $employee = Employee::factory()->for($otherTenant, 'tenant')->create();
     $employeeQualification = EmployeeQualification::factory()->create([
         'employee_id' => $employee->id,

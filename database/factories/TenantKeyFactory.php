@@ -7,7 +7,9 @@ declare(strict_types=1);
 
 namespace Database\Factories;
 
+use App\Models\Tenant;
 use App\Models\TenantKey;
+use App\Services\TenantKekRegistry;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -31,11 +33,21 @@ final class TenantKeyFactory extends Factory
      */
     public function definition(): array
     {
-        // ensureKekExists() is race-safe across parallel Pest workers that
-        // share the default KEK path; generateKek() would TOCTOU-race here.
-        TenantKey::ensureKekExists();
+        return ['tenant_id' => fn (): int => Tenant::query()->create()->id];
+    }
 
-        return TenantKey::generateEnvelopeKeys();
+    public function configure(): static
+    {
+        return $this->afterMaking(function (TenantKey $key): void {
+            $kek = app(TenantKekRegistry::class);
+            $kek->withLease(function () use ($key, $kek): void {
+                if (app()->environment('testing')) {
+                    TenantKey::ensureKekExists();
+                }
+                $kek->initialize();
+                $key->fill(TenantKey::generateEnvelopeKeys($key->tenant_id));
+            }, exclusive: true);
+        });
     }
 
     /**

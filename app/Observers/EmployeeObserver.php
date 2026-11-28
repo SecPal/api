@@ -446,7 +446,7 @@ class EmployeeObserver
      */
     private function updateBlindIndexes(Employee $employee): void
     {
-        $tenantKey = TenantKey::findOrFail($employee->tenant_id);
+        $tenantKey = TenantKey::forTenant($employee->tenant_id);
 
         // Helper to extract plaintext from _enc field (handles both plaintext and encrypted JSON)
         $getPlaintext = function (string $encField) use ($employee): ?string {

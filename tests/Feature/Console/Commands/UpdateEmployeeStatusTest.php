@@ -8,6 +8,7 @@ declare(strict_types=1);
 
 use App\Models\Employee;
 use App\Models\OrganizationalUnit;
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
@@ -17,15 +18,15 @@ use Spatie\Permission\Models\Role;
 uses(RefreshDatabase::class);
 
 /**
- * @property TenantKey $tenant
+ * @property Tenant $tenant
  * @property OrganizationalUnit $orgUnit
  */
 beforeEach(function () {
     incrementTestKekCounter();
     TenantKey::setKekPath(getTestKekPath());
     TenantKey::generateKek();
-    $keys = TenantKey::generateEnvelopeKeys();
-    $this->tenant = TenantKey::create($keys);
+
+    $this->tenant = Tenant::factory()->create();
 
     $this->orgUnit = OrganizationalUnit::create([
         'tenant_id' => $this->tenant->id,

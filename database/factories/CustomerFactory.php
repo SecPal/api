@@ -7,7 +7,7 @@ namespace Database\Factories;
 
 use App\Models\Customer;
 use App\Models\LegalEntity;
-use App\Models\TenantKey;
+use App\Models\Tenant;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -37,12 +37,7 @@ class CustomerFactory extends Factory
     public function definition(): array
     {
         // Get or create the most recently created tenant for testing.
-        $tenant = TenantKey::query()->latest('id')->first();
-        if (! $tenant) {
-            TenantKey::ensureKekExists();
-            $keys = TenantKey::generateEnvelopeKeys();
-            $tenant = TenantKey::create($keys);
-        }
+        $tenant = Tenant::query()->latest('id')->first() ?? Tenant::factory()->create();
 
         // German company name suffixes
         /** @var array<int, string> $companyTypes */

@@ -379,7 +379,7 @@ return new class extends Migration
     private function tenantKeyFor(int $tenantId): TenantKey
     {
         return $this->tenantKeysById[$tenantId]
-            ??= TenantKey::query()->findOrFail($tenantId);
+            ??= TenantKey::forTenant($tenantId);
     }
 
     private function nullableString(mixed $value): ?string

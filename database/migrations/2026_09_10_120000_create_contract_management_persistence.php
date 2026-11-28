@@ -20,7 +20,7 @@ return new class extends Migration
 
         Schema::create('contracts', function (Blueprint $table): void {
             $table->uuid('id')->primary();
-            $table->foreignId('tenant_id')->constrained('tenant_keys')->cascadeOnDelete();
+            $table->foreignId('tenant_id')->constrained('tenants')->restrictOnDelete();
             $table->uuid('customer_id');
             $table->string('type', 16);
             $table->string('status', 16)->default('active');
@@ -65,7 +65,7 @@ return new class extends Migration
 
         Schema::create('service_bookings', function (Blueprint $table): void {
             $table->uuid('id')->primary();
-            $table->foreignId('tenant_id')->constrained('tenant_keys')->cascadeOnDelete();
+            $table->foreignId('tenant_id')->constrained('tenants')->restrictOnDelete();
             $table->uuid('contract_id');
             $table->date('service_date');
             $table->decimal('quantity', 14, 4);
@@ -224,7 +224,7 @@ return new class extends Migration
 
         Schema::create('internal_cost_centers', function (Blueprint $table): void {
             $table->uuid('id')->primary();
-            $table->foreignId('tenant_id')->constrained('tenant_keys')->cascadeOnDelete();
+            $table->foreignId('tenant_id')->constrained('tenants')->restrictOnDelete();
             $table->string('code', 64);
             $table->string('name');
             $table->string('status', 16)->default('active');
@@ -279,7 +279,7 @@ return new class extends Migration
 
         Schema::create('cost_center_allocations', function (Blueprint $table): void {
             $table->uuid('id')->primary();
-            $table->foreignId('tenant_id')->constrained('tenant_keys')->cascadeOnDelete();
+            $table->foreignId('tenant_id')->constrained('tenants')->restrictOnDelete();
             $table->uuid('service_booking_id');
             $table->uuid('internal_cost_center_id');
             $table->unsignedSmallInteger('share_bps');

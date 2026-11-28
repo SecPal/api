@@ -12,6 +12,7 @@ use App\Models\OnboardingFormTemplate;
 use App\Models\OnboardingSubmissionFile;
 use App\Models\OrganizationalUnit;
 use App\Models\Permission;
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use App\Models\User;
 use App\Services\OnboardingCompletionService;
@@ -23,7 +24,7 @@ use Spatie\Activitylog\Models\Activity;
 use Symfony\Component\HttpFoundation\File\UploadedFile as SymfonyUploadedFile;
 
 /**
- * @property TenantKey $tenant
+ * @property Tenant $tenant
  * @property User $user
  * @property mixed $token
  * @property Employee $employee
@@ -35,8 +36,8 @@ beforeEach(function (): void {
     incrementTestKekCounter();
     TenantKey::setKekPath(getTestKekPath());
     TenantKey::generateKek();
-    $keys = TenantKey::generateEnvelopeKeys();
-    $this->tenant = TenantKey::create($keys);
+
+    $this->tenant = Tenant::factory()->create();
 
     $this->user = User::factory()->create();
     $this->token = $this->user->createToken('test-device')->plainTextToken;
@@ -1271,7 +1272,7 @@ describe('POST /v1/onboarding/submissions', function () {
         givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
 
         // Create a template belonging to a different tenant
-        $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+        $otherTenant = Tenant::factory()->create();
         $otherTemplate = OnboardingFormTemplate::factory()->create([
             'tenant_id' => $otherTenant->id,
             'form_schema' => [

@@ -5,20 +5,20 @@
 
 use App\Models\Activity;
 use App\Models\Employee;
-use App\Models\TenantKey;
+use App\Models\Tenant;
 use App\Models\User;
 use App\Services\ActivityLogService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 /**
- * @property TenantKey $tenant
+ * @property Tenant $tenant
  * @property User $user
  * @property ActivityLogService $service
  */
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {
-    $this->tenant = TenantKey::factory()->create();
+    $this->tenant = Tenant::factory()->create();
     $this->user = User::factory()->create();
     $this->service = app(ActivityLogService::class);
     $this->actingAs($this->user);

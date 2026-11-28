@@ -16,7 +16,7 @@ return new class extends Migration
     {
         Schema::create('qualifications', function (Blueprint $table) {
             $table->uuid('id')->primary();
-            $table->foreignId('tenant_id')->nullable()->constrained('tenant_keys')->cascadeOnDelete();
+            $table->foreignId('tenant_id')->nullable()->constrained('tenants')->restrictOnDelete();
             // NULL tenant_id = system-wide predefined qualification
             // Non-null tenant_id = custom qualification for specific tenant
 

@@ -4,7 +4,9 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use App\Models\Tenant;
 use App\Models\TenantKey;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -180,12 +182,12 @@ describe('CreateCostCentersTable Migration', function () {
         expect($hasUniqueConstraint)->toBeTrue();
     });
 
-    test('foreign key constraint on tenant_id references tenant_keys', function (): void {
+    test('foreign key constraint on tenant_id references tenants', function (): void {
         $foreignKeys = Schema::getForeignKeys('cost_centers');
 
         $hasTenantForeignKey = collect($foreignKeys)->contains(function ($fk) {
             return in_array('tenant_id', $fk['columns'])
-                && $fk['foreign_table'] === 'tenant_keys';
+                && $fk['foreign_table'] === 'tenants';
         });
 
         expect($hasTenantForeignKey)->toBeTrue();
@@ -202,9 +204,9 @@ describe('CreateCostCentersTable Migration', function () {
         expect($hasSiteForeignKey)->toBeTrue();
     });
 
-    test('cascade delete removes cost centers when tenant is deleted', function (): void {
-        $keys = TenantKey::generateEnvelopeKeys();
-        $tenant = TenantKey::create($keys);
+    test('restricts tenant deletion and preserves cost centers', function (): void {
+
+        $tenant = Tenant::factory()->create();
         $customerId = createCostCenterTestCustomer($tenant->id, 'KD-2025-001');
         $orgUnitId = createCostCenterTestOrgUnit($tenant->id, 'Test Org Unit');
         $siteId = createCostCenterTestSite($tenant->id, $customerId, $orgUnitId, 'ST-2025-001');
@@ -212,14 +214,14 @@ describe('CreateCostCentersTable Migration', function () {
 
         expect(DB::table('cost_centers')->where('id', $costCenterId)->exists())->toBeTrue();
 
-        $tenant->delete();
+        expect(fn () => DB::transaction(fn () => $tenant->delete()))->toThrow(QueryException::class, '23001');
 
-        expect(DB::table('cost_centers')->where('id', $costCenterId)->exists())->toBeFalse();
+        expect(DB::table('cost_centers')->where('id', $costCenterId)->exists())->toBeTrue();
     });
 
     test('cascade delete removes cost centers when site is deleted', function (): void {
-        $keys = TenantKey::generateEnvelopeKeys();
-        $tenant = TenantKey::create($keys);
+
+        $tenant = Tenant::factory()->create();
         $customerId = createCostCenterTestCustomer($tenant->id, 'KD-2025-002');
         $orgUnitId = createCostCenterTestOrgUnit($tenant->id, 'Test Org Unit');
         $siteId = createCostCenterTestSite($tenant->id, $customerId, $orgUnitId, 'ST-2025-002');
@@ -233,8 +235,8 @@ describe('CreateCostCentersTable Migration', function () {
     });
 
     test('code field stores customer internal accounting number', function (): void {
-        $keys = TenantKey::generateEnvelopeKeys();
-        $tenant = TenantKey::create($keys);
+
+        $tenant = Tenant::factory()->create();
         $customerId = createCostCenterTestCustomer($tenant->id, 'KD-2025-003');
         $orgUnitId = createCostCenterTestOrgUnit($tenant->id, 'Test Org Unit');
         $siteId = createCostCenterTestSite($tenant->id, $customerId, $orgUnitId, 'ST-2025-003');
@@ -248,8 +250,8 @@ describe('CreateCostCentersTable Migration', function () {
     });
 
     test('activity_type field for future tariff mapping', function (): void {
-        $keys = TenantKey::generateEnvelopeKeys();
-        $tenant = TenantKey::create($keys);
+
+        $tenant = Tenant::factory()->create();
         $customerId = createCostCenterTestCustomer($tenant->id, 'KD-2025-004');
         $orgUnitId = createCostCenterTestOrgUnit($tenant->id, 'Test Org Unit');
         $siteId = createCostCenterTestSite($tenant->id, $customerId, $orgUnitId, 'ST-2025-004');
@@ -272,8 +274,8 @@ describe('CreateCostCentersTable Migration', function () {
     });
 
     test('activity_type is nullable', function (): void {
-        $keys = TenantKey::generateEnvelopeKeys();
-        $tenant = TenantKey::create($keys);
+
+        $tenant = Tenant::factory()->create();
         $customerId = createCostCenterTestCustomer($tenant->id, 'KD-2025-005');
         $orgUnitId = createCostCenterTestOrgUnit($tenant->id, 'Test Org Unit');
         $siteId = createCostCenterTestSite($tenant->id, $customerId, $orgUnitId, 'ST-2025-005');
@@ -284,8 +286,8 @@ describe('CreateCostCentersTable Migration', function () {
     });
 
     test('description field is nullable', function (): void {
-        $keys = TenantKey::generateEnvelopeKeys();
-        $tenant = TenantKey::create($keys);
+
+        $tenant = Tenant::factory()->create();
         $customerId = createCostCenterTestCustomer($tenant->id, 'KD-2025-006');
         $orgUnitId = createCostCenterTestOrgUnit($tenant->id, 'Test Org Unit');
         $siteId = createCostCenterTestSite($tenant->id, $customerId, $orgUnitId, 'ST-2025-006');
@@ -296,8 +298,8 @@ describe('CreateCostCentersTable Migration', function () {
     });
 
     test('is_active defaults to true', function (): void {
-        $keys = TenantKey::generateEnvelopeKeys();
-        $tenant = TenantKey::create($keys);
+
+        $tenant = Tenant::factory()->create();
         $customerId = createCostCenterTestCustomer($tenant->id, 'KD-2025-007');
         $orgUnitId = createCostCenterTestOrgUnit($tenant->id, 'Test Org Unit');
         $siteId = createCostCenterTestSite($tenant->id, $customerId, $orgUnitId, 'ST-2025-007');
@@ -308,8 +310,8 @@ describe('CreateCostCentersTable Migration', function () {
     });
 
     test('soft delete sets deleted_at timestamp', function (): void {
-        $keys = TenantKey::generateEnvelopeKeys();
-        $tenant = TenantKey::create($keys);
+
+        $tenant = Tenant::factory()->create();
         $customerId = createCostCenterTestCustomer($tenant->id, 'KD-2025-008');
         $orgUnitId = createCostCenterTestOrgUnit($tenant->id, 'Test Org Unit');
         $siteId = createCostCenterTestSite($tenant->id, $customerId, $orgUnitId, 'ST-2025-008');
@@ -325,8 +327,8 @@ describe('CreateCostCentersTable Migration', function () {
     });
 
     test('unique constraint prevents duplicate code per site', function (): void {
-        $keys = TenantKey::generateEnvelopeKeys();
-        $tenant = TenantKey::create($keys);
+
+        $tenant = Tenant::factory()->create();
         $customerId = createCostCenterTestCustomer($tenant->id, 'KD-2025-009');
         $orgUnitId = createCostCenterTestOrgUnit($tenant->id, 'Test Org Unit');
         $siteId = createCostCenterTestSite($tenant->id, $customerId, $orgUnitId, 'ST-2025-009');
@@ -336,8 +338,8 @@ describe('CreateCostCentersTable Migration', function () {
     })->throws(PDOException::class);
 
     test('same code allowed for different sites', function (): void {
-        $keys = TenantKey::generateEnvelopeKeys();
-        $tenant = TenantKey::create($keys);
+
+        $tenant = Tenant::factory()->create();
         $customerId = createCostCenterTestCustomer($tenant->id, 'KD-2025-010');
         $orgUnitId = createCostCenterTestOrgUnit($tenant->id, 'Test Org Unit');
         $site1Id = createCostCenterTestSite($tenant->id, $customerId, $orgUnitId, 'ST-2025-010A');
@@ -353,8 +355,8 @@ describe('CreateCostCentersTable Migration', function () {
     });
 
     test('cost centers are optional and table may remain empty', function (): void {
-        $keys = TenantKey::generateEnvelopeKeys();
-        $tenant = TenantKey::create($keys);
+
+        $tenant = Tenant::factory()->create();
 
         // Create customer and site but no cost centers
         $customerId = createCostCenterTestCustomer($tenant->id, 'KD-2025-011');
@@ -370,8 +372,8 @@ describe('CreateCostCentersTable Migration', function () {
     });
 
     test('multiple cost centers can belong to same site', function (): void {
-        $keys = TenantKey::generateEnvelopeKeys();
-        $tenant = TenantKey::create($keys);
+
+        $tenant = Tenant::factory()->create();
         $customerId = createCostCenterTestCustomer($tenant->id, 'KD-2025-012');
         $orgUnitId = createCostCenterTestOrgUnit($tenant->id, 'Test Org Unit');
         $siteId = createCostCenterTestSite($tenant->id, $customerId, $orgUnitId, 'ST-2025-012');

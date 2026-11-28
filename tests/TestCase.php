@@ -5,7 +5,9 @@
 
 namespace Tests;
 
+use App\Models\TenantKey;
 use App\Models\User;
+use App\Services\TenantKekReference;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Foundation\Application;
@@ -70,6 +72,14 @@ abstract class TestCase extends BaseTestCase
         $app->loadEnvironmentFrom(static::bootstrapEnvironmentFileName());
         $app->make(Kernel::class)->bootstrap();
         self::normalizeApplicationConfiguration($app);
+        $app->bind(TenantKekReference::class, static function (): TenantKekReference {
+            $key = TenantKey::loadKek();
+            try {
+                return new TenantKekReference('94809506-5191-4ace-ac35-c38a96579271', 1, hash('sha256', $key));
+            } finally {
+                sodium_memzero($key);
+            }
+        });
 
         return $app;
     }

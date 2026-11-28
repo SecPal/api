@@ -1,7 +1,7 @@
 <?php
 
 /*
- * SPDX-FileCopyrightText: 2025 SecPal Contributors
+ * SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
  *
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
@@ -39,7 +39,7 @@ return new class extends Migration
     {
         Schema::create('customers', function (Blueprint $table): void {
             $table->uuid('id')->primary();
-            $table->foreignId('tenant_id')->constrained('tenant_keys')->cascadeOnDelete();
+            $table->foreignId('tenant_id')->constrained('tenants')->restrictOnDelete();
 
             // Identification
             $table->string('customer_number')->comment('Auto-generated unique ID, e.g., KD-2025-001');

@@ -9,6 +9,7 @@ use App\Models\Activity;
 use App\Models\CostCenterAllocation;
 use App\Models\InternalCostCenter;
 use App\Models\ServiceBooking;
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -22,7 +23,7 @@ beforeEach(function (): void {
     incrementTestKekCounter();
     TenantKey::setKekPath(getTestKekPath());
     TenantKey::generateKek();
-    $this->tenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+    $this->tenant = Tenant::factory()->create();
     $this->actor = User::factory()->create(['tenant_id' => $this->tenant->id]);
     $this->token = $this->actor->createToken('internal-cost-center-api')->plainTextToken;
     Artisan::call('db:seed', ['--class' => 'RolesAndPermissionsSeeder']);
@@ -57,7 +58,7 @@ test('Internal Cost Center routes require authentication and their exact capabil
 
 test('list is tenant isolated, includes both states, and uses deterministic pagination', function (): void {
     grantInternalCostCenterApiPermissions($this, 'internal_cost_centers.read');
-    $foreignTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+    $foreignTenant = Tenant::factory()->create();
     InternalCostCenter::factory()->forTenant($foreignTenant->id)->create();
     $createdAt = now()->subHour()->startOfSecond();
     InternalCostCenter::factory()->count(16)->sequence(
@@ -123,7 +124,7 @@ test('create derives lifecycle and tenant, preserves code, serializes exactly, a
 
 test('codes are unique only inside their tenant', function (): void {
     grantInternalCostCenterApiPermissions($this, 'internal_cost_centers.create');
-    $foreignTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+    $foreignTenant = Tenant::factory()->create();
     InternalCostCenter::factory()->forTenant($foreignTenant->id)->create(['code' => 'OPS-1']);
 
     $this->withToken($this->token)->postJson('/v1/internal-cost-centers', [
@@ -160,7 +161,7 @@ test('inspect is tenant safe and distinguishes malformed UUID input', function (
     if ($kind === 'local') {
         $id = InternalCostCenter::factory()->forTenant($this->tenant->id)->create()->id;
     } elseif ($kind === 'foreign') {
-        $foreignTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+        $foreignTenant = Tenant::factory()->create();
         $id = InternalCostCenter::factory()->forTenant($foreignTenant->id)->create()->id;
     } elseif ($kind === 'missing') {
         $id = (string) Str::uuid();
@@ -309,7 +310,7 @@ test('mutations conceal foreign and nonexistent valid Internal Cost Center IDs',
     grantInternalCostCenterApiPermissions($this, 'internal_cost_centers.update', 'internal_cost_centers.deactivate');
     $id = (string) Str::uuid();
     if ($kind === 'foreign') {
-        $foreignTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+        $foreignTenant = Tenant::factory()->create();
         $id = InternalCostCenter::factory()->forTenant($foreignTenant->id)->create()->id;
     }
 

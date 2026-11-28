@@ -8,6 +8,7 @@ declare(strict_types=1);
 use App\Models\Activity;
 use App\Models\Contract;
 use App\Models\ServiceBooking;
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use App\Models\User;
 use App\Services\ServiceBookingAuditRecorder;
@@ -23,7 +24,7 @@ beforeEach(function (): void {
     incrementTestKekCounter();
     TenantKey::setKekPath(getTestKekPath());
     TenantKey::generateKek();
-    $this->tenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+    $this->tenant = Tenant::factory()->create();
     $this->actor = User::factory()->create(['tenant_id' => $this->tenant->id]);
     $this->token = $this->actor->createToken('service-booking-api')->plainTextToken;
     Artisan::call('db:seed', ['--class' => 'RolesAndPermissionsSeeder']);
@@ -70,7 +71,7 @@ test('Service Booking routes require authentication and their exact capability',
 
 test('list is tenant isolated, includes both states, and uses deterministic pagination', function (): void {
     grantServiceBookingApiPermissions($this, 'service_bookings.read');
-    $foreignTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+    $foreignTenant = Tenant::factory()->create();
     ServiceBooking::factory()->create(['tenant_id' => $foreignTenant->id]);
     $createdAt = now()->subHour()->startOfSecond();
     ServiceBooking::factory()->count(16)->sequence(
@@ -179,7 +180,7 @@ test('create conceals unavailable Contracts and rejects malformed Contract UUIDs
     $contract = Contract::factory()->make(['id' => (string) Str::uuid()]);
 
     if ($kind === 'foreign') {
-        $foreignTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+        $foreignTenant = Tenant::factory()->create();
         $contract = Contract::factory()->create(['tenant_id' => $foreignTenant->id]);
     } elseif ($kind === 'malformed') {
         $contract->id = 'not-a-uuid';
@@ -262,7 +263,7 @@ test('inspect is tenant safe and distinguishes malformed UUID input', function (
     if ($kind === 'local') {
         $id = ServiceBooking::factory()->create(['tenant_id' => $this->tenant->id])->id;
     } elseif ($kind === 'foreign') {
-        $foreignTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+        $foreignTenant = Tenant::factory()->create();
         $id = ServiceBooking::factory()->create(['tenant_id' => $foreignTenant->id])->id;
     } elseif ($kind === 'missing') {
         $id = (string) Str::uuid();
@@ -359,7 +360,7 @@ test('mutations conceal foreign and nonexistent valid Booking IDs', function (st
     grantServiceBookingApiPermissions($this, 'service_bookings.update', 'service_bookings.retire');
     $id = (string) Str::uuid();
     if ($kind === 'foreign') {
-        $foreignTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+        $foreignTenant = Tenant::factory()->create();
         $id = ServiceBooking::factory()->create(['tenant_id' => $foreignTenant->id])->id;
     }
 

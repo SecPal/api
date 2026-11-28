@@ -4,6 +4,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use App\Models\Permission;
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -19,7 +20,7 @@ use function Pest\Laravel\postJson;
 
 /**
  * @return array{
- *     tenant: TenantKey,
+ *     tenant: Tenant,
  *     registrar: PermissionRegistrar,
  *     crossTenantUser: User
  * }
@@ -39,7 +40,7 @@ function seedUserPermissionAssignmentPermissions(): void
     }
 }
 
-function seedUserPermissionAssignmentRoles(TenantKey $tenant): void
+function seedUserPermissionAssignmentRoles(Tenant $tenant): void
 {
     $managerRole = Role::firstOrCreate([
         'name' => 'Manager',
@@ -75,8 +76,8 @@ function assignRoleWithTenant(User $user, int $tenantId, string $role): void
 
 function createUserPermissionAssignmentContext(): array
 {
-    $keys = TenantKey::generateEnvelopeKeys();
-    $tenant = TenantKey::create($keys);
+
+    $tenant = Tenant::factory()->create();
 
     /** @var PermissionRegistrar $registrar */
     $registrar = app(PermissionRegistrar::class);
@@ -85,8 +86,7 @@ function createUserPermissionAssignmentContext(): array
     seedUserPermissionAssignmentPermissions();
     seedUserPermissionAssignmentRoles($tenant);
 
-    $otherTenantKeys = TenantKey::generateEnvelopeKeys();
-    $otherTenant = TenantKey::create($otherTenantKeys);
+    $otherTenant = Tenant::factory()->create();
     $crossTenantUser = User::factory()->create(['tenant_id' => $otherTenant->id]);
 
     return [
@@ -96,7 +96,7 @@ function createUserPermissionAssignmentContext(): array
     ];
 }
 
-function createTenantUser(TenantKey $tenant): User
+function createTenantUser(Tenant $tenant): User
 {
     return User::factory()->create(['tenant_id' => $tenant->id]);
 }
@@ -239,8 +239,7 @@ test('hasDirectPermission ignores assignments from another tenant context', func
 
     $user = createTenantUser($tenant);
 
-    $otherTenantKeys = TenantKey::generateEnvelopeKeys();
-    $otherTenant = TenantKey::create($otherTenantKeys);
+    $otherTenant = Tenant::factory()->create();
 
     givePermissionWithTenant($user, $otherTenant->id, 'employees.read_sensitive');
 

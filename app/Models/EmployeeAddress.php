@@ -7,7 +7,6 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Facades\Auth;
 use Spatie\Activitylog\Models\Concerns\LogsActivity;
@@ -33,9 +32,9 @@ use Spatie\Activitylog\Support\LogOptions;
  * @property-read string|null $city
  * @property-read string|null $supplement
  * @property-read Employee $employee
- * @property-read TenantKey $tenant
+ * @property-read Tenant $tenant
  */
-class EmployeeAddress extends Model
+class EmployeeAddress extends TenantEncryptedModel
 {
     /** @use HasFactory<\Database\Factories\EmployeeAddressFactory> */
     use HasFactory, HasUuids, LogsActivity;
@@ -181,11 +180,11 @@ class EmployeeAddress extends Model
     }
 
     /**
-     * @return BelongsTo<TenantKey, $this>
+     * @return BelongsTo<Tenant, $this>
      */
     public function tenant(): BelongsTo
     {
-        return $this->belongsTo(TenantKey::class);
+        return $this->belongsTo(Tenant::class);
     }
 
     public function getStreetAttribute(): ?string

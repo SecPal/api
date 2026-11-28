@@ -45,13 +45,13 @@ use Spatie\Permission\Traits\HasRoles;
  * @property string $name
  * @property int $email_version
  * @property string $password
- * @property int $tenant_id Foreign key to tenant_keys
+ * @property int $tenant_id Foreign key to tenants
  * @property ?\Illuminate\Support\Carbon $email_verified_at
  * @property string|null $remember_token
  * @property string|null $preferred_locale
  * @property \Illuminate\Support\Carbon $created_at
  * @property \Illuminate\Support\Carbon $updated_at
- * @property-read TenantKey $tenant
+ * @property-read Tenant $tenant
  * @property-read Collection<int, UserInternalOrganizationalScope> $organizationalScopes
  * @property-read Collection<int, OrganizationalUnit> $scopedOrganizationalUnits
  * @property-read Employee|null $employee
@@ -166,11 +166,11 @@ class User extends Authenticatable implements MustVerifyEmailContract, TwoFactor
     /**
      * Get the tenant this user belongs to.
      *
-     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<TenantKey, $this>
+     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<Tenant, $this>
      */
     public function tenant(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
-        return $this->belongsTo(TenantKey::class, 'tenant_id');
+        return $this->belongsTo(Tenant::class, 'tenant_id');
     }
 
     /**

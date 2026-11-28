@@ -13,6 +13,7 @@ use App\Models\LegalEntity;
 use App\Models\OrganizationalUnit;
 use App\Models\Site;
 use App\Models\SiteAssignment;
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use App\Models\User;
 use App\Models\UserInternalOrganizationalScope;
@@ -31,7 +32,7 @@ beforeEach(function (): void {
     TenantKey::setKekPath(getTestKekPath());
     TenantKey::generateKek();
 
-    $this->tenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+    $this->tenant = Tenant::factory()->create();
     app(PermissionRegistrar::class)->setPermissionsTeamId($this->tenant->id);
     Artisan::call('db:seed', ['--class' => 'RolesAndPermissionsSeeder']);
 
@@ -172,7 +173,7 @@ test('operation authorization precedes customer lookup and is closed', function 
     $unauthorized = User::factory()->create(['tenant_id' => $this->tenant->id]);
     $token = $unauthorized->createToken('unauthorized')->plainTextToken;
     $missing = fake()->uuid();
-    $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+    $otherTenant = Tenant::factory()->create();
     $otherCustomer = Customer::factory()->create(['tenant_id' => $otherTenant->id]);
 
     foreach ([$this->customer->id, $missing, $otherCustomer->id] as $customerId) {
@@ -205,7 +206,7 @@ test('operation authorization precedes customer lookup and is closed', function 
 });
 
 test('authorized missing and tenant-inaccessible customers share the closed response', function (): void {
-    $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+    $otherTenant = Tenant::factory()->create();
     $otherCustomer = Customer::factory()->create(['tenant_id' => $otherTenant->id]);
 
     foreach ([fake()->uuid(), $otherCustomer->id] as $customerId) {
@@ -347,7 +348,7 @@ test('rejects invalid assignment collections without global locks or mutation', 
 })->with(['101 duplicates', 'invalid UUID', 'non-object item', 'unknown property', 'non-array collection']);
 
 test('invalid content preserves authentication tenant and precondition priorities without global locks', function (): void {
-    $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+    $otherTenant = Tenant::factory()->create();
     $otherCustomer = Customer::factory()->create(['tenant_id' => $otherTenant->id]);
     $unauthorized = User::factory()->create(['tenant_id' => $this->tenant->id]);
     $unauthorizedToken = $unauthorized->createToken('forbidden-edit')->plainTextToken;
@@ -453,7 +454,7 @@ test('rejects every ineligible desired establishment without disclosing why', fu
         'legal_entity_id' => $this->legalEntity->id,
     ]);
     $deleted->delete();
-    $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+    $otherTenant = Tenant::factory()->create();
     $otherEstablishment = Establishment::factory()->forTenant($otherTenant->id)->create();
 
     foreach ([fake()->uuid(), $wrongLegalEntity->id, $inactive->id, $deleted->id, $otherEstablishment->id] as $id) {

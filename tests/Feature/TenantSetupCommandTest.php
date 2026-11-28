@@ -6,9 +6,11 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\DB;
 use Tests\Support\TenantKeyReadabilityOverride;
 
 uses(RefreshDatabase::class);
@@ -17,6 +19,9 @@ function resetTenantSetupCommandTestState(): void
 {
     TenantKeyReadabilityOverride::clear();
     TenantKey::query()->delete();
+    Tenant::query()->delete();
+    DB::table('tenant_kek_state')->delete();
+    DB::table('tenant_kek_generations')->delete();
     cleanupTestKekFile();
     TenantKey::setKekPath(getTestKekPath());
 }
@@ -37,7 +42,7 @@ afterEach(function (): void {
 describe('tenant:setup Command', function () {
     test('bootstrap clears pre-existing tenant key state', function (): void {
         TenantKey::generateKek();
-        TenantKey::create(TenantKey::generateEnvelopeKeys());
+        TenantKey::factory()->create();
 
         expect(TenantKey::count())->toBe(1);
 
@@ -52,6 +57,28 @@ describe('tenant:setup Command', function () {
         expect($commands)->toHaveKey('tenant:setup');
     });
 
+    test('rejects an incomplete tenant inventory during setup', function (): void {
+        TenantKey::generateKek();
+        $incomplete = Tenant::query()->create();
+
+        $this->artisan('tenant:setup')->assertFailed();
+        expect(Tenant::query()->sole()->id)->toBe($incomplete->id)
+            ->and(TenantKey::query()->exists())->toBeFalse();
+    });
+
+    test('rejects an incomplete restore that contains a KEK registry without tenants', function (): void {
+        TenantKey::generateKek();
+        TenantKey::factory()->create();
+        TenantKey::query()->delete();
+        Tenant::query()->delete();
+
+        $this->artisan('tenant:setup')->assertFailed();
+        $this->artisan('keys:generate-tenant')->assertFailed();
+
+        expect(Tenant::query()->exists())->toBeFalse()
+            ->and(DB::table('tenant_kek_state')->count())->toBe(1);
+    });
+
     test('creates tenant keys when KEK exists and no tenant keys present', function (): void {
         // Generate KEK first
         TenantKey::generateKek();
@@ -61,10 +88,6 @@ describe('tenant:setup Command', function () {
 
         $this->artisan('tenant:setup')
             ->expectsOutput('SecPal Tenant Key Setup')
-            ->expectsOutput('=======================')
-            ->expectsOutputToContain('Checking KEK file')
-            ->expectsOutputToContain('Generating and wrapping tenant keys')
-            ->expectsOutputToContain('Storing in database')
             ->expectsOutput('Tenant key setup complete!')
             ->expectsOutputToContain('php artisan app:validate-setup')
             ->assertExitCode(0);
@@ -86,8 +109,7 @@ describe('tenant:setup Command', function () {
 
         $this->artisan('tenant:setup')
             ->expectsOutput('SecPal Tenant Key Setup')
-            ->expectsOutputToContain('KEK file not found')
-            ->expectsOutputToContain('php artisan keys:generate-kek')
+            ->expectsOutputToContain('externally provided Tenant KEK generation')
             ->assertExitCode(1);
 
         // Verify no tenant key was created
@@ -97,15 +119,14 @@ describe('tenant:setup Command', function () {
     test('aborts when tenant key already exists', function (): void {
         // Generate KEK and tenant
         TenantKey::generateKek();
-        $keys = TenantKey::generateEnvelopeKeys();
-        TenantKey::create($keys);
+
+        TenantKey::factory()->create();
 
         $countBefore = TenantKey::count();
 
         $this->artisan('tenant:setup')
             ->expectsOutput('SecPal Tenant Key Setup')
             ->expectsOutputToContain('Tenant key already exists')
-            ->expectsOutputToContain('Aborting setup')
             ->assertExitCode(0);
 
         // Verify count didn't change
@@ -122,21 +143,20 @@ describe('tenant:setup Command', function () {
         $countBefore = TenantKey::count();
 
         $this->artisan('tenant:setup')
-            ->expectsOutputToContain('KEK file has insecure permissions')
-            ->expectsOutputToContain('chmod 600')
+            ->expectsOutputToContain('externally provided Tenant KEK generation')
             ->assertExitCode(1);
 
         expect(TenantKey::count())->toBe($countBefore);
     });
 
-    test('fails with a targeted message when KEK file is not readable', function (): void {
+    test('fails with redacted guidance when the KEK file is not readable', function (): void {
         TenantKey::generateKek();
         TenantKeyReadabilityOverride::markUnreadable(TenantKey::getKekPath());
 
         $countBefore = TenantKey::count();
 
         $this->artisan('tenant:setup')
-            ->expectsOutputToContain('KEK file is not readable by this process')
+            ->expectsOutputToContain('externally provided Tenant KEK generation')
             ->assertExitCode(1);
 
         expect(TenantKey::count())->toBe($countBefore);
@@ -216,7 +236,7 @@ describe('tenant:setup Command', function () {
 
         // Command will fail when trying to load corrupted KEK
         $this->artisan('tenant:setup')
-            ->expectsOutputToContain('Failed')
+            ->expectsOutputToContain('externally provided Tenant KEK generation')
             ->assertExitCode(1);
 
         // Verify no tenant key was created
@@ -227,8 +247,8 @@ describe('tenant:setup Command', function () {
         TenantKey::generateKek();
 
         // Create multiple tenant keys
-        TenantKey::create(TenantKey::generateEnvelopeKeys());
-        TenantKey::create(TenantKey::generateEnvelopeKeys());
+        TenantKey::factory()->create();
+        TenantKey::factory()->create();
 
         $countBefore = TenantKey::count();
 
@@ -256,6 +276,6 @@ describe('tenant:setup Command', function () {
         $command = Artisan::all()['tenant:setup'];
 
         expect($command->getName())->toBe('tenant:setup');
-        expect($command->getDescription())->toBe('Tenant key setup for new deployments');
+        expect($command->getDescription())->toBe('Set up the first tenant with externally provisioned KEK material');
     });
 });

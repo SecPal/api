@@ -7,7 +7,8 @@ namespace Database\Seeders;
 
 use App\Models\OrganizationalUnit;
 use App\Models\OrganizationalUnitClosure;
-use App\Models\TenantKey;
+use App\Models\Tenant;
+use App\Services\TenantProvisioner;
 use Illuminate\Database\Seeder;
 
 /**
@@ -33,14 +34,8 @@ class OrganizationalUnitSeeder extends Seeder
      */
     public function run(): void
     {
-        // Ensure tenant key exists and get its ID
-        $tenant = TenantKey::first();
-        if (! $tenant) {
-            TenantKey::ensureKekExists();
-            $keys = TenantKey::generateEnvelopeKeys();
-            $tenant = TenantKey::create($keys);
-        }
-        $tenantId = $tenant->id;
+        $tenantId = app(TenantProvisioner::class)->setup()->tenant_id
+            ?? Tenant::query()->oldest('id')->firstOrFail()->id;
 
         // Create root holding
         $holding = OrganizationalUnit::firstOrCreate(

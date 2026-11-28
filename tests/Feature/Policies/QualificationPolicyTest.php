@@ -1,9 +1,10 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use App\Models\Qualification;
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use App\Models\User;
 use App\Policies\QualificationPolicy;
@@ -12,7 +13,7 @@ use Illuminate\Support\Facades\Artisan;
 use Spatie\Permission\PermissionRegistrar;
 
 /**
- * @property TenantKey $tenant
+ * @property Tenant $tenant
  * @property PermissionRegistrar $registrar
  * @property QualificationPolicy $policy
  */
@@ -22,8 +23,8 @@ beforeEach(function (): void {
     incrementTestKekCounter();
     TenantKey::setKekPath(getTestKekPath());
     TenantKey::generateKek();
-    $keys = TenantKey::generateEnvelopeKeys();
-    $this->tenant = TenantKey::create($keys);
+
+    $this->tenant = Tenant::factory()->create();
 
     $this->registrar = app(PermissionRegistrar::class);
     $this->registrar->setPermissionsTeamId($this->tenant->id);

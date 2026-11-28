@@ -3,6 +3,7 @@
 // SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
@@ -41,6 +42,17 @@ test('tenant key factory generates valid envelope keys', function (): void {
     $idxKey = $tenantKey->unwrapIdxKey();
     expect(strlen($idxKey))->toBe(SODIUM_CRYPTO_SECRETBOX_KEYBYTES);
     sodium_memzero($idxKey);
+});
+
+test('tenant key factory uses the supplied tenant without creating another row', function (): void {
+    $owner = Tenant::query()->create();
+    $otherOwner = Tenant::query()->create();
+    $key = TenantKey::factory()->for($owner)->create();
+    $otherKey = TenantKey::factory()->create(['tenant_id' => $otherOwner->id]);
+
+    expect(Tenant::count())->toBe(2)
+        ->and($key->tenant_id)->toBe($owner->id)
+        ->and($otherKey->tenant_id)->toBe($otherOwner->id);
 });
 
 test('tenant key factory creates the kek directory when it is missing', function (): void {

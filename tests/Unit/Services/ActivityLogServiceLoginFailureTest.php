@@ -1,7 +1,7 @@
 <?php
 
 /**
- * SPDX-FileCopyrightText: 2025 SecPal Contributors
+ * SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
@@ -9,7 +9,7 @@ declare(strict_types=1);
 
 use App\Models\Employee;
 use App\Models\OrganizationalUnit;
-use App\Models\TenantKey;
+use App\Models\Tenant;
 use App\Models\User;
 use App\Services\ActivityLogService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -24,7 +24,7 @@ uses(RefreshDatabase::class);
 
 beforeEach(function () {
     $this->service = app(ActivityLogService::class);
-    $this->tenant = TenantKey::factory()->create();
+    $this->tenant = Tenant::factory()->create();
     $this->orgUnit = OrganizationalUnit::factory()->create([
         'tenant_id' => $this->tenant->id,
     ]);

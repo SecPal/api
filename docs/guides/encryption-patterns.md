@@ -27,7 +27,9 @@ This document defines the encryption patterns used in SecPal for protecting sens
 
 ## Overview
 
-SecPal uses **tenant-specific encryption** to protect sensitive employee and customer data. Each tenant has its own encryption keys stored in the `tenant_keys` table.
+SecPal uses **tenant-specific encryption** to protect sensitive employee and customer data.
+Each functional tenant has one separately identified key record in `tenant_keys`.
+The key record references `tenants.id`.
 
 **Key Principles:**
 
@@ -51,11 +53,15 @@ SecPal uses **tenant-specific encryption** to protect sensitive employee and cus
 ### Key Management
 
 ```text
-TenantKey (per tenant)
-├── KEK (Key Encryption Key) - stored encrypted with APP_KEY
-├── DEK (Data Encryption Key) - decrypted in memory, used for field encryption
-└── IDX (Index Key) - used for HMAC blind indexes
+Tenant (functional identifier)
+└── TenantKey (independent UUID)
+    ├── DEK (Data Encryption Key) - used for field encryption
+    └── IDX (Index Key) - used for HMAC blind indexes
 ```
+
+The filesystem KEK wraps both working keys with libsodium XChaCha20-Poly1305.
+The authenticated context binds the wrap format, key purpose and functional
+tenant ID. Key resolution uses `TenantKey::forTenant($tenantId)`.
 
 **Encryption Flow:**
 
@@ -424,7 +430,7 @@ class EmployeeObserver
 
     private function updateBlindIndexes(Employee $employee): void
     {
-        $tenantKey = TenantKey::findOrFail($employee->tenant_id);
+        $tenantKey = TenantKey::forTenant($employee->tenant_id);
 
         if ($employee->field_name_enc !== null) {
             // Decrypt via accessor (Cast handles it)
@@ -445,7 +451,7 @@ class EmployeeObserver
 ```php
 // Search by first name
 $searchTerm = 'John';
-$tenantKey = TenantKey::findOrFail($tenantId);
+$tenantKey = TenantKey::forTenant($tenantId);
 $blindIndex = base64_encode($tenantKey->generateBlindIndex(mb_strtolower($searchTerm)));
 
 $employees = Employee::where('first_name_idx', $blindIndex)->get();
@@ -765,24 +771,17 @@ test('middle_name is encrypted at rest', function () {
 ### How to Rotate DEK
 
 ```bash
-# Rotate DEK for all tenants
-php artisan keys:rotate-dek --all
-
-# Rotate DEK for specific tenant
-php artisan keys:rotate-dek --tenant=123
+php artisan keys:rotate-dek 123
 ```
 
-**What happens:**
+Run the command in a maintenance window with tenant writes and other key
+operations paused. It supports tenants with legacy Person ciphertext only. It
+refuses rotation if the tenant has employee, employee address, customer
+establishment or push device records.
 
-1. Generate new DEK
-2. For each encrypted field:
-   - Decrypt with old DEK
-   - Encrypt with new DEK
-   - Update `{ciphertext, nonce}` in database
-3. Regenerate all blind indexes with new IDX key
-4. Update `tenant_keys.dek_encrypted` with new DEK
-
-**Downtime:** None (done row-by-row with transactions)
+The command authenticates the current tenant DEK and each Person ciphertext. It
+commits the new ciphertexts and wrapped DEK in a single database transaction. A
+failure rolls back both. The IDX key and existing blind indexes remain valid.
 
 ---
 
@@ -796,7 +795,7 @@ use App\Models\TenantKey;
 use Illuminate\Support\Facades\DB;
 
 test('first_name is encrypted at rest', function () {
-    $tenant = TenantKey::factory()->create();
+    $tenant = \App\Models\Tenant::factory()->create();
     $employee = Employee::factory()->create([
         'tenant_id' => $tenant->id,
         'first_name' => 'John',
@@ -821,7 +820,7 @@ test('first_name is encrypted at rest', function () {
 });
 
 test('blind index enables case-insensitive search', function () {
-    $tenant = TenantKey::factory()->create();
+    $tenant = \App\Models\Tenant::factory()->create();
     Employee::factory()->create(['tenant_id' => $tenant->id, 'first_name' => 'John']);
     Employee::factory()->create(['tenant_id' => $tenant->id, 'first_name' => 'Jane']);
 

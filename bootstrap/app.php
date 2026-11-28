@@ -286,6 +286,16 @@ return Application::configure(basePath: dirname(__DIR__))
             ], 409);
         });
 
+        $exceptions->render(function (App\Exceptions\TenantKeyMaintenanceException $e, Request $request) use ($shouldRenderApiJson) {
+            if (! $shouldRenderApiJson($request)) {
+                return null;
+            }
+
+            return response()->json([
+                'message' => __('Tenant key maintenance is in progress.'),
+            ], $e->getStatusCode(), $e->getHeaders());
+        });
+
         $exceptions->render(function (Throwable $e, Request $request) use ($shouldRenderApiJson) {
             if (! $shouldRenderApiJson($request)) {
                 return null;

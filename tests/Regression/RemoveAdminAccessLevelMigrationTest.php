@@ -193,16 +193,16 @@ config([
 DB::purge('sqlite');
 DB::setDefaultConnection('sqlite');
 
-Schema::create('tenant_keys', function (Illuminate\Database\Schema\Blueprint $table): void {
+Schema::create('tenants', function (Illuminate\Database\Schema\Blueprint $table): void {
     $table->id();
 });
 
 Schema::create('employees', function (Illuminate\Database\Schema\Blueprint $table): void {
     $table->uuid('id')->primary();
-    $table->foreignId('tenant_id')->constrained('tenant_keys')->cascadeOnDelete();
+    $table->foreignId('tenant_id')->constrained('tenants')->restrictOnDelete();
 });
 
-DB::table('tenant_keys')->insert(['id' => 1]);
+DB::table('tenants')->insert(['id' => 1]);
 DB::table('employees')->insert([
     'id' => '11111111-1111-1111-1111-111111111111',
     'tenant_id' => 1,

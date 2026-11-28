@@ -136,7 +136,7 @@ use Spatie\Activitylog\Support\LogOptions;
  * @property-read string|null $social_security_number Decrypted social security number
  * @property-read string $full_name Full name (first + last)
  * @property-read SupportCollection<int, array{type: string, label: string, expiry: string, status: string, days_until_expiry: int}> $expiring_documents
- * @property-read TenantKey $tenant
+ * @property-read Tenant $tenant
  * @property-read User|null $user
  * @property-read LegalEntity $legalEntity
  * @property-read Establishment $establishment
@@ -146,7 +146,7 @@ use Spatie\Activitylog\Support\LogOptions;
  * @property-read Collection<int, OnboardingFormSubmission> $onboardingSubmissions
  * @property-read Collection<int, EmployeeAddress> $addresses
  */
-class Employee extends Model
+class Employee extends TenantEncryptedModel
 {
     /** @use HasFactory<\Database\Factories\EmployeeFactory> */
     use EnforcesTenantRouteBinding, HasFactory, HasUuids, LogsActivity, SoftDeletes {
@@ -681,11 +681,11 @@ class Employee extends Model
     /**
      * Get the tenant that owns this employee.
      *
-     * @return BelongsTo<TenantKey, $this>
+     * @return BelongsTo<Tenant, $this>
      */
     public function tenant(): BelongsTo
     {
-        return $this->belongsTo(TenantKey::class);
+        return $this->belongsTo(Tenant::class);
     }
 
     /**

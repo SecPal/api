@@ -5,7 +5,7 @@
 
 namespace App\Models\Concerns;
 
-use App\Models\TenantKey;
+use App\Models\Tenant;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
@@ -142,14 +142,15 @@ trait EnforcesTenantRouteBinding
 
         $routeTenant = request()->route('tenant');
 
-        if ($routeTenant instanceof TenantKey) {
+        if ($routeTenant === null) {
+            return null;
+        }
+
+        if ($routeTenant instanceof Tenant) {
             return $routeTenant->id;
         }
 
-        if (is_numeric($routeTenant)) {
-            return (int) $routeTenant;
-        }
-
-        return null;
+        return Tenant::parseId($routeTenant)
+            ?? throw (new ModelNotFoundException)->setModel(Tenant::class);
     }
 }

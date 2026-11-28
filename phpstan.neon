@@ -44,11 +44,6 @@ parameters:
             message: '#Parameter .* expects .*, mixed given#'
             path: database/migrations/*_create_permission_tables.php
 
-        # Laravel Eloquent BelongsTo covariance limitation - known PHPStan issue with template types
-        -
-            message: '#Method App\\Models\\Person::tenantKey\(\) should return .* but returns .*#'
-            path: app/Models/Person.php
-
         # Laravel JsonResource magic property access - false positives
         # JsonResource proxies property access to $this->resource, but PHPStan sees undefined properties
         -

@@ -9,7 +9,7 @@ declare(strict_types=1);
 
 use App\Jobs\UpgradeOpenTimestampProofs;
 use App\Models\Activity;
-use App\Models\TenantKey;
+use App\Models\Tenant;
 use App\Models\User;
 use App\Services\OpenTimestampService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -27,7 +27,7 @@ use Illuminate\Support\Facades\Log;
 uses(RefreshDatabase::class);
 
 beforeEach(function () {
-    $this->tenant = TenantKey::factory()->create();
+    $this->tenant = Tenant::factory()->create();
     $this->user = User::factory()->for($this->tenant, 'tenant')->create();
 });
 
@@ -153,7 +153,7 @@ test('job handles proof not yet ready for upgrade', function () {
 
 test('job processes multiple tenants', function () {
     // Arrange: Create logs for multiple tenants
-    $tenant2 = TenantKey::factory()->create();
+    $tenant2 = Tenant::factory()->create();
 
     Activity::create([
         'tenant_id' => $this->tenant->id,

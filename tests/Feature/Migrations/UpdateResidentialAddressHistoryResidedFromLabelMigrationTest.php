@@ -4,6 +4,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use App\Models\OnboardingFormTemplate;
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use App\Support\ResidentialAddressHistorySchema;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -80,7 +81,7 @@ test('down() leaves previous_addresses resided_from label unchanged', function (
 });
 
 test('up() does not touch tenant-scoped residential templates', function (): void {
-    $tenant = TenantKey::factory()->create();
+    $tenant = Tenant::factory()->create();
 
     $tenantTemplate = OnboardingFormTemplate::factory()->create([
         'tenant_id' => $tenant->id,

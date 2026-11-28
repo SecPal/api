@@ -11,6 +11,7 @@ namespace App\Models;
 use App\Models\Concerns\EnforcesTenantRouteBinding;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
  * Person model with field-level encryption and blind indexes.
@@ -35,7 +36,7 @@ use Illuminate\Database\Eloquent\Model;
  *
  * @method static \Database\Factories\PersonFactory factory($count = null, $state = [])
  */
-class Person extends Model
+class Person extends TenantEncryptedModel
 {
     /** @use HasFactory<\Database\Factories\PersonFactory> */
     use EnforcesTenantRouteBinding, HasFactory;
@@ -170,13 +171,9 @@ class Person extends Model
         return $this->notePlain;
     }
 
-    /**
-     * Relation to TenantKey.
-     *
-     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<TenantKey, self>
-     */
-    public function tenantKey(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    /** @return BelongsTo<Tenant, $this> */
+    public function tenant(): BelongsTo
     {
-        return $this->belongsTo(TenantKey::class, 'tenant_id');
+        return $this->belongsTo(Tenant::class, 'tenant_id');
     }
 }

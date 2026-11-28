@@ -1,7 +1,7 @@
 <?php
 
 /**
- * SPDX-FileCopyrightText: 2025 SecPal Contributors
+ * SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
@@ -9,7 +9,7 @@ declare(strict_types=1);
 
 use App\Models\Activity;
 use App\Models\ActivityArchive;
-use App\Models\TenantKey;
+use App\Models\Tenant;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 
@@ -29,7 +29,7 @@ uses(RefreshDatabase::class);
  * @see Issue #392 PR-8: Create ActivityArchive model & retention commands
  */
 test('activity archive preserves original activity id', function () {
-    $tenant = TenantKey::factory()->create();
+    $tenant = Tenant::factory()->create();
     $archive = ActivityArchive::create([
         'id' => 12345, // Original Activity log ID (bigint)
         'tenant_id' => $tenant->id,
@@ -44,7 +44,7 @@ test('activity archive preserves original activity id', function () {
 });
 
 test('activity archive is immutable - no updated_at timestamp', function () {
-    $tenant = TenantKey::factory()->create();
+    $tenant = Tenant::factory()->create();
     $archive = ActivityArchive::factory()->create(['tenant_id' => $tenant->id]);
 
     expect($archive)->not->toHaveKey('updated_at')
@@ -62,15 +62,15 @@ test('activity archive stores only minimal data - no personal information', func
 });
 
 test('activity archive belongs to tenant', function () {
-    $tenant = TenantKey::factory()->create();
+    $tenant = Tenant::factory()->create();
     $archive = ActivityArchive::factory()->create(['tenant_id' => $tenant->id]);
 
-    expect($archive->tenant)->toBeInstanceOf(TenantKey::class)
+    expect($archive->tenant)->toBeInstanceOf(Tenant::class)
         ->and($archive->tenant->id)->toBe($tenant->id);
 });
 
 test('activity archive can verify hash chain with archived predecessor', function () {
-    $tenant = TenantKey::factory()->create();
+    $tenant = Tenant::factory()->create();
 
     // Create chain: archive1 → archive2
     $archive1 = ActivityArchive::factory()->create([
@@ -90,7 +90,7 @@ test('activity archive can verify hash chain with archived predecessor', functio
 });
 
 test('activity archive can verify hash chain with active predecessor', function () {
-    $tenant = TenantKey::factory()->create();
+    $tenant = Tenant::factory()->create();
 
     // Create chain: active → archive (use DB insert to bypass Activity logic)
     DB::table('activity_log')->insert([
@@ -113,7 +113,7 @@ test('activity archive can verify hash chain with active predecessor', function 
 });
 
 test('activity archive chain verification fails with missing predecessor', function () {
-    $tenant = TenantKey::factory()->create();
+    $tenant = Tenant::factory()->create();
 
     $archive = ActivityArchive::factory()->create([
         'tenant_id' => $tenant->id,
@@ -125,7 +125,7 @@ test('activity archive chain verification fails with missing predecessor', funct
 });
 
 test('activity archive can find next log in chain - active', function () {
-    $tenant = TenantKey::factory()->create();
+    $tenant = Tenant::factory()->create();
 
     $archive = ActivityArchive::factory()->create([
         'tenant_id' => $tenant->id,
@@ -149,7 +149,7 @@ test('activity archive can find next log in chain - active', function () {
 });
 
 test('activity archive can find next log in chain - archived', function () {
-    $tenant = TenantKey::factory()->create();
+    $tenant = Tenant::factory()->create();
 
     $archive1 = ActivityArchive::factory()->create([
         'tenant_id' => $tenant->id,
@@ -170,7 +170,7 @@ test('activity archive can find next log in chain - archived', function () {
 });
 
 test('activity archive returns null when no next log exists', function () {
-    $tenant = TenantKey::factory()->create();
+    $tenant = Tenant::factory()->create();
 
     $archive = ActivityArchive::factory()->create([
         'tenant_id' => $tenant->id,
@@ -181,8 +181,8 @@ test('activity archive returns null when no next log exists', function () {
 });
 
 test('activity archive scope for tenant filters correctly', function () {
-    $tenant1 = TenantKey::factory()->create();
-    $tenant2 = TenantKey::factory()->create();
+    $tenant1 = Tenant::factory()->create();
+    $tenant2 = Tenant::factory()->create();
 
     ActivityArchive::factory()->count(3)->create(['tenant_id' => $tenant1->id]);
     ActivityArchive::factory()->count(2)->create(['tenant_id' => $tenant2->id]);
@@ -195,7 +195,7 @@ test('activity archive scope for tenant filters correctly', function () {
 });
 
 test('activity archive scope of log filters by log name', function () {
-    $tenant = TenantKey::factory()->create();
+    $tenant = Tenant::factory()->create();
 
     ActivityArchive::factory()->count(2)->create([
         'tenant_id' => $tenant->id,
@@ -213,7 +213,7 @@ test('activity archive scope of log filters by log name', function () {
 });
 
 test('activity archive scope older than filters by date', function () {
-    $tenant = TenantKey::factory()->create();
+    $tenant = Tenant::factory()->create();
 
     ActivityArchive::factory()->create([
         'tenant_id' => $tenant->id,
@@ -234,7 +234,7 @@ test('activity archive scope older than filters by date', function () {
 });
 
 test('activity archive preserves merkle tree metadata', function () {
-    $tenant = TenantKey::factory()->create();
+    $tenant = Tenant::factory()->create();
 
     $archive = ActivityArchive::factory()->create([
         'tenant_id' => $tenant->id,
@@ -247,7 +247,7 @@ test('activity archive preserves merkle tree metadata', function () {
 });
 
 test('activity archive created_at is cast to carbon instance', function () {
-    $tenant = TenantKey::factory()->create();
+    $tenant = Tenant::factory()->create();
     $archive = ActivityArchive::factory()->create(['tenant_id' => $tenant->id]);
 
     expect($archive->created_at)->toBeInstanceOf(Carbon\Carbon::class);

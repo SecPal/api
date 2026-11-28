@@ -12,6 +12,7 @@ use App\Models\Establishment;
 use App\Models\OrganizationalUnit;
 use App\Models\Site;
 use App\Models\SiteAssignment;
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -21,7 +22,7 @@ use Spatie\Permission\PermissionRegistrar;
 uses(RefreshDatabase::class);
 
 /**
- * @property TenantKey $tenant
+ * @property Tenant $tenant
  * @property User $user
  * @property string $token
  * @property OrganizationalUnit $orgUnit
@@ -32,8 +33,8 @@ beforeEach(function (): void {
     incrementTestKekCounter();
     TenantKey::setKekPath(getTestKekPath());
     TenantKey::generateKek();
-    $keys = TenantKey::generateEnvelopeKeys();
-    $this->tenant = TenantKey::create($keys);
+
+    $this->tenant = Tenant::factory()->create();
 
     // Set tenant context for permission system
     $registrar = app(PermissionRegistrar::class);
@@ -247,7 +248,7 @@ describe('GET /v1/sites', function () {
     test('returns empty list for foreign-tenant customer_id filter', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'sites.read');
 
-        $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+        $otherTenant = Tenant::factory()->create();
         $foreignCustomer = Customer::factory()->create([
             'tenant_id' => $otherTenant->id,
         ]);
@@ -303,7 +304,7 @@ describe('GET /v1/sites', function () {
     test('returns empty list for foreign-tenant establishment_id filter', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'sites.read');
 
-        $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+        $otherTenant = Tenant::factory()->create();
         $foreignEstablishment = Establishment::factory()->create([
             'tenant_id' => $otherTenant->id,
         ]);
@@ -1022,7 +1023,7 @@ describe('GET /v1/sites/{site}', function () {
     test('returns 404 when user tries to access site from different tenant', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'sites.read');
 
-        $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+        $otherTenant = Tenant::factory()->create();
         $otherTenantCustomer = Customer::factory()->create([
             'tenant_id' => $otherTenant->id,
         ]);

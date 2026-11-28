@@ -13,6 +13,7 @@ use App\Models\Customer;
 use App\Models\Employee;
 use App\Models\OrganizationalUnit;
 use App\Models\Site;
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use App\Models\User;
 use App\Models\UserInternalOrganizationalScope;
@@ -26,12 +27,12 @@ use function Pest\Laravel\actingAs;
 use function Pest\Laravel\getJson;
 
 /**
- * @return array{tenant: TenantKey, registrar: PermissionRegistrar, user: User}
+ * @return array{tenant: Tenant, registrar: PermissionRegistrar, user: User}
  */
 function createActivityLogContext(): array
 {
-    $keys = TenantKey::generateEnvelopeKeys();
-    $tenant = TenantKey::create($keys);
+
+    $tenant = Tenant::factory()->create();
 
     /** @var PermissionRegistrar $registrar */
     $registrar = app(PermissionRegistrar::class);
@@ -794,7 +795,7 @@ describe('GET /v1/activity-logs', function () {
             'description' => 'Own tenant activity',
         ]);
 
-        $otherTenant = TenantKey::factory()->create();
+        $otherTenant = Tenant::factory()->create();
         Activity::factory()->create([
             'tenant_id' => $otherTenant->id,
             'organizational_unit_id' => null,
@@ -843,7 +844,7 @@ describe('GET /v1/activity-logs/{activity}', function () {
         givePermissionWithTenant($user, $tenant->id, 'activity_log.read');
         actingAs($user, 'sanctum');
 
-        $otherTenant = TenantKey::factory()->create();
+        $otherTenant = Tenant::factory()->create();
         $activity = Activity::factory()->create([
             'tenant_id' => $otherTenant->id,
             'organizational_unit_id' => null,
@@ -1176,7 +1177,7 @@ describe('GET /v1/activity-logs/{activity}/verify', function () {
         givePermissionWithTenant($user, $tenant->id, 'activity_log.read');
         actingAs($user, 'sanctum');
 
-        $otherTenant = TenantKey::factory()->create();
+        $otherTenant = Tenant::factory()->create();
         $activity = Activity::factory()->create([
             'tenant_id' => $otherTenant->id,
             'organizational_unit_id' => null,

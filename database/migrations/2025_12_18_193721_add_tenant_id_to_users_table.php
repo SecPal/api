@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use Illuminate\Database\Migrations\Migration;
@@ -21,7 +21,7 @@ return new class extends Migration
     {
         Schema::table('users', function (Blueprint $table) {
             $table->unsignedBigInteger('tenant_id')->nullable()->after('id');
-            $table->foreign('tenant_id')->references('id')->on('tenant_keys')->onDelete('cascade');
+            $table->foreign('tenant_id')->references('id')->on('tenants')->restrictOnDelete();
             $table->index('tenant_id');
         });
     }

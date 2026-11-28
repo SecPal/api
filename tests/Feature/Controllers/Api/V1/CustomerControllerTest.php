@@ -14,6 +14,7 @@ use App\Models\LegalEntity;
 use App\Models\OrganizationalUnit;
 use App\Models\Site;
 use App\Models\SiteAssignment;
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use App\Models\User;
 use App\Support\LikePattern;
@@ -23,7 +24,7 @@ use Illuminate\Support\Facades\DB;
 use Spatie\Permission\PermissionRegistrar;
 
 /**
- * @property TenantKey $tenant
+ * @property Tenant $tenant
  * @property User $user
  * @property mixed $token
  */
@@ -33,8 +34,8 @@ beforeEach(function (): void {
     incrementTestKekCounter();
     TenantKey::setKekPath(getTestKekPath());
     TenantKey::generateKek();
-    $keys = TenantKey::generateEnvelopeKeys();
-    $this->tenant = TenantKey::create($keys);
+
+    $this->tenant = Tenant::factory()->create();
 
     // Set tenant context for permission system
     $registrar = app(PermissionRegistrar::class);
@@ -417,7 +418,7 @@ describe('GET /v1/lookups/legal-entities', function (): void {
             'name' => 'Allowed Legal Entity',
             'is_active' => true,
         ]);
-        $foreignTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+        $foreignTenant = Tenant::factory()->create();
         $foreignLegalEntity = LegalEntity::factory()->forTenant((string) $foreignTenant->id)->create([
             'name' => 'Foreign Legal Entity',
             'is_active' => true,
@@ -666,7 +667,7 @@ describe('POST /v1/customers', function () {
 
     test('rejects customer creation with a legal entity from another tenant', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'customers.create');
-        $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+        $otherTenant = Tenant::factory()->create();
         $foreignLegalEntity = LegalEntity::factory()->forTenant((string) $otherTenant->id)->create([
         ]);
 
@@ -843,7 +844,7 @@ describe('GET /v1/customers/{customer}', function () {
     test('returns 404 when user tries to access customer from different tenant', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'customers.read');
 
-        $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+        $otherTenant = Tenant::factory()->create();
         $customer = Customer::factory()->create([
             'tenant_id' => $otherTenant->id,
         ]);
@@ -1045,7 +1046,7 @@ describe('PATCH /v1/customers/{customer}', function () {
         givePermissionWithTenant($this->user, $this->tenant->id, 'customers.update');
         $customer = Customer::factory()->create(['tenant_id' => $this->tenant->id]);
         $originalLegalEntityId = $customer->legal_entity_id;
-        $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+        $otherTenant = Tenant::factory()->create();
         $foreignLegalEntity = LegalEntity::factory()->forTenant((string) $otherTenant->id)->create([
         ]);
 
@@ -1238,7 +1239,7 @@ describe('DELETE /v1/customers/{customer}', function () {
 
     test('does not disclose cross-tenant dependencies', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'customers.delete');
-        $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+        $otherTenant = Tenant::factory()->create();
         $customer = Customer::factory()->forTenant($otherTenant->id)->create();
         $establishment = Establishment::factory()->create([
             'tenant_id' => $otherTenant->id,

@@ -8,6 +8,7 @@
 
 use App\Models\Permission;
 use App\Models\TemporalRoleUser;
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use App\Models\User;
 use App\Support\ApiTimestamp;
@@ -62,19 +63,19 @@ function resetRoleApiRbacState(): void
 
 /**
  * @return array{
- *     tenant: TenantKey,
+ *     tenant: Tenant,
  *     registrar: PermissionRegistrar,
  *     user: User,
  *     targetUser: User,
  *     role: Role,
- *     otherTenant: TenantKey,
+ *     otherTenant: Tenant,
  *     crossTenantUser: User
  * }
  */
 function createRoleApiContext(): array
 {
-    $keys = TenantKey::generateEnvelopeKeys();
-    $tenant = TenantKey::create($keys);
+
+    $tenant = Tenant::factory()->create();
 
     /** @var PermissionRegistrar $registrar */
     $registrar = app(PermissionRegistrar::class);
@@ -85,8 +86,7 @@ function createRoleApiContext(): array
     $targetUser = User::factory()->create(['tenant_id' => $tenant->id]);
     $role = createRoleApiRole('manager');
 
-    $otherTenantKeys = TenantKey::generateEnvelopeKeys();
-    $otherTenant = TenantKey::create($otherTenantKeys);
+    $otherTenant = Tenant::factory()->create();
     $crossTenantUser = User::factory()->create(['tenant_id' => $otherTenant->id]);
 
     seedRoleApiPermissions();

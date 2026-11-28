@@ -10,6 +10,7 @@ use App\Http\Requests\UpdateEmployeeRequest;
 use App\Models\Employee;
 use App\Models\Establishment;
 use App\Models\LegalEntity;
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -24,7 +25,7 @@ beforeEach(function (): void {
     TenantKey::setKekPath(getTestKekPath());
     TenantKey::generateKek();
 
-    $this->tenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+    $this->tenant = Tenant::factory()->create();
 
     $registrar = app(PermissionRegistrar::class);
     $registrar->setPermissionsTeamId($this->tenant->id);

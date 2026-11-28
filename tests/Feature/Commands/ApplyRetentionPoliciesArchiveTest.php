@@ -9,7 +9,7 @@ declare(strict_types=1);
 
 use App\Models\Activity;
 use App\Models\ActivityArchive;
-use App\Models\TenantKey;
+use App\Models\Tenant;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Artisan;
@@ -36,7 +36,7 @@ uses(RefreshDatabase::class);
  * @see Issue #443 Phase 2: GDPR-Compliant Hard Delete & ActivityArchive Integration
  */
 beforeEach(function () {
-    $this->tenant = TenantKey::factory()->create();
+    $this->tenant = Tenant::factory()->create();
 });
 
 test('it archives and hard deletes expired logs directly', function () {

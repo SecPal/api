@@ -10,7 +10,7 @@ declare(strict_types=1);
 use App\Jobs\BuildMerkleTreeBatch;
 use App\Jobs\SubmitMerkleRootToOpenTimestamp;
 use App\Models\Activity;
-use App\Models\TenantKey;
+use App\Models\Tenant;
 use App\Models\User;
 use App\Services\OpenTimestampService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -37,7 +37,7 @@ beforeEach(function () {
     $this->mock(OpenTimestampService::class)
         ->shouldReceive('submit')
         ->andReturn('mock-ots-proof');
-    $this->tenant = TenantKey::factory()->create();
+    $this->tenant = Tenant::factory()->create();
     $this->user = User::factory()->create(['tenant_id' => $this->tenant->id]);
 });
 

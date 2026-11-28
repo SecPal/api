@@ -22,7 +22,7 @@ return new class extends Migration
             $table->uuid('user_id')->nullable()->index();
             $table->bigInteger('email_version')->nullable();
             $table->uuid('invitation_id')->nullable();
-            $table->bigInteger('tenant_id')->nullable();
+            $table->foreignId('tenant_id')->nullable()->constrained('tenants')->restrictOnDelete();
             $table->timestampTz('expires_at');
             $table->char('token_hash', 64)->nullable();
             $table->jsonb('delivery_token_enc')->nullable();

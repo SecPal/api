@@ -5,8 +5,8 @@ SPDX-License-Identifier: CC0-1.0
 
 # Tenant Provisioning Guide
 
-Examples for the shipped tenant-key-based data model, where users have a direct
-tenant association. Use the automatic seed example only in a disposable
+Examples for the shipped model, where users have a direct association with
+a functional tenant. Each tenant has a separate key record. Use the automatic seed example only in a disposable
 development database. [ADR-014: Tenant, Identity, Employee, and Access Model](https://github.com/SecPal/.github/blob/main/docs/adr/20260720-tenant-identity-access-model-adr014.md)
 defines the accepted membership-based redesign and audited tenant bootstrap.
 The [production boundary](../deployment.md) owns deployment guidance.
@@ -25,20 +25,24 @@ The [production boundary](../deployment.md) owns deployment guidance.
 
 ## Automatic Tenant Creation (Development)
 
-**For development/staging environments**, the `DatabaseSeeder` **automatically creates** the first tenant:
+For a disposable development database, supply the exact external key mount and
+generation metadata from the [Tenant KEK application interface](../tenant-kek.md).
+Run the clean migrations, complete the separate Global Identity bootstrap,
+and seed the development accounts. The example uses an externally supplied
+synthetic Global Identity root named `preview` at generation 1:
 
 ```bash
-php artisan migrate:fresh --seed
+php artisan migrate:fresh
+php artisan identity:bootstrap preview 1 --force --no-interaction
+php artisan db:seed --no-interaction
 ```
 
 The `OrganizationalUnitSeeder` handles:
 
-1. Check if `TenantKey` exists
-2. If not: generate KEK, create envelope keys, insert tenant record
+1. Verify the tenant key inventory if the database already contains tenants
+2. Create the tenant and its wrapped keys together when initializing the database
 3. Seed organizational structure with that `tenant_id`
 4. Create test users linked to that tenant
-
-**No manual provisioning needed** for dev/staging.
 
 ---
 
@@ -51,7 +55,7 @@ the applicable deployment and authorization procedures.
 
 - ✅ API runtime and required state initialized under the [production contract](../deployment.md)
 - ✅ Database migrations completed (`php artisan migrate`)
-- ✅ KEK (Key Encryption Key) generated and secured
+- ✅ Exact external Tenant KEK and generation metadata are available
 - ✅ SSH access to production server (or provisioning API access)
 
 ---
@@ -79,7 +83,7 @@ namespace App\Console\Commands;
 
 use App\Models\OrganizationalUnit;
 use App\Models\Permission;
-use App\Models\TenantKey;
+use App\Services\TenantProvisioner;
 use App\Models\User;
 use App\Models\UserInternalOrganizationalScope;
 use Illuminate\Console\Command;
@@ -111,8 +115,7 @@ class ProvisionTenant extends Command
         try {
             // Step 1: Create tenant with encryption keys
             $this->info('1️⃣  Creating tenant encryption keys...');
-            $keys = TenantKey::generateEnvelopeKeys();
-            $tenant = TenantKey::create($keys);
+            $tenant = app(TenantProvisioner::class)->create()->tenant()->firstOrFail();
             $this->line("   ✅ Tenant created (ID: {$tenant->id})");
 
             // Step 2: Create bootstrap user
@@ -247,7 +250,7 @@ php artisan tinker
 ```
 
 ```php
-use App\Models\TenantKey;
+use App\Services\TenantProvisioner;
 use App\Models\User;
 use App\Models\OrganizationalUnit;
 use App\Models\Permission;
@@ -256,7 +259,7 @@ use Illuminate\Support\Facades\Hash;
 use Spatie\Permission\PermissionRegistrar;
 
 // 1. Create tenant
-$tenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+$tenant = app(TenantProvisioner::class)->create()->tenant()->firstOrFail();
 echo "Tenant created: ID = {$tenant->id}\n";
 
 // 2. Create bootstrap user
@@ -637,7 +640,7 @@ class TenantKeyObserver
     public function created(TenantKey $tenant): void
     {
         Log::info('Tenant provisioned', [
-            'tenant_id' => $tenant->id,
+            'tenant_id' => $tenant->tenant_id,
             'key_version' => $tenant->key_version,
         ]);
 
@@ -680,32 +683,12 @@ class StrongPassword implements Rule
 
 ### 2. Tenant Key Backup
 
-**Requirement:** All tenant encryption keys must be backed up securely
-
-**Implementation:**
-
-```bash
-#!/bin/bash
-# backup-tenant-keys.sh
-
-TENANT_ID=$1
-BACKUP_DIR="/secure/backups/tenant-keys"
-mkdir -p "$BACKUP_DIR"
-
-# Export tenant keys (encrypted)
-php artisan tinker --execute="
-  \$tenant = \App\Models\TenantKey::find(${TENANT_ID});
-  echo json_encode([
-    'tenant_id' => \$tenant->id,
-    'dek_wrapped' => base64_encode(\$tenant->dek_wrapped),
-    'idx_wrapped' => base64_encode(\$tenant->idx_wrapped),
-    'key_version' => \$tenant->key_version,
-  ]);
-" | gpg --encrypt --recipient ops@secpal.app \
-  > "${BACKUP_DIR}/tenant-${TENANT_ID}-keys.gpg"
-
-echo "Tenant keys backed up: ${BACKUP_DIR}/tenant-${TENANT_ID}-keys.gpg"
-```
+The accepted recovery set binds the database snapshot to the exact external
+Tenant KEK identity and generation. The snapshot retains tenant ownership,
+both wrapped keys and their nonces, and the committed generation state.
+Follow [Tenant KEK recovery](../tenant-kek.md#rewrap-and-restart) and the
+[deployment recovery contract](../deployment.md) for the associated external
+key retention and isolated restore.
 
 ### 3. Audit Logging
 
