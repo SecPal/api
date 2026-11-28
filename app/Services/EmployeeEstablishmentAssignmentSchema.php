@@ -69,33 +69,39 @@ final class EmployeeEstablishmentAssignmentSchema
                 LANGUAGE plpgsql SET search_path TO pg_catalog, pg_temp AS $$
                 DECLARE
                     period_end timestamptz;
+                    write_time timestamptz;
                     locked_establishment uuid;
                     first_version_at timestamptz;
                     already_closed boolean;
                 BEGIN
                     IF TG_OP = 'UPDATE' THEN
+                        -- The normal writer locks the period first. A direct
+                        -- UPDATE already holds the assignment row, so it must
+                        -- fail immediately if another session owns the period.
+                        EXECUTE format(
+                            'SELECT valid_until FROM %I.employment_periods
+                             WHERE tenant_id = $1 AND employee_id = $2 AND id = $3 FOR UPDATE NOWAIT',
+                            TG_TABLE_SCHEMA
+                        ) INTO period_end USING OLD.tenant_id, OLD.employee_id, OLD.employment_period_id;
+
+                        write_time := clock_timestamp();
+                        IF NEW.valid_until = '-infinity'::timestamptz THEN
+                            NEW.valid_until := write_time;
+                        END IF;
                         IF (OLD.id, OLD.tenant_id, OLD.employee_id, OLD.employment_period_id, OLD.establishment_id, OLD.valid_from)
                             IS DISTINCT FROM (NEW.id, NEW.tenant_id, NEW.employee_id, NEW.employment_period_id, NEW.establishment_id, NEW.valid_from)
                             OR OLD.cancelled_at IS NOT NULL
                             OR (OLD.valid_until IS NOT NULL AND (NEW.valid_until IS NULL OR NEW.valid_until > OLD.valid_until)) THEN
                             RAISE EXCEPTION 'Establishment assignment history cannot be replaced' USING ERRCODE = '23514';
                         END IF;
-                        IF NEW.cancelled_at IS NOT NULL OR (
-                            NEW.valid_until IS DISTINCT FROM OLD.valid_until AND NEW.valid_until < transaction_timestamp()
-                        ) THEN
-                            EXECUTE format(
-                                'SELECT valid_until FROM %I.employment_periods WHERE tenant_id = $1 AND employee_id = $2 AND id = $3',
-                                TG_TABLE_SCHEMA
-                            ) INTO period_end USING OLD.tenant_id, OLD.employee_id, OLD.employment_period_id;
-
-                            IF NEW.cancelled_at IS NOT NULL THEN
-                                IF period_end IS NULL OR period_end > OLD.valid_from OR NEW.valid_until IS DISTINCT FROM OLD.valid_until THEN
-                                    RAISE EXCEPTION 'Assignment is still within employment' USING ERRCODE = '23514';
-                                END IF;
-                                NEW.cancelled_at := clock_timestamp();
-                            ELSIF NEW.valid_until IS DISTINCT FROM period_end THEN
-                                RAISE EXCEPTION 'Transfers cannot alter prior effective assignments' USING ERRCODE = '23514';
+                        IF NEW.cancelled_at IS NOT NULL THEN
+                            IF period_end IS NULL OR period_end > OLD.valid_from OR NEW.valid_until IS DISTINCT FROM OLD.valid_until THEN
+                                RAISE EXCEPTION 'Assignment is still within employment' USING ERRCODE = '23514';
                             END IF;
+                            NEW.cancelled_at := write_time;
+                        ELSIF NEW.valid_until IS DISTINCT FROM OLD.valid_until AND NEW.valid_until < write_time
+                            AND NEW.valid_until IS DISTINCT FROM period_end THEN
+                            RAISE EXCEPTION 'Transfers cannot alter prior effective assignments' USING ERRCODE = '23514';
                         END IF;
                         RETURN NEW;
                     END IF;
@@ -156,7 +162,9 @@ final class EmployeeEstablishmentAssignmentSchema
                 END;
                 $$;
 
-                CREATE TRIGGER employment_periods_end_assignments
+                -- PostgreSQL orders same-kind triggers by name. Trim before
+                -- RI_ConstraintTrigger_a_* when constraints run immediately.
+                CREATE TRIGGER "00_employment_periods_end_assignments"
                     AFTER UPDATE OF valid_until ON employment_periods
                     FOR EACH ROW WHEN (NEW.valid_until IS DISTINCT FROM OLD.valid_until)
                     EXECUTE FUNCTION end_establishment_assignments();

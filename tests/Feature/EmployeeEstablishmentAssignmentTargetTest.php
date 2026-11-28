@@ -143,13 +143,11 @@ it('blocks closing an assigned branch and resolves historical names, codes and a
     $changed = $this->establishments->revise($tenant, $original->establishment_id, 'New harbour', 'HB-02',
         [...$this->address, 'house_number' => '14']);
     $initial = $this->assignments->at($tenant, $employee, $start)['assignment'];
-    DB::transaction(function () use ($tenant, $employee, $initial): void {
-        $transfer = CarbonImmutable::parse(DB::scalar('SELECT transaction_timestamp()'));
-        $this->assignments->schedule($tenant, $employee, $this->second->establishment_id, $transfer, null, $initial->id);
-    });
+    $successor = $this->assignments->schedule($tenant, $employee, $this->second->establishment_id, null, null, $initial->id);
     $closed = $this->establishments->close($tenant, $original->establishment_id);
 
     expect($closed->is_closed)->toBeTrue()
+        ->and($initial->fresh()->valid_until)->toEqual($successor->valid_from)
         ->and($this->assignments->at($tenant, $employee, $start)['establishment']->id ?? null)->toBe($original->id)
         ->and($this->assignments->at($tenant, $employee, $changed->effective_at)['establishment']->code ?? null)->toBe('HB-02')
         ->and($this->assignments->at($tenant, $employee, $changed->effective_at)['establishment']->address['house_number'] ?? null)->toBe('14')
@@ -295,8 +293,7 @@ it('resolves one committed assignment and history pair across a concurrent trans
 
         $didTransfer = true;
         DB::transaction(function () use ($tenant, $employee, $initial): void {
-            $transfer = CarbonImmutable::parse(DB::scalar('SELECT transaction_timestamp()'));
-            $this->assignments->schedule($tenant, $employee, $this->second->establishment_id, $transfer, null, $initial->id);
+            $this->assignments->schedule($tenant, $employee, $this->second->establishment_id, null, null, $initial->id);
             $this->establishments->close($tenant, $this->first->establishment_id);
         });
     });
@@ -330,4 +327,69 @@ it('preserves applied assignment history and accepts a separately evidenced earl
 
     expect($this->assignments->at($tenant, $employee, $start)['assignment']->id ?? null)->toBe($initial->id)
         ->and($this->assignments->at($tenant, $employee, $past))->toBeNull();
+});
+
+it('checks transfer time after acquiring locks even in an older transaction', function (): void {
+    $tenant = $this->tenant->id;
+    $employee = $this->employee->id;
+    $start = $this->second->effective_at;
+    $initial = DB::transaction(function () use ($tenant, $employee, $start) {
+        startAssignmentEmployment($this->employment, $this->employee, $this->evidence->id, $start);
+
+        return $this->assignments->schedule($tenant, $employee, $this->first->establishment_id, $start, null);
+    });
+    DB::transaction(function () use ($tenant, $employee, $initial): void {
+        $past = CarbonImmutable::parse(DB::scalar('SELECT clock_timestamp()'));
+        expect(fn () => $this->assignments->schedule($tenant, $employee, $this->second->establishment_id, $past, null, $initial->id))
+            ->toThrow(QueryException::class, '23514');
+    });
+
+    expect($initial->fresh()->valid_until)->toBeNull();
+});
+
+it('trims assignment coverage before an immediate temporal foreign key check', function (): void {
+    $tenant = $this->tenant->id;
+    $employee = $this->employee->id;
+    $period = DB::transaction(function () use ($tenant, $employee): EmploymentPeriod {
+        $period = startAssignmentEmployment($this->employment, $this->employee, $this->evidence->id, $this->start);
+        $this->assignments->schedule($tenant, $employee, $this->first->establishment_id, $this->start, null);
+
+        return $period;
+    });
+    $end = $this->start->addDay();
+
+    DB::transaction(function () use ($tenant, $period, $end): void {
+        DB::statement('SET CONSTRAINTS establishment_assignments_within_employment, employment_periods_assignment_coverage IMMEDIATE');
+        expect($this->employment->end($tenant, $period->id, $end, $this->evidence->id)->valid_until)->toEqual($end);
+    });
+
+    expect($this->assignments->at($tenant, $employee, $end->subMicrosecond()))->not->toBeNull()
+        ->and($this->assignments->at($tenant, $employee, $end))->toBeNull();
+});
+
+it('rejects a raw shortening that would wait for the period while holding its assignment row', function (): void {
+    $tenant = $this->tenant->id;
+    $employee = $this->employee->id;
+    $initial = DB::transaction(function () use ($tenant, $employee) {
+        startAssignmentEmployment($this->employment, $this->employee, $this->evidence->id, $this->start);
+
+        return $this->assignments->schedule($tenant, $employee, $this->first->establishment_id, $this->start, null);
+    });
+    $observer = DB::build(config('database.connections.pgsql'));
+    $observer->beginTransaction();
+
+    try {
+        DB::transaction(function () use ($initial, $observer): void {
+            DB::table('employment_periods')->where('id', $initial->employment_period_id)->lockForUpdate()->sole();
+            $end = $this->start->addDay()->format('Y-m-d H:i:s.uP');
+
+            expect(fn () => $observer->table('employee_establishment_assignments')->where('id', $initial->id)
+                ->update(['valid_until' => $end]))->toThrow(QueryException::class, '55P03');
+        });
+    } finally {
+        $observer->rollBack();
+        $observer->disconnect();
+    }
+
+    expect($initial->fresh()->valid_until)->toBeNull();
 });

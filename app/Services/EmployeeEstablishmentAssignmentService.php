@@ -15,6 +15,7 @@ use DateTimeInterface;
 use DomainException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use LogicException;
 
 /** Callers authorize both the Employee and Establishment scopes before each operation. */
 final readonly class EmployeeEstablishmentAssignmentService
@@ -28,27 +29,28 @@ final readonly class EmployeeEstablishmentAssignmentService
      * Bounds are absolute instants with microsecond precision and an exclusive
      * end. Resolve tenant civil time to an explicit offset before calling.
      * Start employment and its initial assignment in the same transaction.
-     * For an immediate transfer, use PostgreSQL's transaction_timestamp()
-     * from the enclosing write transaction as the effective instant.
+     * Pass a null start with an expected predecessor for an immediate
+     * transfer. PostgreSQL chooses the effective instant under the write locks.
      */
     public function schedule(
         int $tenantId,
         string $employeeId,
         string $establishmentId,
-        DateTimeInterface $from,
+        ?DateTimeInterface $from,
         ?DateTimeInterface $until,
         ?string $replacesId = null,
     ): EmployeeEstablishmentAssignment {
-        if (! Str::isUuid($employeeId) || ($until !== null && $until <= $from)) {
+        if (! Str::isUuid($employeeId) || ($from === null && $replacesId === null)
+            || ($from !== null && $until !== null && $until <= $from)) {
             throw new DomainException('Invalid establishment assignment interval or employee.');
         }
 
         return DB::transaction(function () use ($tenantId, $employeeId, $establishmentId, $from, $until, $replacesId): EmployeeEstablishmentAssignment {
-            $instant = $from->format('Y-m-d H:i:s.uP');
+            $instant = $from?->format('Y-m-d H:i:s.uP');
             $period = EmploymentPeriod::query()
                 ->where('tenant_id', $tenantId)
                 ->where('employee_id', $employeeId)
-                ->whereRaw('effective_range @> CAST(? AS timestamptz)', [$instant])
+                ->whereRaw('effective_range @> COALESCE(CAST(? AS timestamptz), statement_timestamp())', [$instant])
                 ->lockForUpdate()
                 ->first();
             if ($period === null) {
@@ -62,14 +64,23 @@ final readonly class EmployeeEstablishmentAssignmentService
                     ->where('employee_id', $employeeId)
                     ->where('employment_period_id', $period->id)
                     ->whereKey($replacesId)
-                    ->where('valid_from', '<', $instant)
-                    ->whereRaw('effective_range @> CAST(? AS timestamptz)', [$instant])
+                    ->whereRaw('valid_from < COALESCE(CAST(? AS timestamptz), statement_timestamp())', [$instant])
+                    ->whereRaw('effective_range @> COALESCE(CAST(? AS timestamptz), statement_timestamp())', [$instant])
+                    ->lockForUpdate()
                     ->first() : null;
                 if ($previous === null || $previous->valid_until != $until) {
                     throw new DomainException('The expected establishment assignment has changed.');
                 }
 
-                $previous->update(['valid_until' => $from]);
+                if ($from === null) {
+                    // The UPDATE trigger replaces this marker with its fresh
+                    // locked write instant before checking or storing the row.
+                    EmployeeEstablishmentAssignment::query()->whereKey($previous->id)
+                        ->update(['valid_until' => DB::raw("'-infinity'::timestamptz")]);
+                    $from = $previous->refresh()->valid_until ?? throw new LogicException('Immediate transfer lost its effective instant.');
+                } else {
+                    $previous->update(['valid_until' => $from]);
+                }
             }
 
             return EmployeeEstablishmentAssignment::query()->create([
