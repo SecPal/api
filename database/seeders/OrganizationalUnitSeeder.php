@@ -34,8 +34,7 @@ class OrganizationalUnitSeeder extends Seeder
      */
     public function run(): void
     {
-        $tenantId = Tenant::query()->oldest('id')->first()->id
-            ?? app(TenantProvisioner::class)->setup()->tenant_id
+        $tenantId = app(TenantProvisioner::class)->setup()->tenant_id
             ?? Tenant::query()->oldest('id')->firstOrFail()->id;
 
         // Create root holding

@@ -26,9 +26,15 @@ final class TenantProvisioner
     public function setup(): ?TenantKey
     {
         return $this->kek->withLease(function (): ?TenantKey {
+            if (Tenant::query()->exists()) {
+                $this->kek->verifyTenantInventory();
+
+                return null;
+            }
+
             $this->kek->initialize();
 
-            return TenantKey::query()->exists() ? null : $this->attach(Tenant::query()->create());
+            return $this->attach(Tenant::query()->create());
         }, exclusive: true);
     }
 

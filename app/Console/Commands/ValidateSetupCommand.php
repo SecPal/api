@@ -150,7 +150,7 @@ class ValidateSetupCommand extends Command
     private function checkKekFile(TenantKekRegistry $kek): bool
     {
         try {
-            $kek->withKey(static fn (): null => null);
+            $kek->verifyTenantInventory();
         } catch (\Throwable) {
             $this->line('❌ <fg=red>KEK file:</> Exact committed Tenant KEK generation unavailable');
 

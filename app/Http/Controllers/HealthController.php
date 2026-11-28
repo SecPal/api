@@ -5,7 +5,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\TenantKey;
 use App\Services\RuntimeHeartbeatService;
 use App\Services\TenantKekRegistry;
 use Illuminate\Http\JsonResponse;
@@ -56,9 +55,7 @@ class HealthController extends Controller
 
         // Observe key presence and the exact committed generation under one lease.
         try {
-            if (! $kek->withKey(static fn (): bool => TenantKey::query()->exists())) {
-                $allPassed = false;
-            }
+            $kek->verifyTenantInventory();
         } catch (\Throwable) {
             $allPassed = false;
         }

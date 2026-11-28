@@ -11,6 +11,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\StorePersonRequest;
 use App\Http\Resources\PersonResource;
 use App\Repositories\PersonRepository;
+use App\Services\TenantKekRegistry;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -27,7 +28,8 @@ use Illuminate\Support\Facades\Validator;
 class PersonController extends Controller
 {
     public function __construct(
-        private readonly PersonRepository $repository
+        private readonly PersonRepository $repository,
+        private readonly TenantKekRegistry $kek,
     ) {}
 
     /**
@@ -52,11 +54,13 @@ class PersonController extends Controller
             $attributes['note_plain'] = $request->input('note_plain');
         }
 
-        $person = $this->repository->createOrUpdate($tenantId, $attributes);
+        return $this->kek->withLease(function () use ($tenantId, $attributes): JsonResponse {
+            $person = $this->repository->createOrUpdate($tenantId, $attributes);
 
-        return (new PersonResource($person))
-            ->response()
-            ->setStatusCode(Response::HTTP_CREATED);
+            return (new PersonResource($person))
+                ->response()
+                ->setStatusCode(Response::HTTP_CREATED);
+        });
     }
 
     /**
@@ -93,14 +97,16 @@ class PersonController extends Controller
         /** @var int $tenantId */
         $tenantId = $request->get('tenant_id');
 
-        $person = $this->repository->findByEmail($tenantId, $email);
+        return $this->kek->withLease(function () use ($tenantId, $email): JsonResponse {
+            $person = $this->repository->findByEmail($tenantId, $email);
 
-        if (! $person) {
-            return response()->json([
-                'message' => __('Person not found'),
-            ], Response::HTTP_NOT_FOUND);
-        }
+            if (! $person) {
+                return response()->json([
+                    'message' => __('Person not found'),
+                ], Response::HTTP_NOT_FOUND);
+            }
 
-        return (new PersonResource($person))->response();
+            return (new PersonResource($person))->response();
+        });
     }
 }

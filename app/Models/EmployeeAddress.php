@@ -7,7 +7,6 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Facades\Auth;
 use Spatie\Activitylog\Models\Concerns\LogsActivity;
@@ -35,7 +34,7 @@ use Spatie\Activitylog\Support\LogOptions;
  * @property-read Employee $employee
  * @property-read Tenant $tenant
  */
-class EmployeeAddress extends Model
+class EmployeeAddress extends TenantEncryptedModel
 {
     /** @use HasFactory<\Database\Factories\EmployeeAddressFactory> */
     use HasFactory, HasUuids, LogsActivity;

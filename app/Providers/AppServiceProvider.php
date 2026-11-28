@@ -88,7 +88,10 @@ class AppServiceProvider extends ServiceProvider
             config()->string('global_identity.root_directory'),
         ));
         $this->app->bind(TenantKekReference::class, static function (): TenantKekReference {
-            $generation = filter_var(config('app.tenant_kek_generation'), FILTER_VALIDATE_INT);
+            $configuredGeneration = config('app.tenant_kek_generation');
+            $generation = is_string($configuredGeneration) && preg_match('/\A[1-9][0-9]*\z/', $configuredGeneration)
+                ? filter_var($configuredGeneration, FILTER_VALIDATE_INT)
+                : false;
 
             return new TenantKekReference(
                 config()->string('app.tenant_kek_id'),

@@ -25,20 +25,24 @@ The [production boundary](../deployment.md) owns deployment guidance.
 
 ## Automatic Tenant Creation (Development)
 
-**For development/staging environments**, the `DatabaseSeeder` **automatically creates** the first tenant:
+For a disposable development database, supply the exact external key mount and
+generation metadata from the [Tenant KEK application interface](../tenant-kek.md).
+Run the clean migrations, complete the separate Global Identity bootstrap,
+and seed the development accounts. The example uses an externally supplied
+synthetic Global Identity root named `preview` at generation 1:
 
 ```bash
-php artisan migrate:fresh --seed
+php artisan migrate:fresh
+php artisan identity:bootstrap preview 1 --force --no-interaction
+php artisan db:seed --no-interaction
 ```
 
 The `OrganizationalUnitSeeder` handles:
 
-1. Check if a tenant exists
+1. Verify the tenant key inventory if the database already contains tenants
 2. Create the tenant and its wrapped keys together when initializing the database
 3. Seed organizational structure with that `tenant_id`
 4. Create test users linked to that tenant
-
-**No manual provisioning needed** for dev/staging.
 
 ---
 
@@ -51,7 +55,7 @@ the applicable deployment and authorization procedures.
 
 - ✅ API runtime and required state initialized under the [production contract](../deployment.md)
 - ✅ Database migrations completed (`php artisan migrate`)
-- ✅ KEK (Key Encryption Key) generated and secured
+- ✅ Exact external Tenant KEK and generation metadata are available
 - ✅ SSH access to production server (or provisioning API access)
 
 ---
@@ -679,32 +683,12 @@ class StrongPassword implements Rule
 
 ### 2. Tenant Key Backup
 
-**Requirement:** All tenant encryption keys must be backed up securely
-
-**Implementation:**
-
-```bash
-#!/bin/bash
-# backup-tenant-keys.sh
-
-TENANT_ID=$1
-BACKUP_DIR="/secure/backups/tenant-keys"
-mkdir -p "$BACKUP_DIR"
-
-# Export tenant keys (encrypted)
-php artisan tinker --execute="
-  \$tenant = \App\Models\TenantKey::forTenant(${TENANT_ID});
-  echo json_encode([
-    'tenant_id' => \$tenant->tenant_id,
-    'dek_wrapped' => base64_encode(\$tenant->dek_wrapped),
-    'idx_wrapped' => base64_encode(\$tenant->idx_wrapped),
-    'key_version' => \$tenant->key_version,
-  ]);
-" | gpg --encrypt --recipient ops@secpal.app \
-  > "${BACKUP_DIR}/tenant-${TENANT_ID}-keys.gpg"
-
-echo "Tenant keys backed up: ${BACKUP_DIR}/tenant-${TENANT_ID}-keys.gpg"
-```
+The accepted recovery set binds the database snapshot to the exact external
+Tenant KEK identity and generation. The snapshot retains tenant ownership,
+both wrapped keys and their nonces, and the committed generation state.
+Follow [Tenant KEK recovery](../tenant-kek.md#rewrap-and-restart) and the
+[deployment recovery contract](../deployment.md) for the associated external
+key retention and isolated restore.
 
 ### 3. Audit Logging
 

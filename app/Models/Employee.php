@@ -146,7 +146,7 @@ use Spatie\Activitylog\Support\LogOptions;
  * @property-read Collection<int, OnboardingFormSubmission> $onboardingSubmissions
  * @property-read Collection<int, EmployeeAddress> $addresses
  */
-class Employee extends Model
+class Employee extends TenantEncryptedModel
 {
     /** @use HasFactory<\Database\Factories\EmployeeFactory> */
     use EnforcesTenantRouteBinding, HasFactory, HasUuids, LogsActivity, SoftDeletes {

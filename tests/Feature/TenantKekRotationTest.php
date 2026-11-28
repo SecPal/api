@@ -175,6 +175,19 @@ test('wrong key files and tenant or purpose substitutions fail closed', function
         ->and(DB::table('tenant_kek_state')->value('generation'))->toBe(1);
 });
 
+test('requires canonical decimal generation metadata at the runtime boundary', function (): void {
+    app()->forgetInstance(TenantKekReference::class);
+    (new App\Providers\AppServiceProvider(app()))->register();
+    config([
+        'app.tenant_kek_id' => $this->source->id,
+        'app.tenant_kek_generation' => true,
+        'app.tenant_kek_fingerprint' => $this->source->fingerprint,
+    ]);
+    expect(fn () => app(TenantKekReference::class))->toThrow(RuntimeException::class, 'Invalid Tenant KEK reference.');
+    config(['app.tenant_kek_generation' => '1']);
+    expect(app(TenantKekReference::class)->matches($this->source))->toBeTrue();
+});
+
 test('committed generation history rejects republishing old material and supports exact snapshot recovery', function (): void {
     $snapshotKey = $this->first->getRawOriginal();
     $snapshotState = (array) DB::table('tenant_kek_state')->first();
@@ -229,6 +242,31 @@ test('independent read and provisioning sessions wait for rewrap and use the com
     }
 });
 
+test('DEK rotation waits for an independent encrypted writer and rejects an obsolete prepared write', function (): void {
+    $tenant = $this->first->tenant_id;
+    $worker = tenantKekWorker('rotate-dek', $tenant, $this->source, $this->sourcePath);
+    $pending = new Person(['tenant_id' => $tenant]);
+    $pending->email_plain = 'pending@example.test';
+    $stale = new Person(['tenant_id' => $tenant]);
+    $stale->email_plain = 'stale@example.test';
+
+    try {
+        app(TenantKekRegistry::class)->withLease(function () use ($pending, $worker): void {
+            $pending->note_plain = 'Committed before rotation';
+            expect($pending->save())->toBeTrue();
+            assertTenantKekWorkerBlocked($worker);
+        });
+
+        expect($worker->wait())->toBe(0)
+            ->and($this->first->fresh()->key_version)->toBe(2)
+            ->and($pending->fresh()->note_enc)->toBe('Committed before rotation');
+        expect(fn () => $stale->save())->toThrow(RuntimeException::class, 'Tenant DEK changed before persistence.');
+        expect(Person::query()->where('tenant_id', $tenant)->count())->toBe(2);
+    } finally {
+        $worker->stop();
+    }
+});
+
 function approveTenantKekPlan(TenantKekRotationPlan $plan): void
 {
     app()->instance(TenantKekRotationAuthority::class, new class($plan) implements TenantKekRotationAuthority
@@ -269,6 +307,10 @@ function tenantKekWorker(
         $db = Illuminate\Support\Facades\DB::connection();
         $db->statement("SET statement_timeout = '12s'");
         echo $db->scalar('SELECT pg_backend_pid()').PHP_EOL;
+
+        if ($argv[1] === 'rotate-dek') {
+            exit(Illuminate\Support\Facades\Artisan::call('keys:rotate-dek', ['tenant' => $argv[2]]));
+        }
 
         if ($argv[1] === 'interrupt') {
             $source = $app->make(App\Services\TenantKekReference::class);

@@ -9,7 +9,6 @@ namespace App\Models;
 
 use App\Support\BootstrapContract;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use RuntimeException;
 
@@ -50,7 +49,7 @@ use RuntimeException;
  * @property-write string|null $push_token_plain
  * @property-read string|null $push_token_dec
  */
-class PushDeviceRegistration extends Model
+class PushDeviceRegistration extends TenantEncryptedModel
 {
     use HasUuids;
 

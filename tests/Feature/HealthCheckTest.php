@@ -108,6 +108,19 @@ describe('Health Check Endpoints', function () {
     });
 
     describe('GET /health/ready', function () {
+        it('rejects an incomplete or unauthenticated tenant key inventory', function (): void {
+            seedTenantKeyPresence();
+            app(RuntimeHeartbeatService::class)->recordSchedulerHeartbeat();
+            $incomplete = App\Models\Tenant::query()->create();
+
+            $this->getJson('/health/ready')->assertServiceUnavailable();
+            $incomplete->delete();
+            $key = TenantKey::query()->sole();
+            $key->update(['dek_wrapped' => $key->idx_wrapped, 'dek_nonce' => $key->idx_nonce]);
+            $this->getJson('/health/ready')->assertServiceUnavailable();
+            $this->artisan('app:validate-setup')->assertFailed();
+        });
+
         it('returns 200 OK when fully configured', function () {
             $runtimeHeartbeatService = app(RuntimeHeartbeatService::class);
 

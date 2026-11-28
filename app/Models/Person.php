@@ -36,7 +36,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  *
  * @method static \Database\Factories\PersonFactory factory($count = null, $state = [])
  */
-class Person extends Model
+class Person extends TenantEncryptedModel
 {
     /** @use HasFactory<\Database\Factories\PersonFactory> */
     use EnforcesTenantRouteBinding, HasFactory;

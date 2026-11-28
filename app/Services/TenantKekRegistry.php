@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Contracts\TenantKekRotationAuthority;
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -86,6 +87,19 @@ final readonly class TenantKekRegistry
                 return $operation($key, $reference);
             } finally {
                 sodium_memzero($key);
+            }
+        });
+    }
+
+    public function verifyTenantInventory(): void
+    {
+        $this->withKey(static function (#[\SensitiveParameter] string $key, TenantKekReference $reference): void {
+            if (! Tenant::query()->exists() || Tenant::query()->whereDoesntHave('key')->exists()) {
+                throw new RuntimeException('Tenant key inventory is incomplete.');
+            }
+
+            foreach (TenantKey::query()->lazyById() as $tenantKey) {
+                $tenantKey->verifyEnvelopes($reference, $key);
             }
         });
     }

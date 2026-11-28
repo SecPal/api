@@ -133,7 +133,7 @@ class TenantKey extends Model
             throw (new ModelNotFoundException)->setModel(self::class);
         }
 
-        return self::query()->where('tenant_id', $id)->firstOrFail();
+        return self::query()->useWritePdo()->where('tenant_id', $id)->firstOrFail();
     }
 
     /**
@@ -514,6 +514,14 @@ class TenantKey extends Model
     public function unwrapIdxKey(): string
     {
         return $this->unwrapKey('idx');
+    }
+
+    public function verifyEnvelopes(TenantKekReference $reference, #[SensitiveParameter] string $kek): void
+    {
+        $dek = $this->openEnvelope('dek', $reference, $kek);
+        sodium_memzero($dek);
+        $indexKey = $this->openEnvelope('idx', $reference, $kek);
+        sodium_memzero($indexKey);
     }
 
     public function replaceDek(#[SensitiveParameter] string $dek): void

@@ -90,6 +90,19 @@ describe('keys:rotate-kek Command', function () {
 });
 
 describe('keys:rotate-dek Command', function () {
+    test('rejects an encrypted write prepared before the DEK changed', function (): void {
+        $pending = new Person;
+        $pending->tenant_id = $this->tenant->tenant_id;
+        $pending->email_plain = 'pending@example.test';
+        $pending->note_plain = 'pending synthetic change';
+
+        $this->artisan('keys:rotate-dek', ['tenant' => $this->tenant->tenant_id])->assertSuccessful();
+
+        expect(fn () => $pending->save())->toThrow(RuntimeException::class, 'Tenant DEK changed before persistence.');
+        expect(Person::query()->count())->toBe(1)
+            ->and($this->person->fresh()->note_enc)->toBe('Test note');
+    });
+
     test('malformed ciphertext rolls back all person rewrites and the DEK change', function (): void {
         $bad = Person::factory()->create(['tenant_id' => $this->tenant->tenant_id]);
         DB::table('person')->where('id', $bad->id)->update(['email_enc' => '{"ciphertext":"!","nonce":"!"}']);

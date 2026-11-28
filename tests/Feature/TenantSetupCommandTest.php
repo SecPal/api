@@ -6,6 +6,7 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
+use App\Models\Tenant;
 use App\Models\TenantKey;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
@@ -18,6 +19,7 @@ function resetTenantSetupCommandTestState(): void
 {
     TenantKeyReadabilityOverride::clear();
     TenantKey::query()->delete();
+    Tenant::query()->delete();
     DB::table('tenant_kek_state')->delete();
     DB::table('tenant_kek_generations')->delete();
     cleanupTestKekFile();
@@ -53,6 +55,15 @@ describe('tenant:setup Command', function () {
     test('command exists and is registered', function (): void {
         $commands = Artisan::all();
         expect($commands)->toHaveKey('tenant:setup');
+    });
+
+    test('rejects an incomplete tenant inventory during setup', function (): void {
+        TenantKey::generateKek();
+        $incomplete = Tenant::query()->create();
+
+        $this->artisan('tenant:setup')->assertFailed();
+        expect(Tenant::query()->sole()->id)->toBe($incomplete->id)
+            ->and(TenantKey::query()->exists())->toBeFalse();
     });
 
     test('creates tenant keys when KEK exists and no tenant keys present', function (): void {

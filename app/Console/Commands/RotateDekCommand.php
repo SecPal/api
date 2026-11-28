@@ -77,7 +77,7 @@ class RotateDekCommand extends Command
                 }
 
                 return [$count, $oldVersion, $key->key_version];
-            });
+            }, exclusive: true);
 
             if ($result === null) {
                 return Command::FAILURE;
