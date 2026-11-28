@@ -15,7 +15,6 @@ use DateTimeInterface;
 use DomainException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
-use LogicException;
 
 /** Callers authorize both the Employee and Establishment scopes before each operation. */
 final readonly class EmployeeEstablishmentAssignmentService
@@ -72,15 +71,7 @@ final readonly class EmployeeEstablishmentAssignmentService
                     throw new DomainException('The expected establishment assignment has changed.');
                 }
 
-                if ($from === null) {
-                    // The UPDATE trigger replaces this marker with its fresh
-                    // locked write instant before checking or storing the row.
-                    EmployeeEstablishmentAssignment::query()->whereKey($previous->id)
-                        ->update(['valid_until' => DB::raw("'-infinity'::timestamptz")]);
-                    $from = $previous->refresh()->valid_until ?? throw new LogicException('Immediate transfer lost its effective instant.');
-                } else {
-                    $previous->update(['valid_until' => $from]);
-                }
+                return $this->transfer($previous, $establishmentId, $instant);
             }
 
             return EmployeeEstablishmentAssignment::query()->create([
@@ -92,6 +83,35 @@ final readonly class EmployeeEstablishmentAssignmentService
                 'valid_until' => $until,
             ]);
         });
+    }
+
+    private function transfer(
+        EmployeeEstablishmentAssignment $previous,
+        string $establishmentId,
+        ?string $instant,
+    ): EmployeeEstablishmentAssignment {
+        $id = (string) Str::uuid7();
+
+        // The trigger resolves the immediate marker to the locked write time.
+        // Both halves must be visible when immediate temporal constraints fire.
+        DB::statement(<<<'SQL'
+            WITH shortened AS (
+                UPDATE employee_establishment_assignments
+                SET valid_until = COALESCE(CAST(? AS timestamptz), '-infinity'::timestamptz)
+                WHERE tenant_id = ? AND id = ?
+                RETURNING tenant_id, employee_id, employment_period_id, valid_until
+            )
+            INSERT INTO employee_establishment_assignments
+                (id, tenant_id, employee_id, employment_period_id, establishment_id, valid_from, valid_until)
+            SELECT CAST(? AS uuid), tenant_id, employee_id, employment_period_id,
+                   CAST(? AS uuid), valid_until, CAST(? AS timestamptz)
+            FROM shortened
+            SQL, [
+            $instant, $previous->tenant_id, $previous->id, $id, $establishmentId,
+            $previous->valid_until?->format('Y-m-d H:i:s.uP'),
+        ]);
+
+        return EmployeeEstablishmentAssignment::query()->where('tenant_id', $previous->tenant_id)->findOrFail($id);
     }
 
     /**

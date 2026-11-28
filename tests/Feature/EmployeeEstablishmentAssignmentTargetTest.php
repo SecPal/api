@@ -143,7 +143,11 @@ it('blocks closing an assigned branch and resolves historical names, codes and a
     $changed = $this->establishments->revise($tenant, $original->establishment_id, 'New harbour', 'HB-02',
         [...$this->address, 'house_number' => '14']);
     $initial = $this->assignments->at($tenant, $employee, $start)['assignment'];
-    $successor = $this->assignments->schedule($tenant, $employee, $this->second->establishment_id, null, null, $initial->id);
+    $successor = DB::transaction(function () use ($tenant, $employee, $initial) {
+        DB::statement('SET CONSTRAINTS establishment_assignments_within_employment, employment_periods_assignment_coverage IMMEDIATE');
+
+        return $this->assignments->schedule($tenant, $employee, $this->second->establishment_id, null, null, $initial->id);
+    });
     $closed = $this->establishments->close($tenant, $original->establishment_id);
 
     expect($closed->is_closed)->toBeTrue()
@@ -347,23 +351,27 @@ it('checks transfer time after acquiring locks even in an older transaction', fu
     expect($initial->fresh()->valid_until)->toBeNull();
 });
 
-it('trims assignment coverage before an immediate temporal foreign key check', function (): void {
+it('preserves complete coverage during employment end and transfer with immediate temporal foreign keys', function (): void {
     $tenant = $this->tenant->id;
     $employee = $this->employee->id;
-    $period = DB::transaction(function () use ($tenant, $employee): EmploymentPeriod {
+    [$period, $initial] = DB::transaction(function () use ($tenant, $employee): array {
         $period = startAssignmentEmployment($this->employment, $this->employee, $this->evidence->id, $this->start);
-        $this->assignments->schedule($tenant, $employee, $this->first->establishment_id, $this->start, null);
+        $assignment = $this->assignments->schedule($tenant, $employee, $this->first->establishment_id, $this->start, null);
 
-        return $period;
+        return [$period, $assignment];
     });
     $end = $this->start->addDay();
+    $transfer = $end->subHour();
 
-    DB::transaction(function () use ($tenant, $period, $end): void {
+    $replacement = DB::transaction(function () use ($tenant, $employee, $period, $initial, $transfer, $end) {
         DB::statement('SET CONSTRAINTS establishment_assignments_within_employment, employment_periods_assignment_coverage IMMEDIATE');
         expect($this->employment->end($tenant, $period->id, $end, $this->evidence->id)->valid_until)->toEqual($end);
+
+        return $this->assignments->schedule($tenant, $employee, $this->second->establishment_id, $transfer, $end, $initial->id);
     });
 
-    expect($this->assignments->at($tenant, $employee, $end->subMicrosecond()))->not->toBeNull()
+    expect($this->assignments->at($tenant, $employee, $transfer->subMicrosecond())['assignment']->id ?? null)->toBe($initial->id)
+        ->and($this->assignments->at($tenant, $employee, $transfer)['assignment']->id ?? null)->toBe($replacement->id)
         ->and($this->assignments->at($tenant, $employee, $end))->toBeNull();
 });
 
