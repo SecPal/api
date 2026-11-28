@@ -24,6 +24,7 @@ use App\Services\EmployeeComplianceService;
 use App\Services\EmployeeLifecycleService;
 use App\Services\EmployeeOnboardingInvitationService;
 use App\Services\GlobalIdentity\IdentityDisplay;
+use App\Services\TenantKekRegistry;
 use App\Support\LikePattern;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -174,7 +175,7 @@ class EmployeeController extends Controller
         unset($validated['send_invitation']);
 
         // Prepare data with tenant_id FIRST (required for encryption cast to work)
-        $employee = DB::transaction(function () use ($tenantId, $validated): Employee {
+        $employee = app(TenantKekRegistry::class)->withLease(function () use ($tenantId, $validated): Employee {
             Tenant::query()->select('id')->whereKey($tenantId)->lockForUpdate()->firstOrFail();
 
             $addresses = $validated['addresses'] ?? [];

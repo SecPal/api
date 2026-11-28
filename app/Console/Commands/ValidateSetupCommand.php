@@ -8,9 +8,10 @@
 
 namespace App\Console\Commands;
 
-use App\Models\TenantKey;
+use App\Exceptions\TenantKeyInventoryException;
 use App\Services\TenantKekRegistry;
 use Illuminate\Console\Command;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 
@@ -71,8 +72,7 @@ class ValidateSetupCommand extends Command
 
         $checks = [
             'database' => $this->checkDatabase(),
-            'tenant_keys' => $this->checkTenantKeys(),
-            'kek_file' => $this->checkKekFile($kek),
+            'tenant_keys' => $this->checkTenantKeys($kek),
             'storage' => $this->checkStorage(),
             'extensions' => $this->checkExtensions(),
         ];
@@ -114,49 +114,29 @@ class ValidateSetupCommand extends Command
         }
     }
 
-    /**
-     * Check tenant key existence.
-     *
-     * @return bool True if at least one tenant key exists
-     */
-    private function checkTenantKeys(): bool
+    private function checkTenantKeys(TenantKekRegistry $kek): bool
     {
         try {
-            $count = TenantKey::count();
-
-            if ($count > 0) {
-                $keysLabel = $count === 1 ? 'key' : 'keys';
-                $this->line("✅ <fg=green>Tenant keys:</> {$count} {$keysLabel} found");
-
-                return true;
-            }
-
-            $this->line('❌ <fg=red>Tenant keys:</> 0 keys found');
+            $count = $kek->verifyTenantInventory();
+        } catch (TenantKeyInventoryException $exception) {
+            $this->line('❌ <fg=red>Tenant keys:</> '.$exception->getMessage());
+            $this->line('Follow the clean bootstrap or snapshot recovery procedure in docs/tenant-kek.md.');
 
             return false;
-        } catch (\Throwable $e) {
-            $this->line('❌ <fg=red>Tenant keys:</> Database query failed');
-            $this->line('   <fg=yellow>Error:</> '.$e->getMessage());
+        } catch (QueryException) {
+            $this->line('❌ <fg=red>Tenant keys:</> Tenant key database query failed.');
+            $this->line('Verify the tenant schema and the database role privileges.');
 
             return false;
-        }
-    }
-
-    /**
-     * Check KEK file existence, readability, and permissions.
-     *
-     * @return bool True if KEK file exists and is readable
-     */
-    private function checkKekFile(TenantKekRegistry $kek): bool
-    {
-        try {
-            $kek->verifyTenantInventory();
         } catch (\Throwable) {
             $this->line('❌ <fg=red>KEK file:</> Exact committed Tenant KEK generation unavailable');
+            $this->line('Verify the external KEK mount, permissions and exact generation metadata.');
 
             return false;
         }
 
+        $keysLabel = $count === 1 ? 'key' : 'keys';
+        $this->line("✅ <fg=green>Tenant keys:</> {$count} {$keysLabel} found and authenticated");
         $this->line('✅ <fg=green>KEK file:</> OK');
 
         return true;
@@ -218,14 +198,6 @@ class ValidateSetupCommand extends Command
         if (! $checks['database']) {
             $this->line('<fg=yellow>Check database connection in .env file</>');
             $this->line('<fg=yellow>Run:</> php artisan migrate');
-        }
-
-        if (! $checks['tenant_keys']) {
-            $this->line('<fg=yellow>Run:</> php artisan keys:generate-tenant');
-        }
-
-        if (! $checks['kek_file']) {
-            $this->line('<fg=yellow>Verify the external KEK mount, permissions and exact generation metadata.</>');
         }
 
         if (! $checks['storage']) {

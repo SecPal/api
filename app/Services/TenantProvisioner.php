@@ -17,7 +17,7 @@ final class TenantProvisioner
     public function create(): TenantKey
     {
         return $this->kek->withLease(function (): TenantKey {
-            $this->kek->initialize();
+            $this->kek->initialize(requireUninitialized: ! Tenant::query()->exists());
 
             return $this->attach(Tenant::query()->create());
         }, exclusive: true);
@@ -32,7 +32,7 @@ final class TenantProvisioner
                 return null;
             }
 
-            $this->kek->initialize();
+            $this->kek->initialize(requireUninitialized: true);
 
             return $this->attach(Tenant::query()->create());
         }, exclusive: true);

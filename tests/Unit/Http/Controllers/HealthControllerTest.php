@@ -14,6 +14,7 @@ beforeEach(function (): void {
     app(ResponseFactory::class);
 
     DB::shouldReceive('getConnections')->andReturn([]);
+    DB::shouldReceive('transactionLevel')->once()->andReturn(0);
 });
 
 it('returns 503 instead of 500 when database connectivity throws a non-exception throwable', function (): void {

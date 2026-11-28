@@ -8,6 +8,8 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Contracts\TenantKekRotationAuthority;
+use App\Exceptions\TenantKeyInventoryException;
+use App\Exceptions\TenantKeyMaintenanceException;
 use App\Models\Tenant;
 use App\Models\TenantKey;
 use Illuminate\Support\Facades\DB;
@@ -31,21 +33,36 @@ final readonly class TenantKekRegistry
      */
     public function withLease(callable $operation, bool $exclusive = false): mixed
     {
-        return DB::transaction(static function () use ($operation, $exclusive): mixed {
-            DB::selectFromWriteConnection(
-                $exclusive ? 'SELECT pg_advisory_xact_lock(?, ?)' : 'SELECT pg_advisory_xact_lock_shared(?, ?)',
-                self::LOCK,
-            );
+        $hasTransaction = DB::transactionLevel() !== 0;
+
+        return DB::transaction(static function () use ($operation, $exclusive, $hasTransaction): mixed {
+            if ($hasTransaction) {
+                // An enclosing transaction may already own domain locks.
+                $query = $exclusive
+                    ? 'SELECT pg_try_advisory_xact_lock(?, ?)'
+                    : 'SELECT pg_try_advisory_xact_lock_shared(?, ?)';
+                if (DB::scalar($query, self::LOCK, false) !== true) {
+                    throw new TenantKeyMaintenanceException;
+                }
+            } else {
+                DB::selectFromWriteConnection(
+                    $exclusive ? 'SELECT pg_advisory_xact_lock(?, ?)' : 'SELECT pg_advisory_xact_lock_shared(?, ?)',
+                    self::LOCK,
+                );
+            }
 
             return $operation();
         });
     }
 
     /** Called under the exclusive lease by explicit provisioning. */
-    public function initialize(): void
+    public function initialize(bool $requireUninitialized = false): void
     {
         $configured = app(TenantKekReference::class);
         $current = $this->current();
+        if ($current !== null && $requireUninitialized) {
+            throw new TenantKeyInventoryException('Tenant KEK registry exists without a tenant inventory.');
+        }
         if ($current !== null && ! $current->matches($configured)) {
             throw new RuntimeException('Configured Tenant KEK does not match the committed generation.');
         }
@@ -91,16 +108,28 @@ final readonly class TenantKekRegistry
         });
     }
 
-    public function verifyTenantInventory(): void
+    public function verifyTenantInventory(): int
     {
-        $this->withKey(static function (#[\SensitiveParameter] string $key, TenantKekReference $reference): void {
-            if (! Tenant::query()->exists() || Tenant::query()->whereDoesntHave('key')->exists()) {
-                throw new RuntimeException('Tenant key inventory is incomplete.');
+        return $this->withLease(function (): int {
+            $count = Tenant::query()->count();
+            if ($count === 0) {
+                throw new TenantKeyInventoryException('0 keys found');
+            }
+            if (Tenant::query()->whereDoesntHave('key')->exists()) {
+                throw new TenantKeyInventoryException('Tenant key inventory is incomplete.');
             }
 
-            foreach (TenantKey::query()->lazyById() as $tenantKey) {
-                $tenantKey->verifyEnvelopes($reference, $key);
-            }
+            $this->withKey(static function (#[\SensitiveParameter] string $key, TenantKekReference $reference): void {
+                foreach (TenantKey::query()->lazyById() as $tenantKey) {
+                    try {
+                        $tenantKey->verifyEnvelopes($reference, $key);
+                    } catch (RuntimeException) {
+                        throw new TenantKeyInventoryException('Tenant key inventory could not be authenticated.');
+                    }
+                }
+            });
+
+            return $count;
         });
     }
 

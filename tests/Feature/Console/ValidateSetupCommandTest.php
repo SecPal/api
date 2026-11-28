@@ -9,6 +9,7 @@
 use App\Models\TenantKey;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\DB;
 
 uses(RefreshDatabase::class);
 
@@ -105,6 +106,26 @@ describe('app:validate-setup Command', function () {
         expect($output)->toContain('Exact committed Tenant KEK generation unavailable');
     });
 
+    it('identifies an unauthentic inventory separately from an unavailable KEK', function (): void {
+        seedTenantKeyPresence();
+        $key = TenantKey::query()->sole();
+        $key->update(['dek_wrapped' => $key->idx_wrapped, 'dek_nonce' => $key->idx_nonce]);
+
+        expect(Artisan::call('app:validate-setup'))->toBe(1);
+        expect(Artisan::output())->toContain('Tenant key inventory could not be authenticated')
+            ->toContain('snapshot recovery')
+            ->not->toContain('Exact committed Tenant KEK generation unavailable');
+    });
+
+    it('identifies a tenant schema query error separately from an unavailable KEK', function (): void {
+        seedTenantKeyPresence();
+        DB::statement('SET LOCAL search_path TO pg_catalog');
+
+        expect(Artisan::call('app:validate-setup'))->toBe(1);
+        expect(Artisan::output())->toContain('Tenant key database query failed')
+            ->not->toContain('Exact committed Tenant KEK generation unavailable');
+    });
+
     it('detects unreadable KEK file', function () {
         // Setup: Create tenant key and KEK file
         seedTenantKeyPresence();
@@ -190,9 +211,8 @@ describe('app:validate-setup Command', function () {
         Artisan::call('app:validate-setup');
         $output = Artisan::output();
 
-        // Assert: Output contains helpful commands
-        expect($output)->toContain('Run:');
-        expect($output)->toMatch('/(php artisan|artisan)/i');
+        expect($output)->toContain('clean bootstrap or snapshot recovery')
+            ->not->toContain('keys:generate-tenant');
     });
 
     it('shows summary status line', function () {

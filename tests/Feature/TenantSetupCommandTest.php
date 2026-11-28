@@ -66,6 +66,19 @@ describe('tenant:setup Command', function () {
             ->and(TenantKey::query()->exists())->toBeFalse();
     });
 
+    test('rejects an incomplete restore that contains a KEK registry without tenants', function (): void {
+        TenantKey::generateKek();
+        TenantKey::factory()->create();
+        TenantKey::query()->delete();
+        Tenant::query()->delete();
+
+        $this->artisan('tenant:setup')->assertFailed();
+        $this->artisan('keys:generate-tenant')->assertFailed();
+
+        expect(Tenant::query()->exists())->toBeFalse()
+            ->and(DB::table('tenant_kek_state')->count())->toBe(1);
+    });
+
     test('creates tenant keys when KEK exists and no tenant keys present', function (): void {
         // Generate KEK first
         TenantKey::generateKek();

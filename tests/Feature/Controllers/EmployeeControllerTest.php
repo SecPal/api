@@ -22,6 +22,7 @@ use App\Models\Tenant;
 use App\Models\TenantKey;
 use App\Models\User;
 use App\Support\LikePattern;
+use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
@@ -629,6 +630,17 @@ describe('POST /v1/employees', function () {
     test('creates employee with auto-generated employee_number', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
 
+        $locks = [];
+        DB::listen(static function (QueryExecuted $query) use (&$locks): void {
+            if (str_contains($query->sql, 'advisory_xact_lock_shared')
+                && $query->bindings === [0x53454350, 0x544B454B]) {
+                $locks[] = 'key lease';
+            }
+            if (str_contains($query->sql, 'from "tenants"') && str_ends_with($query->sql, 'for update')) {
+                $locks[] = 'tenant row';
+            }
+        });
+
         $response = $this->withToken($this->token)
             ->postJson('/v1/employees', [
                 'first_name' => 'John',
@@ -661,6 +673,8 @@ describe('POST /v1/employees', function () {
                     'onboarding_workflow' => ['status'],
                 ],
             ]);
+
+        expect(array_slice($locks, 0, 2))->toBe(['key lease', 'tenant row']);
 
         $employeeNumber = $response->json('data.employee_number');
         expect($employeeNumber)->toMatch('/^EMP-\d{4}-\d{4}$/');

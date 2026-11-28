@@ -242,6 +242,46 @@ test('independent read and provisioning sessions wait for rewrap and use the com
     }
 });
 
+test('an independent transaction with domain locks cannot wait for an exclusive key lease', function (): void {
+    $worker = tenantKekWorker('nested-read', $this->first->tenant_id, $this->source, $this->sourcePath);
+
+    try {
+        app(TenantKekRegistry::class)->withLease(static function () use ($worker): void {
+            expect($worker->run())->toBe(0);
+        }, exclusive: true);
+    } finally {
+        $worker->stop();
+    }
+});
+
+test('a nested key read reuses its exclusive lease with an independent waiter', function (): void {
+    $worker = tenantKekWorker('wait-for-key-lease', $this->first->tenant_id, $this->source, $this->sourcePath);
+    $dek = $this->first->unwrapDek();
+
+    try {
+        app(TenantKekRegistry::class)->withLease(function () use ($worker, $dek): void {
+            assertTenantKekWorkerBlocked($worker);
+            expect($this->first->unwrapDek())->toBe($dek);
+        }, exclusive: true);
+        expect($worker->wait())->toBe(0);
+    } finally {
+        $worker->stop();
+        sodium_memzero($dek);
+    }
+});
+
+test('HTTP key lease contention returns a retryable response after rollback', function (): void {
+    $worker = tenantKekWorker('http-key-contention', $this->first->tenant_id, $this->source, $this->sourcePath);
+    try {
+        app(TenantKekRegistry::class)->withLease(
+            static fn () => expect($worker->run())->toBe(0),
+            exclusive: true,
+        );
+    } finally {
+        $worker->stop();
+    }
+});
+
 test('DEK rotation waits for an independent encrypted writer and rejects an obsolete prepared write', function (): void {
     $tenant = $this->first->tenant_id;
     $worker = tenantKekWorker('rotate-dek', $tenant, $this->source, $this->sourcePath);
@@ -249,15 +289,16 @@ test('DEK rotation waits for an independent encrypted writer and rejects an obso
     $pending->email_plain = 'pending@example.test';
     $stale = new Person(['tenant_id' => $tenant]);
     $stale->email_plain = 'stale@example.test';
+    $pending->note_plain = 'Committed before rotation';
+    Person::created(static function (Person $created) use ($pending, $worker): void {
+        if ($created === $pending) {
+            assertTenantKekWorkerBlocked($worker);
+        }
+    });
 
     try {
-        app(TenantKekRegistry::class)->withLease(function () use ($pending, $worker): void {
-            $pending->note_plain = 'Committed before rotation';
-            expect($pending->save())->toBeTrue();
-            assertTenantKekWorkerBlocked($worker);
-        });
-
-        expect($worker->wait())->toBe(0)
+        expect($pending->save())->toBeTrue()
+            ->and($worker->wait())->toBe(0)
             ->and($this->first->fresh()->key_version)->toBe(2)
             ->and($pending->fresh()->note_enc)->toBe('Committed before rotation');
         expect(fn () => $stale->save())->toThrow(RuntimeException::class, 'Tenant DEK changed before persistence.');
@@ -310,6 +351,34 @@ function tenantKekWorker(
 
         if ($argv[1] === 'rotate-dek') {
             exit(Illuminate\Support\Facades\Artisan::call('keys:rotate-dek', ['tenant' => $argv[2]]));
+        }
+
+        if ($argv[1] === 'wait-for-key-lease') {
+            $app->make(App\Services\TenantKekRegistry::class)->withLease(static fn (): null => null, exclusive: true);
+            exit(0);
+        }
+
+        if ($argv[1] === 'http-key-contention') {
+            $app->make(Illuminate\Routing\Router::class)->get('/v1/test-key-lease', static function () use ($db, $argv): void {
+                $db->transaction(static function () use ($argv): void {
+                    App\Models\TenantKey::forTenant((int) $argv[2])->unwrapDek();
+                });
+            });
+            $request = Illuminate\Http\Request::create('/v1/test-key-lease', server: ['HTTP_ACCEPT' => 'application/json']);
+            $response = $app->make(Illuminate\Contracts\Http\Kernel::class)->handle($request);
+            exit($response->getStatusCode() === 503 && $response->headers->has('Retry-After') && $db->transactionLevel() === 0 ? 0 : 1);
+        }
+
+        if ($argv[1] === 'nested-read') {
+            try {
+                $db->transaction(function () use ($db, $argv): void {
+                    $db->table('person')->where('tenant_id', (int) $argv[2])->lockForUpdate()->first();
+                    App\Models\TenantKey::forTenant((int) $argv[2])->unwrapDek();
+                });
+            } catch (RuntimeException $error) {
+                exit($error->getMessage() === 'Tenant key maintenance is in progress.' ? 0 : 1);
+            }
+            exit(1);
         }
 
         if ($argv[1] === 'interrupt') {
