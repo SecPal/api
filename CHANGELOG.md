@@ -78,6 +78,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Add non-overlapping Employee employment periods and encrypted effective-dated
+  terms for the coordinated tenant cutover. Historical terms retain exact
+  version and evidence references (refs #3104, #3115).
+
 - Add the flat tenant-local Establishment schema, service and effective-dated
   history for the coordinated cutover. The normal installation continues to use
   the pre-cutover schema (refs #3103, #3115).
