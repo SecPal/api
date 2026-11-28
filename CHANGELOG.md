@@ -78,6 +78,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Add the flat tenant-local Establishment schema, service and effective-dated
+  history for the coordinated cutover. The normal installation continues to use
+  the pre-cutover schema (refs #3103, #3115).
+
 - Add the shared identity operation delivery protocol, authenticated token
   envelopes, dispatch fencing and terminal-journal quarantine (refs #3101).
 
