@@ -6,10 +6,14 @@ name: Released API Artifact Security
 on:
   schedule:
     # One shared call per run: central evidence names are run-scoped.
-    - cron: "17 3 * * *" # FPM AMD64 daily, UTC
-    - cron: "17 5 * * *" # FPM ARM64 daily, UTC
-    - cron: "37 3 * * *" # Nginx AMD64 daily, UTC
-    - cron: "37 5 * * *" # Nginx ARM64 daily, UTC
+    - cron: "17 3 * * *" # Retained consumer FPM AMD64, UTC
+    - cron: "17 5 * * *" # Retained consumer FPM ARM64, UTC
+    - cron: "37 3 * * *" # Retained consumer Nginx AMD64, UTC
+    - cron: "37 5 * * *" # Retained consumer Nginx ARM64, UTC
+    - cron: "17 7 * * *" # Current FPM AMD64, UTC
+    - cron: "17 9 * * *" # Current FPM ARM64, UTC
+    - cron: "37 7 * * *" # Current Nginx AMD64, UTC
+    - cron: "37 9 * * *" # Current Nginx ARM64, UTC
   workflow_dispatch:
     inputs:
       component:
@@ -25,7 +29,7 @@ on:
         type: choice
         options: [linux/amd64, linux/arm64]
       index-digest:
-        description: Optional component index digest; empty uses the reviewed pair.
+        description: Exact component index of either reviewed pair. Empty uses the current release.
         required: false
         default: ""
         type: string
@@ -39,10 +43,47 @@ jobs:
     timeout-minutes: 5
     permissions: {}
     env:
-      # Authenticated publisher 42987289933: candidate attempt 1, acceptance 2.
-      # One attested pair; each component retains its own index and native SBOMs.
-      # Update this tuple only from another reviewed, accepted publication.
+      # Exact accepted pair from protected publisher 46137194899/1.
       MONITORED_RELEASE: |
+        {
+          "pair-artifact": "ghcr.io/secpal/api@sha256:65169507b1ba2da84484436354dbbbf568bd9939655ebc7cb268f9f1b927ffc5",
+          "publisher-workflow-sha": "9f039cbf1684190b2614aaf0c4952b4d96052ebc",
+          "components": {
+            "php-fpm": {
+              "index-digest": "sha256:53b540f63c417430b6b54bc7489e95ec691b6682886b9ae8f40b186968741baf",
+              "platforms": {
+                "linux/amd64": {
+                  "platform-digest": "sha256:be6a455bc795cbc23bdb52eba3376417da2bf06d6b84eb7078bae152e8efd5ef",
+                  "syft-spdx-artifact":
+                    "ghcr.io/secpal/api@sha256:e7a5f935d8c6d09273dc20ac81793d74abb0c3da86c64a46d24952e43970e102"
+                },
+                "linux/arm64": {
+                  "platform-digest": "sha256:79d6f12dfa1925a6c4f3ea02a4f67e3e2199cf49ef5a2b1d08d8a881360aa6cc",
+                  "syft-spdx-artifact":
+                    "ghcr.io/secpal/api@sha256:775354400339f61ff0f97c6992ac5b4a6b8be1fa61634b72444f0a22e0f25105"
+                }
+              }
+            },
+            "nginx": {
+              "index-digest": "sha256:b7bf2e04b178fdde287daac4ac41331f2728385b18372b98ecef0ddd2dc750b4",
+              "platforms": {
+                "linux/amd64": {
+                  "platform-digest": "sha256:ca9898a3a7b438d68575435e378a606688f75f0565741d88d87ba373ad0b164a",
+                  "syft-spdx-artifact":
+                    "ghcr.io/secpal/api@sha256:0c83f54a5d647ebe66df08ddd99c3d23be1bcd8ebc4e9deaaba7bc5059c96484"
+                },
+                "linux/arm64": {
+                  "platform-digest": "sha256:0a3456b03b5935cb36a64fcb44221be23e4cbb200be73207a0685d9907d8159b",
+                  "syft-spdx-artifact":
+                    "ghcr.io/secpal/api@sha256:ba81f0ec6bc94f02c1cc2ddeadf0d6ba676da6468f94bdc066334dd7a251477e"
+                }
+              }
+            }
+          }
+        }
+      # Publisher 42987289933: candidate attempt 1, acceptance 2.
+      # Deployment still references this accepted pair.
+      RETAINED_CONSUMER_RELEASE: |
         {
           "pair-artifact": "ghcr.io/secpal/api@sha256:b95c184cfc999d8be7a36c3d9f8a8b9bf402856a0d0923c095fe828e20a3d80a",
           "publisher-workflow-sha": "30a326d6c2e32a9e1251d75bfe603b3026babfc1",
@@ -103,20 +144,33 @@ jobs:
                   or os.environ["GITHUB_REF"] != "refs/heads/main"):
               raise SystemExit("Unsupported monitoring context.")
 
-          release = json.loads(os.environ["MONITORED_RELEASE"])
+          current = json.loads(os.environ["MONITORED_RELEASE"])
+          retained = json.loads(os.environ["RETAINED_CONSUMER_RELEASE"])
           event, schedule = os.environ["EVENT"], os.environ["SCHEDULE"]
           platform, requested = os.environ["PLATFORM"], os.environ["INDEX_DIGEST"]
           component = os.environ["COMPONENT"]
           schedules = {
-              "17 3 * * *": ("php-fpm", "linux/amd64"),
-              "17 5 * * *": ("php-fpm", "linux/arm64"),
-              "37 3 * * *": ("nginx", "linux/amd64"),
-              "37 5 * * *": ("nginx", "linux/arm64"),
+              "17 3 * * *": (retained, "php-fpm", "linux/amd64"),
+              "17 5 * * *": (retained, "php-fpm", "linux/arm64"),
+              "37 3 * * *": (retained, "nginx", "linux/amd64"),
+              "37 5 * * *": (retained, "nginx", "linux/arm64"),
+              "17 7 * * *": (current, "php-fpm", "linux/amd64"),
+              "17 9 * * *": (current, "php-fpm", "linux/arm64"),
+              "37 7 * * *": (current, "nginx", "linux/amd64"),
+              "37 9 * * *": (current, "nginx", "linux/arm64"),
           }
           if (event == "schedule" and schedule in schedules
                   and not component and not platform and not requested):
-              component, platform = schedules[schedule]
-          elif event != "workflow_dispatch" or schedule:
+              release, component, platform = schedules[schedule]
+          elif event == "workflow_dispatch" and not schedule:
+              release = current
+              if requested:
+                  matches = [pair for pair in (current, retained)
+                             if pair["components"].get(component, {}).get("index-digest") == requested]
+                  if len(matches) != 1:
+                      raise SystemExit("Unknown or ambiguous released component index.")
+                  release, = matches
+          else:
               raise SystemExit("Unsupported monitoring event.")
 
           components = release["components"]
