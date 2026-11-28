@@ -9,6 +9,7 @@ import http.server
 import importlib.util
 import json
 import os
+import re
 import shlex
 from pathlib import Path
 import unittest
@@ -473,6 +474,15 @@ class CandidateContinuation(unittest.TestCase):
         self.origin['path']+="@main"
         self.assertEqual(publisher.candidate_context(SHA,'42','2',api=self.api)['run_attempt'],'1')
 
+    def test_only_explicit_retained_mode_replaces_original_qualification_jobs(self):
+        for job in self.jobs['jobs']:
+            if (job['name'] == 'Repository Security / Accept API Repository Security'
+                    or job['name'].startswith('Build native API candidates / Native API (')):
+                job['conclusion'] = 'skipped'
+        with self.assertRaisesRegex(ValueError, 'original-execution-incomplete'):
+            publisher.candidate_context(SHA,'42','1',api=self.api)
+        self.assertEqual(publisher.candidate_context(SHA,'42','1',api=self.api,retained=True)['source_commit'],SHA)
+
     def test_runtime_pair_requires_explicit_event_and_both_component_attestation_jobs(self):
         self.origin['event']='push'
         with self.assertRaisesRegex(ValueError,'original-run-binding'):
@@ -526,6 +536,15 @@ class CandidateContinuation(unittest.TestCase):
             self.jobs['total_count']=len(self.jobs['jobs'])
             with self.assertRaises(ValueError):publisher.candidate_context(SHA,'42','2',api=self.api)
 
+    def test_retained_writer_checks_direct_jobs_after_skipped_producer_ancestors(self):
+        workflow = (ROOT/'.github/workflows/publish-container.yml').read_text()
+        for name in ('attest','verify','scan','accept'):
+            with self.subTest(job=name):
+                job = re.split(r'\n  [a-z][a-z-]+:\n', workflow.split(f'  {name}:\n',1)[1], maxsplit=1)[0]
+                self.assertIn("!cancelled() && needs.prepare.result == 'success'", job)
+                if name in ('verify','scan','accept'):
+                    self.assertIn("needs.attest.result == 'success'", job)
+
     def test_only_existing_acceptance_job_gains_continuation_and_discovery_is_last(self):
         workflow=(ROOT/'.github/workflows/publish-container.yml').read_text()
         acceptance=workflow.split('  accept:\n',1)[1]
@@ -537,6 +556,53 @@ class CandidateContinuation(unittest.TestCase):
         accept=shell.rsplit('  accept)\n',1)[1]
         self.assertLess(accept.index('container-publisher.py admission'),accept.index('publish_discovery "$evidence_digest"'))
         self.assertIn('candidate_attempt=$(jq -er .workflow.run_attempt',accept)
+
+
+class RetainedPairAcceptance(unittest.TestCase):
+    def setUp(self):
+        self.documents = {}
+        self.receipt = dict(components={}, policy_results=[], admission='ADMITTED_WITH_KNOWN_FINDINGS')
+        manifests = {}
+        for role, index, letters in (('php-fpm', 'b', 'cd'), ('nginx', 'e', 'fa')):
+            manifests[role] = {'linux/'+arch: 'sha256:'+letter*64
+                               for arch, letter in zip(('amd64','arm64'), letters, strict=True)}
+            self.receipt['components'][role] = dict(index_digest='sha256:'+index*64, platforms=manifests[role])
+        workflow = dict(repository='SecPal/api', path='.github/workflows/publish-container.yml',
+                        commit=SHA, run_id='42', run_attempt='1')
+        for role, scope in self.receipt['components'].items():
+            subjects, scans, sboms, smokes = [], [], [], []
+            for platform_name, identity in scope['platforms'].items():
+                subjects.append(dict(platform=platform_name, manifest_digest=identity,
+                                     labels={'secpal.dev/runtime-component':role}))
+                self.receipt['policy_results'].append(dict(subject=dict(oci_digest=identity),gate_state='REVIEW_REQUIRED'))
+                scans.extend(dict(platform=platform_name,scanner=scanner,policy_result='REVIEW_REQUIRED',status='SUCCEEDED')
+                             for scanner in ('grype','trivy'))
+                sboms.append(dict(platform=platform_name,subject_digest=identity))
+                smokes.append(dict(platform=platform_name,digest=identity,result='SUCCEEDED',
+                                   runtime_pair={component:items[platform_name] for component,items in manifests.items()}))
+            self.documents[role] = dict(source=dict(repository=publisher.SOURCE, commit=SHA, runtime=role),
+                workflow=workflow,subject=dict(repository=publisher.REPOSITORY,index_digest=scope['index_digest'],
+                    platforms=subjects),generated_at=NOW,extensions={publisher.SOURCE:{}},
+                scans=scans,sboms=sboms,smoke_tests=smokes)
+
+    def test_only_complete_pair_is_bound_to_one_receipt(self):
+        pair = publisher.assemble_runtime_pair(self.documents, SHA, NOW, receipt=self.receipt)
+        self.assertEqual(set(pair['images']), {'php-fpm','nginx'})
+        self.assertEqual(pair['artifact_security_admission_sha256'], digest(encoded(self.receipt)+b'\n'))
+        with self.assertRaisesRegex(ValueError, 'pair-qualification'):
+            publisher.assemble_runtime_pair(self.documents, SHA, NOW)
+
+    def test_partial_or_substituted_pair_cannot_assemble(self):
+        for mutate in (
+            lambda docs: docs.pop('nginx'),
+            lambda docs: docs['nginx']['scans'].pop(),
+            lambda docs: docs['nginx']['smoke_tests'][1]['runtime_pair'].pop('php-fpm'),
+            lambda docs: docs['nginx']['subject'].update(index_digest='sha256:'+'0'*64),
+        ):
+            with self.subTest(mutation=mutate), self.assertRaises(ValueError):
+                docs=copy.deepcopy(self.documents)
+                mutate(docs)
+                publisher.assemble_runtime_pair(docs, SHA, NOW, receipt=self.receipt)
 
 
 class EvidenceRetention(unittest.TestCase):
@@ -577,6 +643,22 @@ class InterruptedContinuation(unittest.TestCase):
                      prepared='/fixture', GITHUB_SHA=SHA, GITHUB_RUN_ID='42', evidence_digest=digest(b'fixture'))
             setup='set -eu\npython3() { return 1; }\npublish_discovery() { touch "$MARKER"; }\n'
             result=subprocess.run(['bash','-c',setup+block],env=env,capture_output=True,text=True)
+            self.assertNotEqual(result.returncode,0)
+            self.assertFalse((root/'discovery').exists())
+
+
+    def test_revoked_after_staging_does_not_reach_discovery(self):
+        script=(ROOT/'scripts/publish-container.sh').read_text()
+        start=script.index('      python3 scripts/container-publisher.py admission-pair')
+        end=script.index('      printf \'runtime_pair_digest=',start)
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            (root/'risk-admission.json').write_text('{}')
+            env=dict(os.environ, MARKER=str(root/'discovery'), repo_root='/fixture',
+                     prepared=str(root), GITHUB_SHA=SHA, GITHUB_RUN_ID='42',
+                     evidence_digest=digest(b'fixture'), continuation='/observer', vex_root='/catalog')
+            setup='set -eu\npython3() { test "$1" != /observer; }\npublish_discovery() { touch "$MARKER"; }\n'
+            result=subprocess.run(['bash','-c',setup+script[start:end]],env=env,capture_output=True,text=True)
             self.assertNotEqual(result.returncode,0)
             self.assertFalse((root/'discovery').exists())
 
@@ -717,7 +799,7 @@ class PreRegistryAdmission(unittest.TestCase):
             env=dict(os.environ, PATH=str(bin_dir)+os.pathsep+os.environ['PATH'],RUNNER_TEMP=str(root),
                      GITHUB_REPOSITORY='SecPal/api',GITHUB_EVENT_NAME='workflow_dispatch',
                      GITHUB_REF='refs/heads/main',GITHUB_REF_PROTECTED='true',GITHUB_ACTOR='fixture',
-                     GH_TOKEN='fixture-token',QUALIFICATION_CALL=str(root/'qualification'),
+                     GITHUB_RUN_ID='42',GITHUB_RUN_ATTEMPT='1',GH_TOKEN='fixture-token',QUALIFICATION_CALL=str(root/'qualification'),
                      REGISTRY_CALL=str(root/'registry'))
             for verdict in (1,0):
                 result=subprocess.run(['bash',str(ROOT/'scripts/publish-container.sh'),'prepare'],cwd=root,

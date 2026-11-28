@@ -83,7 +83,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: SecPal/.github
-          ref: 4892b3248faac245047fdb1dc93fc77fc3d08e02
+          ref: 20a48e188518f90f24e43d99e5e73a3f712e1b71
           path: .context/publisher-governance
           persist-credentials: false
           fetch-depth: 0
@@ -98,7 +98,7 @@ jobs:
       - name: Install locked accepted schema validator
         run: 'python3 -m venv "$RUNNER_TEMP/secpal-policy"
 
-          "$RUNNER_TEMP/secpal-policy/bin/pip" install --requirement .context/publisher-governance/requirements/vulnerability-policy.txt
+          "$RUNNER_TEMP/secpal-policy/bin/pip" install --requirement .context/publisher-governance/requirements/requirements.txt
 
           printf ''%s\n'' "$RUNNER_TEMP/secpal-policy/bin" >> "$GITHUB_PATH"'
       - name: Set up PHP
@@ -182,7 +182,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: SecPal/.github
-          ref: 4892b3248faac245047fdb1dc93fc77fc3d08e02
+          ref: 20a48e188518f90f24e43d99e5e73a3f712e1b71
           path: .context/publisher-governance
           persist-credentials: false
           fetch-depth: 0
@@ -303,7 +303,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: SecPal/.github
-          ref: 4892b3248faac245047fdb1dc93fc77fc3d08e02
+          ref: 20a48e188518f90f24e43d99e5e73a3f712e1b71
           path: .context/publisher-governance
           persist-credentials: false
           fetch-depth: 0
@@ -336,7 +336,7 @@ jobs:
         if: needs.applicability.outputs.mode != 'not-applicable'
         run: |
           python3 -m venv "$RUNNER_TEMP/secpal-policy"
-          "$RUNNER_TEMP/secpal-policy/bin/pip" install --requirement .context/publisher-governance/requirements/vulnerability-policy.txt
+          "$RUNNER_TEMP/secpal-policy/bin/pip" install --requirement .context/publisher-governance/requirements/requirements.txt
           printf '%s\n' "$RUNNER_TEMP/secpal-policy/bin" >> "$GITHUB_PATH"
       - name: Scan exact unpublished artifacts under unchanged policy
         if: needs.applicability.outputs.mode == 'build'

@@ -253,8 +253,18 @@ it('gates official publication on source security and native validation', functi
     $w = containerPublishingWorkflow();
     expect(array_keys($w['on']))->toBe(['workflow_dispatch', 'push'])
         ->and($w['on']['push'])->toBe(['branches' => ['main']])
-        ->and($w['jobs']['prepare']['if'])->toBe("github.event_name == 'workflow_dispatch'")
-        ->and($w['on']['workflow_dispatch'])->toBeNull()
+        ->and($w['jobs']['prepare']['if'])->toContain(
+            "github.event_name == 'workflow_dispatch'",
+            "needs.build.result == 'success'",
+            "needs.repository-security.result == 'success'",
+            'inputs.publish-retained',
+        )
+        ->and(array_keys($w['on']['workflow_dispatch']['inputs']))->toBe(['qualified-run', 'qualified-attempt', 'publish-retained'])
+        ->and($w['on']['workflow_dispatch']['inputs']['publish-retained']['default'])->toBeFalse()
+        ->and($w['jobs']['inspect-retained']['permissions'])->toBe(['contents' => 'read', 'actions' => 'read'])
+        ->and($w['jobs']['inspect-retained']['if'])->toContain('!inputs.publish-retained')
+        ->and($w['jobs']['build']['if'])->toContain('!inputs.qualified-run', '!inputs.qualified-attempt')
+        ->and($w['jobs']['accept']['if'])->toContain("needs.verify.result == 'success'", "needs.scan.result == 'success'")
         ->and($w['permissions'])->toBe([])
         ->and($w['jobs']['repository-security']['uses'])->toBe('./.github/workflows/reusable-repository-security.yml')
         ->and($w['jobs']['build']['needs'])->toBe(['repository-security'])
@@ -273,7 +283,11 @@ it('gates official publication on source security and native validation', functi
         if ($job === 'accept') {
             $expected['actions'] = 'read';
         }
-        $expected += ['packages' => 'write', 'attestations' => 'write', 'id-token' => 'write'];
+        $expected['packages'] = 'write';
+        if ($job === 'accept') {
+            $expected['issues'] = 'read';
+        }
+        $expected += ['attestations' => 'write', 'id-token' => 'write'];
         expect($w['jobs'][$job]['permissions'])->toBe($expected);
     }
 });
@@ -312,19 +326,19 @@ it('refreshes source evidence on the pristine checkout before materializing publ
         ->and($steps[3]['name'])->toBe('Require fresh CLEAN source evidence');
 });
 
-it('uses immutable v4 code and separately authenticated decision data', function (): void {
+it('uses immutable policy code and separately authenticated decision data', function (): void {
     $root = dirname(__DIR__, 2);
     $publisher = containerPublishingWorkflow();
     $native = Yaml::parseFile($root.'/.github/workflows/container-image.yml');
     $references = [];
 
-    foreach ([$publisher['jobs']['prepare'], $publisher['jobs']['accept'], $native['jobs']['validate']] as $job) {
+    foreach ([$publisher['jobs']['inspect-retained'], $publisher['jobs']['prepare'], $publisher['jobs']['accept'], $native['jobs']['validate']] as $job) {
         $checkouts = array_values(array_filter($job['steps'], static fn (array $step): bool => ($step['with']['path'] ?? null) === '.context/publisher-governance'));
         expect($checkouts)->toHaveCount(1)
             ->and($checkouts[0]['with']['repository'])->toBe('SecPal/.github')
             ->and($checkouts[0]['with']['ref'])->toMatch('/\\A[0-9a-f]{40}\\z/')
             ->and($checkouts[0]['with']['persist-credentials'])->toBeFalse()
-            ->and(containerPublishingRunScripts($job))->toContain('requirements/vulnerability-policy.txt');
+            ->and(containerPublishingRunScripts($job))->toContain('requirements/requirements.txt');
         $references[] = $checkouts[0]['with']['ref'];
     }
 
@@ -676,7 +690,11 @@ it('limits the pinned credential handoff to OCI attestation windows and always r
         if (isset($job['permissions']['actions'])) {
             $expected['actions'] = 'read';
         }
-        $expected += ['packages' => 'write', 'attestations' => 'write', 'id-token' => 'write'];
+        $expected['packages'] = 'write';
+        if ($name === 'accept') {
+            $expected['issues'] = 'read';
+        }
+        $expected += ['attestations' => 'write', 'id-token' => 'write'];
         expect($job['permissions'])->toBe($expected);
 
         if ($name === 'accept') {

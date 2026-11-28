@@ -13,12 +13,50 @@ repository=ghcr.io/secpal/api
 prepared="$repo_root/.context/publisher"
 tools="${RUNNER_TEMP:?}/secpal-publisher-tools"
 governance="$repo_root/.context/publisher-governance"
+continuation="$governance/scripts/secpal-publisher-continuation.py"
+vex_root="$repo_root/.context/reviewed-vex"
+native_run="$GITHUB_RUN_ID"
+native_attempt="$GITHUB_RUN_ATTEMPT"
 if [ "$stage" = prepare ]; then
   test "${GITHUB_REF_PROTECTED:?}" = true
   mkdir -p "$prepared"
-  python3 scripts/container-publisher.py qualify-unpublished-pair \
-    --root "$repo_root" --native .context/native --scan-root .context/unpublished-release \
-    --output "$prepared/unpublished-release-admission.json" --require-clean
+  if [[ -n "${QUALIFIED_RUN:-}${QUALIFIED_ATTEMPT:-}" || "${PUBLISH_RETAINED:-false}" == true ]]; then
+    [[ "${QUALIFIED_RUN:-}" =~ ^[1-9][0-9]{0,17}$ && "${QUALIFIED_ATTEMPT:-}" =~ ^[1-9][0-9]{0,5}$ ]]
+    native_run="$QUALIFIED_RUN"
+    native_attempt="$QUALIFIED_ATTEMPT"
+    python3 "$continuation" restore --root .context --run "$native_run" --attempt "$native_attempt"
+    evidence_sha=$(python3 "$continuation" snapshot --root .context --vex-root "$vex_root" \
+      --output "$prepared/risk-evidence.json")
+    printf 'Canonical retained evidence SHA-256: %s\n' "$evidence_sha" >> "$GITHUB_STEP_SUMMARY"
+    cp .context/retained/source-security.json "$prepared/retained-source-security.json"
+    for role in php-fpm nginx; do
+      GITHUB_RUN_ID="$native_run" GITHUB_RUN_ATTEMPT="$native_attempt" python3 scripts/container-publisher.py prepare \
+        --root "$repo_root" --native .context/native --security "$prepared/retained-source-security.json" \
+        --runtime "$role" --output "$prepared/$role"
+      jq -e --arg role "$role" --slurpfile evidence "$prepared/risk-evidence.json" '
+        $evidence[0].components[$role] as $expected |
+        .index_digest == $expected.index_digest and
+        ([.records[].subject | [.manifest_digest, .config_digest]] ==
+         [$expected.platforms[] | [.evaluation.subject.oci_digest, .config_digest]])
+      ' "$prepared/$role/prepared.json" >/dev/null
+      for arch in amd64 arm64; do
+        native=".context/native/api-native-$arch-$native_run-$native_attempt/$role"
+        cmp "$native/syft.spdx.json" ".context/retained/$role/$arch/sbom/syft.spdx.json"
+        cmp "$native/association.json" ".context/retained/$role/$arch/sbom/association.json"
+      done
+    done
+    if [[ "${PUBLISH_RETAINED:-false}" != true ]]; then exit 0; fi
+    python3 "$continuation" observe --evidence "$prepared/risk-evidence.json" --vex-root "$vex_root" \
+      --output "$prepared/risk-admission.json"
+    cp .context/retained/unpublished-runtime-pair.json "$prepared/unpublished-runtime-pair.json"
+    cp .context/retained/bundle.jsonl "$prepared/unpublished-runtime-pair.bundle.jsonl"
+    mkdir -p "$prepared/retained-scan"
+    cp -a .context/retained/{php-fpm,nginx} "$prepared/retained-scan/"
+  else
+    python3 scripts/container-publisher.py qualify-unpublished-pair \
+      --root "$repo_root" --native .context/native --scan-root .context/unpublished-release \
+      --output "$prepared/unpublished-release-admission.json" --require-clean
+  fi
 fi
 auth_root=$(mktemp -d "$RUNNER_TEMP/secpal-api-registry.XXXXXX")
 export DOCKER_CONFIG="$auth_root"
@@ -68,12 +106,14 @@ prepare_component() {
     local component=$1 prepared="$prepared/$1"
     local security_file=.context/repository-security/result.json
     local index_digest sboms arch native manifest layout sbom_digest spdx_digest config
-    python3 scripts/container-publisher.py prepare --root "$repo_root" --native .context/native \
-      --security "$security_file" --runtime "$component" --output "$prepared"
+    if [[ ! -f "$prepared/../risk-admission.json" ]]; then
+      python3 scripts/container-publisher.py prepare --root "$repo_root" --native .context/native \
+        --security "$security_file" --runtime "$component" --output "$prepared"
+    fi
     index_digest=$(jq -er .index_digest "$prepared/prepared.json")
     sboms='[]'
     for arch in amd64 arm64; do
-      native="$repo_root/.context/native/api-native-$arch-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT/$component"
+      native="$repo_root/.context/native/api-native-$arch-$native_run-$native_attempt/$component"
       manifest=$(jq -er .subject.manifest_digest "$native/record.json")
       "$tools/oras" cp --to-registry-config "$REGISTRY_AUTH_FILE" --from-oci-layout \
         "$native/image@$manifest" "$repository@$manifest"
@@ -199,6 +239,10 @@ PYSMOKE
       evidence_files=(runtime-pair.json:application/json build-evidence.bundle.json:application/json
         php-fpm/build-evidence.json:application/json php-fpm/source-security.json:application/json
         nginx/build-evidence.json:application/json nginx/source-security.json:application/json)
+      if [[ -f "$prepared/risk-admission.json" ]]; then
+        evidence_files+=(risk-admission.json:application/json risk-evidence.json:application/json
+          unpublished-runtime-pair.json:application/json unpublished-runtime-pair.bundle.jsonl:application/json)
+      fi
       (
         cd "$prepared"
         "$tools/oras" push --oci-layout --image-spec v1.1 --artifact-type application/vnd.secpal-build-evidence.v1+json \
@@ -217,6 +261,12 @@ PYSMOKE
       "$tools/oras" pull --registry-config "$REGISTRY_AUTH_FILE" --output "$readback" "$repository@$evidence_digest"
       cmp "$prepared/runtime-pair.json" "$readback/runtime-pair.json"
       cmp "$prepared/build-evidence.bundle.json" "$readback/build-evidence.bundle.json"
+      if [[ -f "$prepared/risk-admission.json" ]]; then
+        cmp "$prepared/risk-admission.json" "$readback/risk-admission.json"
+        cmp "$prepared/risk-evidence.json" "$readback/risk-evidence.json"
+        cmp "$prepared/unpublished-runtime-pair.json" "$readback/unpublished-runtime-pair.json"
+        cmp "$prepared/unpublished-runtime-pair.bundle.jsonl" "$readback/unpublished-runtime-pair.bundle.jsonl"
+      fi
       gh attestation verify "$readback/runtime-pair.json" --bundle "$readback/build-evidence.bundle.json" \
         --repo SecPal/api --signer-workflow SecPal/api/.github/workflows/publish-container.yml \
         --signer-digest "$GITHUB_SHA" --source-ref refs/heads/main --source-digest "$GITHUB_SHA" --deny-self-hosted-runners
@@ -224,6 +274,10 @@ PYSMOKE
       rm -rf -- "$readback"
       python3 scripts/container-publisher.py admission-pair --root "$repo_root" --prepared "$prepared" \
         --scan-root .context/scan --smoke-root .context/smoke
+      if [[ -f "$prepared/risk-admission.json" ]]; then
+        python3 "$continuation" observe --vex-root "$vex_root" --evidence "$prepared/risk-evidence.json" \
+          --compare "$prepared/risk-admission.json" --output "$prepared/risk-final-recheck.json"
+      fi
       candidate_attempt=$(jq -er .workflow.run_attempt "$prepared/runtime-pair.json")
       published_tag="runtime-pair-$GITHUB_SHA-$GITHUB_RUN_ID-$candidate_attempt"
       publish_discovery "$evidence_digest" "$published_tag" "$prepared/build-evidence-manifest.json"

@@ -14,6 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- Continue protected OCI publication of an exact, previously qualified PHP-FPM
+  and Nginx pair through one explicit operator decision (refs #3061).
+
 - Update the Nginx runtime to 1.30.8 for CVE-2026-132779 (refs #3061).
 
 - Encrypt global User email and MFA material with the Global Identity key

@@ -18,9 +18,15 @@ function repositorySecurityWorkflow(string $name): array
 it('requires repository security acceptance before publication and provides PR feedback', function (): void {
     $jobs = repositorySecurityWorkflow('publish-container')['jobs'];
     $publisher = $jobs['prepare'];
+    $freshQualification = '${{ !inputs.qualified-run && !inputs.qualified-attempt && !inputs.publish-retained }}';
 
     expect($publisher['needs'])->toBe(['build', 'repository-security'])
-        ->and($publisher['if'])->toBe("github.event_name == 'workflow_dispatch'")
+        ->and($publisher['if'])->toContain(
+            "github.event_name == 'workflow_dispatch'",
+            "needs.build.result == 'success' && needs.repository-security.result == 'success'",
+            'inputs.publish-retained',
+        )
+        ->and($jobs['inspect-retained']['permissions'])->toBe(['contents' => 'read', 'actions' => 'read'])
         ->and($publisher)->not->toHaveKey('continue-on-error')
         ->and($jobs['candidate']['needs'])->toBe(['build', 'repository-security'])
         ->and($jobs['candidate'])->not->toHaveKey('continue-on-error');
@@ -29,7 +35,8 @@ it('requires repository security acceptance before publication and provides PR f
         $workflow = repositorySecurityWorkflow($name);
         $caller = $workflow['jobs']['repository-security'];
 
-        expect($caller)->toBe([
+        $condition = $name === 'publish-container' ? ['if' => $freshQualification] : [];
+        expect($caller)->toBe($condition + [
             'name' => 'Repository Security',
             'permissions' => ['contents' => 'read'],
             'uses' => './.github/workflows/reusable-repository-security.yml',
@@ -38,7 +45,8 @@ it('requires repository security acceptance before publication and provides PR f
 
     $download = array_values(array_filter($publisher['steps'], static fn (array $step): bool => $step['name'] === 'Read exact source security evidence'))[0];
     expect($download['with']['name'])->toBe('${{ needs.repository-security.outputs.evidence-artifact }}')
-        ->and($download['with'])->not->toHaveKey('pattern');
+        ->and($download['with'])->not->toHaveKey('pattern')
+        ->and($download['if'])->toBe($freshQualification);
     expect(array_keys(repositorySecurityWorkflow('publish-container')['on']))->toBe(['workflow_dispatch', 'push'])
         ->and(repositorySecurityWorkflow('quality')['on'])->toBe([
             'push' => ['branches' => ['main']],
