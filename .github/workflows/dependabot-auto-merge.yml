@@ -38,7 +38,7 @@ permissions:
 
 jobs:
   auto-merge:
-    uses: SecPal/.github/.github/workflows/reusable-dependabot-auto-merge.yml@56f7ee88608c46e51da8641328d34cadcf299408 # v1.1.2
+    uses: SecPal/.github/.github/workflows/reusable-dependabot-auto-merge.yml@663706d3fdabc879654057eb52f9fa74460f1267 # v1.1.3
     secrets:
       dependabot-merger-private-key: ${{ secrets.DEPENDABOT_MERGER_PRIVATE_KEY }}
     with:
