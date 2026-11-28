@@ -221,3 +221,27 @@ it('rejects country values that do not use alpha-2 notation', function (): void 
 
     expect(DB::table('establishment_versions')->count())->toBe(0);
 });
+
+it('requires a visible locked owner before examining history in another session', function (): void {
+    $observer = DB::build(config('database.connections.pgsql'));
+    $observer->statement("SET lock_timeout TO '1s'");
+
+    try {
+        $attributes = DB::transaction(function () use ($observer): array {
+            $first = $this->service->create($this->tenant->id, 'Operations', null, establishmentAddress());
+            $this->service->close($this->tenant->id, $first->establishment_id);
+            $attributes = $first->getAttributes();
+            unset($attributes['id'], $attributes['effective_at']);
+
+            expect(fn () => $observer->table('establishment_versions')->insert($attributes))
+                ->toThrow(QueryException::class, 'Establishment history owner is unavailable');
+
+            return $attributes;
+        });
+
+        expect(fn () => $observer->table('establishment_versions')->insert($attributes))
+            ->toThrow(QueryException::class, 'Establishment history is closed');
+    } finally {
+        $observer->disconnect();
+    }
+});

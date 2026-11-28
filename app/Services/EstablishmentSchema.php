@@ -56,6 +56,7 @@ final class EstablishmentSchema
                 LANGUAGE plpgsql
                 SET search_path TO pg_catalog, pg_temp AS $$
                 DECLARE
+                    locked_owner uuid;
                     previous_effective_at timestamptz;
                     previously_closed boolean;
                 BEGIN
@@ -68,9 +69,13 @@ final class EstablishmentSchema
 
                     -- Serialize appends and invalidate older transaction snapshots.
                     EXECUTE format(
-                        'UPDATE %I.establishments SET tenant_id = tenant_id WHERE tenant_id = $1 AND id = $2',
+                        'UPDATE %I.establishments SET tenant_id = tenant_id
+                         WHERE tenant_id = $1 AND id = $2 RETURNING id',
                         TG_TABLE_SCHEMA
-                    ) USING NEW.tenant_id, NEW.establishment_id;
+                    ) INTO locked_owner USING NEW.tenant_id, NEW.establishment_id;
+                    IF locked_owner IS NULL THEN
+                        RAISE EXCEPTION 'Establishment history owner is unavailable' USING ERRCODE = '23503';
+                    END IF;
 
                     EXECUTE format(
                         'SELECT effective_at, is_closed FROM %I.establishment_versions
