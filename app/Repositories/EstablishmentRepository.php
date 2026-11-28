@@ -10,6 +10,7 @@ namespace App\Repositories;
 use App\Models\Organization\Establishment;
 use App\Models\Organization\EstablishmentVersion;
 use DateTimeInterface;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -40,12 +41,24 @@ final class EstablishmentRepository
             return null;
         }
 
-        $query = EstablishmentVersion::query()->where('tenant_id', $tenantId)->where('establishment_id', $id);
+        return $this->latestQuery($tenantId, $at)->where('establishment_id', $id)->first();
+    }
+
+    /** @return Builder<EstablishmentVersion> */
+    public function latestQuery(int $tenantId, ?DateTimeInterface $at): Builder
+    {
+        $query = EstablishmentVersion::query()->where('tenant_id', $tenantId);
         if ($at !== null) {
             $query->where('effective_at', '<=', $at->format('Y-m-d H:i:s.uP'));
         }
 
-        return $query->orderByDesc('effective_at')->first();
+        return $query->orderByDesc('effective_at')->limit(1);
+    }
+
+    public function exactVersion(int $tenantId, string $establishmentId, int $versionId): ?EstablishmentVersion
+    {
+        return EstablishmentVersion::query()->where('tenant_id', $tenantId)
+            ->where('establishment_id', $establishmentId)->find($versionId);
     }
 
     /** @param array{name: string, code: ?string, address: array<string, mixed>} $details */
