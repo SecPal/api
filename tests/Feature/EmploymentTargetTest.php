@@ -5,6 +5,7 @@
 
 declare(strict_types=1);
 
+use App\Exceptions\EmploymentTermsWriteException;
 use App\Models\Employee;
 use App\Models\EmployeeDocument;
 use App\Models\Tenant;
@@ -19,6 +20,7 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 uses()->group('serial');
 
@@ -106,7 +108,7 @@ it('resolves future conditions at their exact effective instant and preserves co
         ->and(DB::table('employment_terms_versions')->where('id', $initial?->id)->value('conditions_enc'))->not->toContain('Synthetic private role')
         ->and($initial?->toArray())->not->toHaveKey('conditions_enc')
         ->and(fn () => $this->employment->recordTerms($this->tenant->id, $period->id, $effective, $this->evidence->id,
-            employmentConditions(), $future->id))->toThrow(QueryException::class);
+            employmentConditions(), $future->id))->toThrow(EmploymentTermsWriteException::class, '23514');
 });
 
 it('rejects cross-tenant period operations and evidence for a different employee', function (): void {
@@ -121,7 +123,7 @@ it('rejects cross-tenant period operations and evidence for a different employee
         $otherEvidence->id, employmentConditions()))->toThrow(ModelNotFoundException::class)
         ->and($this->employment->termsAt($otherTenant->id, $period->id, $start))->toBeNull()
         ->and(fn () => $this->employment->recordTerms($this->tenant->id, $period->id, $start->addDay(),
-            $otherEvidence->id, employmentConditions()))->toThrow(QueryException::class, '23503')
+            $otherEvidence->id, employmentConditions()))->toThrow(EmploymentTermsWriteException::class, '23503')
         ->and(fn () => $this->employment->end($this->tenant->id, $period->id, $start->addDays(2),
             $otherEvidence->id))->toThrow(QueryException::class, '23503')
         ->and($period->fresh()->valid_until)->toBeNull();
@@ -142,7 +144,7 @@ it('serializes overlapping period writes in PostgreSQL across independent sessio
         });
         expect(fn () => $observer->table('employment_periods')->insert($overlap))->toThrow(QueryException::class, '23P01')
             ->and(fn () => $this->employment->start($this->tenant->id, $this->employee->id, employmentTime('2027-02-01'),
-                employmentTime('2027-05-01'), $this->evidence->id, employmentConditions()))->toThrow(QueryException::class, '23P01');
+                employmentTime('2027-05-01'), $this->evidence->id, employmentConditions()))->toThrow(EmploymentTermsWriteException::class, '23P01');
     } finally {
         $observer->disconnect();
     }
@@ -211,12 +213,18 @@ it('keeps plaintext conditions out of captured encryption failure arguments', fu
             $this->evidence->id, employmentConditions());
         $this->fail('A missing key must abort starting employment.');
     } catch (Throwable $failure) {
-        $containsPlaintext = function (mixed $value) use (&$containsPlaintext): bool {
+        $seen = new SplObjectStorage;
+        $containsPlaintext = function (mixed $value) use (&$containsPlaintext, $seen): bool {
             if (is_string($value)) {
                 return str_contains($value, 'Synthetic private role');
             }
             if (is_array($value)) {
                 return array_any($value, $containsPlaintext);
+            }
+            if ($value instanceof Closure && ! $seen->contains($value)) {
+                $seen->attach($value);
+
+                return $containsPlaintext((new ReflectionFunction($value))->getStaticVariables());
             }
 
             return false;
@@ -232,4 +240,17 @@ it('keeps plaintext conditions out of captured encryption failure arguments', fu
     }
 
     expect(DB::table('employment_periods')->count())->toBe(0);
+});
+
+it('returns validation messages without retaining private terms in the validator', function (): void {
+    $conditions = [...employmentConditions(), 'contract_type' => 'unsupported'];
+
+    try {
+        $this->employment->start($this->tenant->id, $this->employee->id, employmentTime('2027-01-01'), null,
+            $this->evidence->id, $conditions);
+        $this->fail('Invalid employment conditions must fail.');
+    } catch (ValidationException $failure) {
+        expect($failure->errors())->toHaveKey('conditions.contract_type')
+            ->and($failure->validator->getData())->toBe([]);
+    }
 });

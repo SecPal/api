@@ -7,17 +7,24 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Exceptions\EmploymentTermsWriteException;
+use App\Exceptions\TenantKeyMaintenanceException;
 use App\Models\Employment\EmploymentPeriod;
 use App\Models\Employment\EmploymentPeriodEnd;
 use App\Models\Employment\EmploymentTermsVersion;
 use App\Repositories\EmploymentRepository;
+use Closure;
 use DateTimeInterface;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use SensitiveParameter;
+use Throwable;
 
 /** Employment persistence for callers that have already resolved and authorized the tenant and evidence. */
 final readonly class EmploymentService
@@ -36,9 +43,7 @@ final readonly class EmploymentService
         string $evidenceId,
         #[SensitiveParameter] array $conditions,
     ): EmploymentPeriod {
-        $conditions = $this->validateTerms($evidenceId, $conditions, null);
-
-        return $this->keys->withLease(function () use ($tenantId, $employeeId, $from, $until, $evidenceId, $conditions): EmploymentPeriod {
+        return $this->writeConditions($evidenceId, $conditions, null, function (#[SensitiveParameter] array $conditions) use ($tenantId, $employeeId, $from, $until, $evidenceId): EmploymentPeriod {
             $this->employment->lockEmployee($tenantId, $employeeId);
             $initialTermsId = (string) Str::uuid7();
             $period = $this->employment->createPeriod([
@@ -64,9 +69,7 @@ final readonly class EmploymentService
         #[SensitiveParameter] array $conditions,
         ?string $replacesId = null,
     ): EmploymentTermsVersion {
-        $conditions = $this->validateTerms($evidenceId, $conditions, $replacesId);
-
-        return $this->keys->withLease(function () use ($tenantId, $periodId, $from, $evidenceId, $conditions, $replacesId): EmploymentTermsVersion {
+        return $this->writeConditions($evidenceId, $conditions, $replacesId, function (#[SensitiveParameter] array $conditions) use ($tenantId, $periodId, $from, $evidenceId, $replacesId): EmploymentTermsVersion {
             $period = $this->employment->lockPeriod($tenantId, $periodId);
 
             return $this->employment->appendTerms((string) Str::uuid7(), $period, $from, $evidenceId, $conditions, $replacesId);
@@ -110,6 +113,37 @@ final readonly class EmploymentService
     public function basis(int $tenantId, string $employeeId, DateTimeInterface $at): array
     {
         return $this->employment->basis($tenantId, $employeeId, $at);
+    }
+
+    /**
+     * @template T of EmploymentPeriod|EmploymentTermsVersion
+     *
+     * @param  array<string, mixed>  $conditions
+     * @param  Closure(array<string, mixed>): T  $operation
+     * @return T
+     */
+    private function writeConditions(
+        string $evidenceId,
+        #[SensitiveParameter] array $conditions,
+        ?string $replacesId,
+        Closure $operation,
+    ): EmploymentPeriod|EmploymentTermsVersion {
+        try {
+            $conditions = $this->validateTerms($evidenceId, $conditions, $replacesId);
+
+            return $this->keys->withLease(fn () => $operation($conditions));
+        } catch (ValidationException $failure) {
+            throw ValidationException::withMessages($failure->errors());
+        } catch (TenantKeyMaintenanceException) {
+            throw new TenantKeyMaintenanceException;
+        } catch (ModelNotFoundException) {
+            throw new ModelNotFoundException('Employment owner is unavailable.');
+        } catch (QueryException $failure) {
+            throw new EmploymentTermsWriteException((string) $failure->getCode());
+        } catch (Throwable) {
+            // The original trace can hold plaintext in nested callback captures.
+            throw new EmploymentTermsWriteException;
+        }
     }
 
     /**
