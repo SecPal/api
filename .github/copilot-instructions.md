@@ -71,8 +71,7 @@ verify every PR commit through GitHub.
 - Run the smallest relevant tests, `vendor/bin/pint --dirty` after PHP changes,
   applicable static/contract/Markdown/REUSE/preflight checks, changed-file hooks,
   and `git diff --check`.
-- Update `CHANGELOG.md` for real product changes, not automatically for
-  governance-only prose.
+- Check that the pull request explains breaking changes and required migrations.
 - Keep new SecPal commits SSH-signed with the existing identity; verify every
   PR commit through GitHub. Provider-generated signatures are provider evidence.
 - Keep GitHub communication in English, SPDX years current, and project

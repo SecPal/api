@@ -94,7 +94,7 @@ jobs:
       - name: Run npm-backed hooks
         run: |
           pre-commit run prettier --files .pre-commit-config.yaml
-          pre-commit run markdownlint --files CHANGELOG.md README.md
+          pre-commit run markdownlint --files README.md
 
   prettier:
     name: Formatting Check

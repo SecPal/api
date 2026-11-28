@@ -78,7 +78,7 @@ def changes(root, base, target):
 def excluded_context(root, commit, entries):
     # Conservatively compare the whole tracked build context. Only these actual
     # .containerignore exclusions may be omitted; do not emulate its full grammar.
-    if any(not (c['path'].startswith(('tests/', '.github/')) or c['path'] == 'CHANGELOG.md') for c in entries):
+    if any(not c['path'].startswith(('tests/', '.github/')) for c in entries):
         return False
     patterns = git(root, 'show', commit+':.containerignore').decode().splitlines()
     patterns = [p.strip() for p in patterns if p.strip() and not p.lstrip().startswith('#')]

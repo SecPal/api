@@ -119,7 +119,8 @@ agreement tests require both surfaces and the fixtures to accept exactly the
 same supported event-name set and event-specific shapes.
 
 A breaking field, enum, or semantic change requires a new integer schema
-version, a separate versioned schema/fixture directory, and a changelog migration
-notice. An older consumer must never reinterpret a newer shape as v1. The
-fixtures are a producer handoff only; CrowdSec, SIEM, firewall, and deployment
-parser configuration remain outside this repository.
+version and a separate versioned schema/fixture directory. Explain the breaking
+change and required consumer migration in the pull request. An older consumer
+must never reinterpret a newer shape as v1. The fixtures are a producer handoff
+only. CrowdSec, SIEM, firewall, and deployment parser configuration remain
+outside this repository.

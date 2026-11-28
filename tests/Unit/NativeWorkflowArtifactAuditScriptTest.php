@@ -82,21 +82,6 @@ function runNativeWorkflowArtifactAudit(string ...$paths): array
     ];
 }
 
-test('native workflow artifact audit allows only changelog history', function (): void {
-    $root = makeNativeWorkflowAuditFixture();
-
-    try {
-        file_put_contents($root.'/CHANGELOG.md', 'Removed '.strtoupper(nativeWorkflowLegacyToken()).' history.');
-
-        $result = runNativeWorkflowArtifactAudit($root);
-
-        expect($result['exit_code'])->toBe(0)
-            ->and($result['stdout'])->toContain('Native workflow artifact audit passed');
-    } finally {
-        File::deleteDirectory($root);
-    }
-});
-
 test('native workflow artifact audit rejects legacy local-container artifacts even without matching content', function (): void {
     $root = makeNativeWorkflowAuditFixture();
     $token = nativeWorkflowLegacyToken();
