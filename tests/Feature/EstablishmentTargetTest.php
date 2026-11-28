@@ -64,7 +64,7 @@ it('rejects foreign references in both the service and the composite database bi
         ->and(fn () => DB::transaction(fn () => $this->service->lockAssignable($other->id, $first->establishment_id)))->toThrow(ModelNotFoundException::class);
 
     $foreign = $first->getAttributes();
-    unset($foreign['id']);
+    unset($foreign['id'], $foreign['effective_at']);
     $foreign['tenant_id'] = $other->id;
     expect(fn () => DB::table('establishment_versions')->insert($foreign))->toThrow(QueryException::class, '23503');
 });
@@ -152,4 +152,29 @@ it('invalidates an older database snapshot when a close commits', function (): v
         $observer->rollBack();
         $observer->disconnect();
     }
+});
+
+it('rejects direct backdating of establishment history', function (): void {
+    $first = $this->service->create($this->tenant->id, 'Operations', null, establishmentAddress());
+    $attributes = $first->getAttributes();
+    unset($attributes['id'], $attributes['effective_at']);
+    $backdated = [...$attributes, 'effective_at' => $first->effective_at->subDay()->format('Y-m-d H:i:s.uP')];
+
+    expect(fn () => DB::table('establishment_versions')->insert($backdated))->toThrow(QueryException::class, '23514');
+});
+
+it('rejects a direct append after terminal closure', function (): void {
+    $first = $this->service->create($this->tenant->id, 'Operations', null, establishmentAddress());
+    $attributes = $first->getAttributes();
+    unset($attributes['id'], $attributes['effective_at']);
+
+    $closed = $this->service->close($this->tenant->id, $first->establishment_id);
+    expect(fn () => DB::table('establishment_versions')->insert($attributes))->toThrow(QueryException::class, '23514')
+        ->and($this->service->current($this->tenant->id, $first->establishment_id)->id)->toBe($closed->id);
+});
+
+it('stores blank optional GPS coordinates as null', function (): void {
+    $address = [...establishmentAddress(), 'latitude' => '', 'longitude' => '  '];
+    $version = $this->service->create($this->tenant->id, 'Operations', null, $address);
+    expect($version->address['latitude'])->toBeNull()->and($version->address['longitude'])->toBeNull();
 });

@@ -51,13 +51,6 @@ final class EstablishmentRepository
     /** @param array{name: string, code: ?string, address: array<string, mixed>} $details */
     public function append(Establishment $establishment, array $details, bool $closed): EstablishmentVersion
     {
-        if (! $establishment->wasRecentlyCreated) {
-            // Write the locked identity row so PostgreSQL rejects an older
-            // transaction snapshot that might otherwise accept a closed target.
-            Establishment::query()->whereKey($establishment->id)->where('tenant_id', $establishment->tenant_id)
-                ->update(['tenant_id' => $establishment->tenant_id]);
-        }
-
         return EstablishmentVersion::query()->create([
             ...$details,
             'tenant_id' => $establishment->tenant_id,

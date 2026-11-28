@@ -15,7 +15,6 @@ use DomainException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
-use RuntimeException;
 
 /** Persistence for callers that have already established tenant and action authority. */
 final readonly class EstablishmentService
@@ -70,7 +69,7 @@ final readonly class EstablishmentService
             $current = $this->current($tenantId, $id);
             $this->requireOpen($current);
 
-            return $this->appendAfter($establishment, $current, $details, false);
+            return $this->establishments->append($establishment, $details, false);
         });
     }
 
@@ -83,27 +82,12 @@ final readonly class EstablishmentService
                 return $current;
             }
 
-            return $this->appendAfter($establishment, $current, [
+            return $this->establishments->append($establishment, [
                 'name' => $current->name,
                 'code' => $current->code,
                 'address' => $current->address,
             ], true);
         });
-    }
-
-    /** @param array{name: string, code: ?string, address: array<string, mixed>} $details */
-    private function appendAfter(
-        Establishment $establishment,
-        EstablishmentVersion $previous,
-        array $details,
-        bool $closed,
-    ): EstablishmentVersion {
-        $version = $this->establishments->append($establishment, $details, $closed);
-        if ($version->effective_at <= $previous->effective_at) {
-            throw new RuntimeException('The database clock did not advance the establishment history.');
-        }
-
-        return $version;
     }
 
     private function requireOpen(EstablishmentVersion $version): void
@@ -119,6 +103,13 @@ final readonly class EstablishmentService
      */
     private function validateDetails(string $name, ?string $code, array $address): array
     {
+        foreach (['latitude', 'longitude'] as $coordinate) {
+            $value = $address[$coordinate] ?? null;
+            if (is_string($value) && trim($value) === '') {
+                $address[$coordinate] = null;
+            }
+        }
+
         Validator::make(['name' => $name, 'code' => $code, 'address' => $address], [
             'name' => ['required', 'string', 'max:255'],
             'code' => ['nullable', 'string', 'max:255'],

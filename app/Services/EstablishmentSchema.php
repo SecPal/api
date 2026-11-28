@@ -35,7 +35,7 @@ final class EstablishmentSchema
                 $table->id();
                 $table->foreignId('tenant_id')->constrained('tenants')->restrictOnDelete();
                 $table->uuid('establishment_id');
-                $table->timestampTz('effective_at', 6)->default(DB::raw('clock_timestamp()'));
+                $table->timestampTz('effective_at', 6);
                 $table->string('name');
                 $table->string('code')->nullable();
                 $table->jsonb('address');
@@ -52,16 +52,44 @@ final class EstablishmentSchema
                 SQL);
 
             DB::unprepared(<<<'SQL'
-                CREATE FUNCTION reject_establishment_version_mutation() RETURNS trigger
+                CREATE FUNCTION enforce_establishment_history() RETURNS trigger
                 LANGUAGE plpgsql AS $$
+                DECLARE
+                    previous_effective_at timestamptz;
+                    previously_closed boolean;
                 BEGIN
-                    RAISE EXCEPTION 'Establishment history is immutable' USING ERRCODE = '23514';
+                    IF TG_OP <> 'INSERT' THEN
+                        RAISE EXCEPTION 'Establishment history is immutable' USING ERRCODE = '23514';
+                    END IF;
+                    IF NEW.effective_at IS NOT NULL THEN
+                        RAISE EXCEPTION 'Establishment history time is set by the database' USING ERRCODE = '23514';
+                    END IF;
+
+                    -- Serialize appends and invalidate older transaction snapshots.
+                    UPDATE establishments
+                    SET tenant_id = tenant_id
+                    WHERE tenant_id = NEW.tenant_id AND id = NEW.establishment_id;
+
+                    SELECT effective_at, is_closed INTO previous_effective_at, previously_closed
+                    FROM establishment_versions
+                    WHERE tenant_id = NEW.tenant_id AND establishment_id = NEW.establishment_id
+                    ORDER BY effective_at DESC LIMIT 1;
+
+                    IF previously_closed THEN
+                        RAISE EXCEPTION 'Establishment history is closed' USING ERRCODE = '23514';
+                    END IF;
+                    NEW.effective_at := clock_timestamp();
+                    IF NEW.effective_at <= previous_effective_at THEN
+                        RAISE EXCEPTION 'Establishment history time did not advance' USING ERRCODE = '23514';
+                    END IF;
+
+                    RETURN NEW;
                 END;
                 $$;
 
-                CREATE TRIGGER establishment_versions_immutable
-                    BEFORE UPDATE OR DELETE ON establishment_versions
-                    FOR EACH ROW EXECUTE FUNCTION reject_establishment_version_mutation();
+                CREATE TRIGGER establishment_versions_history
+                    BEFORE INSERT OR UPDATE OR DELETE ON establishment_versions
+                    FOR EACH ROW EXECUTE FUNCTION enforce_establishment_history();
                 SQL);
         });
     }
