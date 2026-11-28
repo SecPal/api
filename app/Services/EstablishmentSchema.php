@@ -53,7 +53,8 @@ final class EstablishmentSchema
 
             DB::unprepared(<<<'SQL'
                 CREATE FUNCTION enforce_establishment_history() RETURNS trigger
-                LANGUAGE plpgsql AS $$
+                LANGUAGE plpgsql
+                SET search_path TO pg_catalog, pg_temp AS $$
                 DECLARE
                     previous_effective_at timestamptz;
                     previously_closed boolean;
@@ -66,14 +67,16 @@ final class EstablishmentSchema
                     END IF;
 
                     -- Serialize appends and invalidate older transaction snapshots.
-                    UPDATE establishments
-                    SET tenant_id = tenant_id
-                    WHERE tenant_id = NEW.tenant_id AND id = NEW.establishment_id;
+                    EXECUTE format(
+                        'UPDATE %I.establishments SET tenant_id = tenant_id WHERE tenant_id = $1 AND id = $2',
+                        TG_TABLE_SCHEMA
+                    ) USING NEW.tenant_id, NEW.establishment_id;
 
-                    SELECT effective_at, is_closed INTO previous_effective_at, previously_closed
-                    FROM establishment_versions
-                    WHERE tenant_id = NEW.tenant_id AND establishment_id = NEW.establishment_id
-                    ORDER BY effective_at DESC LIMIT 1;
+                    EXECUTE format(
+                        'SELECT effective_at, is_closed FROM %I.establishment_versions
+                         WHERE tenant_id = $1 AND establishment_id = $2 ORDER BY effective_at DESC LIMIT 1',
+                        TG_TABLE_SCHEMA
+                    ) INTO previous_effective_at, previously_closed USING NEW.tenant_id, NEW.establishment_id;
 
                     IF previously_closed THEN
                         RAISE EXCEPTION 'Establishment history is closed' USING ERRCODE = '23514';
@@ -90,6 +93,10 @@ final class EstablishmentSchema
                 CREATE TRIGGER establishment_versions_history
                     BEFORE INSERT OR UPDATE OR DELETE ON establishment_versions
                     FOR EACH ROW EXECUTE FUNCTION enforce_establishment_history();
+
+                CREATE TRIGGER establishment_versions_no_truncate
+                    BEFORE TRUNCATE ON establishment_versions
+                    FOR EACH STATEMENT EXECUTE FUNCTION enforce_establishment_history();
                 SQL);
         });
     }

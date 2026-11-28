@@ -103,10 +103,10 @@ final readonly class EstablishmentService
      */
     private function validateDetails(string $name, ?string $code, array $address): array
     {
-        foreach (['latitude', 'longitude'] as $coordinate) {
-            $value = $address[$coordinate] ?? null;
-            if (is_string($value) && trim($value) === '') {
-                $address[$coordinate] = null;
+        $code = $this->blankToNull($code);
+        foreach (['house_number', 'latitude', 'longitude'] as $field) {
+            if (is_string($address[$field] ?? null)) {
+                $address[$field] = $this->blankToNull($address[$field]);
             }
         }
 
@@ -118,11 +118,16 @@ final readonly class EstablishmentService
             'address.house_number' => ['nullable', 'string', 'max:10'],
             'address.city' => ['required', 'string', 'max:100'],
             'address.postal_code' => ['required', 'string', 'max:20'],
-            'address.country' => ['required', 'string', 'size:2'],
+            'address.country' => ['required', 'string', 'regex:/^[A-Z]{2}$/D'],
             'address.latitude' => ['nullable', 'numeric:strict', 'between:-90,90'],
             'address.longitude' => ['nullable', 'numeric:strict', 'between:-180,180'],
         ])->validate();
 
         return ['name' => $name, 'code' => $code, 'address' => $address];
+    }
+
+    private function blankToNull(?string $value): ?string
+    {
+        return $value !== null && trim($value) === '' ? null : $value;
     }
 }

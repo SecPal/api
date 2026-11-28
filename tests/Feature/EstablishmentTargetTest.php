@@ -178,3 +178,46 @@ it('stores blank optional GPS coordinates as null', function (): void {
     $version = $this->service->create($this->tenant->id, 'Operations', null, $address);
     expect($version->address['latitude'])->toBeNull()->and($version->address['longitude'])->toBeNull();
 });
+
+it('binds a qualified history write to its own schema regardless of the connection search path', function (): void {
+    $first = $this->service->create($this->tenant->id, 'Operations', null, establishmentAddress());
+    $attributes = $first->getAttributes();
+    unset($attributes['id'], $attributes['effective_at']);
+    $observer = DB::build(config('database.connections.pgsql'));
+
+    try {
+        $observer->transaction(function () use ($observer, $attributes): void {
+            $observer->statement('SET LOCAL search_path TO pg_catalog');
+            expect($observer->table($this->schema.'.establishment_versions')->insert([
+                ...$attributes, 'name' => 'Qualified write',
+            ]))->toBeTrue();
+        });
+
+        expect($this->service->current($this->tenant->id, $first->establishment_id)->name)->toBe('Qualified write');
+    } finally {
+        $observer->disconnect();
+    }
+});
+
+it('rejects truncation of referenced establishment history', function (): void {
+    $this->service->create($this->tenant->id, 'Operations', null, establishmentAddress());
+
+    expect(fn () => DB::statement('TRUNCATE establishment_versions'))->toThrow(QueryException::class, '23514')
+        ->and(fn () => DB::statement('TRUNCATE establishments CASCADE'))->toThrow(QueryException::class, '23514')
+        ->and(DB::table('establishment_versions')->count())->toBe(1);
+});
+
+it('stores blank optional address text and code as null', function (): void {
+    $address = [...establishmentAddress(), 'house_number' => str_repeat(' ', 11)];
+    $version = $this->service->create($this->tenant->id, 'Operations', str_repeat("\t", 256), $address);
+
+    expect($version->code)->toBeNull()->and($version->address['house_number'])->toBeNull();
+});
+
+it('rejects country values that do not use alpha-2 notation', function (): void {
+    $address = [...establishmentAddress(), 'country' => '12'];
+    expect(fn () => $this->service->create($this->tenant->id, 'Operations', null, $address))
+        ->toThrow(ValidationException::class);
+
+    expect(DB::table('establishment_versions')->count())->toBe(0);
+});
