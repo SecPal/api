@@ -48,6 +48,8 @@ if [ "$stage" = prepare ]; then
     if [[ "${PUBLISH_RETAINED:-false}" != true ]]; then exit 0; fi
     python3 "$continuation" observe --evidence "$prepared/risk-evidence.json" --vex-root "$vex_root" \
       --output "$prepared/risk-admission.json"
+    cp .context/retained/unpublished-runtime-pair.json "$prepared/unpublished-runtime-pair.json"
+    cp .context/retained/bundle.jsonl "$prepared/unpublished-runtime-pair.bundle.jsonl"
     mkdir -p "$prepared/retained-scan"
     cp -a .context/retained/{php-fpm,nginx} "$prepared/retained-scan/"
   else
@@ -238,7 +240,8 @@ PYSMOKE
         php-fpm/build-evidence.json:application/json php-fpm/source-security.json:application/json
         nginx/build-evidence.json:application/json nginx/source-security.json:application/json)
       if [[ -f "$prepared/risk-admission.json" ]]; then
-        evidence_files+=(risk-admission.json:application/json risk-evidence.json:application/json)
+        evidence_files+=(risk-admission.json:application/json risk-evidence.json:application/json
+          unpublished-runtime-pair.json:application/json unpublished-runtime-pair.bundle.jsonl:application/json)
       fi
       (
         cd "$prepared"
@@ -261,6 +264,8 @@ PYSMOKE
       if [[ -f "$prepared/risk-admission.json" ]]; then
         cmp "$prepared/risk-admission.json" "$readback/risk-admission.json"
         cmp "$prepared/risk-evidence.json" "$readback/risk-evidence.json"
+        cmp "$prepared/unpublished-runtime-pair.json" "$readback/unpublished-runtime-pair.json"
+        cmp "$prepared/unpublished-runtime-pair.bundle.jsonl" "$readback/unpublished-runtime-pair.bundle.jsonl"
       fi
       gh attestation verify "$readback/runtime-pair.json" --bundle "$readback/build-evidence.bundle.json" \
         --repo SecPal/api --signer-workflow SecPal/api/.github/workflows/publish-container.yml \

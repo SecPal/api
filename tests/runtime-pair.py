@@ -5,6 +5,7 @@
 import hashlib
 import importlib.util
 import json
+import re
 from pathlib import Path
 import sys
 import unittest
@@ -442,7 +443,12 @@ report_heartbeat_state() {
         self.assertIn('reviewed-vex-checkout.json', scan)
         self.assertNotIn('"$vex_checkout/scripts/', scan)
         publication = (root/'.github/workflows/publish-container.yml').read_text()
-        self.assertEqual(publication.count('path: .context/reviewed-vex'), 3)
+        for name in ('inspect-retained', 'prepare', 'scan', 'accept'):
+            with self.subTest(job=name):
+                # Split only at the next job, retaining indented checkout steps.
+                job = re.split(r'\n  [a-z][a-z-]+:\n', publication.split(f'  {name}:\n', 1)[1], maxsplit=1)[0]
+                self.assertIn('path: .context/reviewed-vex', job)
+                self.assertNotIn('.context/reviewed-vex/scripts/', job)
         self.assertIn('vex_checkout="$repo_root/.context/reviewed-vex"', scan)
         self.assertNotIn('vex_checkout="$governance"', scan)
 

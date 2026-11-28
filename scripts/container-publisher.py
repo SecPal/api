@@ -781,6 +781,7 @@ def read_retained_release(root, prepared):
             or receipt['source'] != evidence['source']
             or receipt['source'] != {'repository': 'SecPal/api', 'commit': os.environ['GITHUB_SHA']}
             or receipt['evidence_sha256'] != policy_owner._document_digest(evidence)
+            or receipt['pair_receipt_sha256'] != digest(read_bytes(prepared/'unpublished-runtime-pair.json'))
             or any(receipt[key] != value for key, value in subject.items())
             or len(recorded_results) != 4
             or any(bound['policy_result_sha256'] != policy_owner._document_digest(
@@ -878,9 +879,10 @@ def complete_runtime_pair(root, prepared, scan_root, smoke_root, output):
     Path(output).unlink(missing_ok=True)
     documents = {}
     retained = read_retained_release(root, prepared)
+    options = {} if retained is None else {'retained': retained}
     for component in RUNTIME_COMPONENTS:
         own = Path(prepared)/component
-        complete(own,Path(scan_root)/component,smoke_root,root,own/'build-evidence.json',retained=retained)
+        complete(own,Path(scan_root)/component,smoke_root,root,own/'build-evidence.json',**options)
         documents[component] = read(own/'build-evidence.json')
     write(output,assemble_runtime_pair(documents,os.environ['GITHUB_SHA'],evidence_now(),
                                       receipt=retained[1] if retained else None))
