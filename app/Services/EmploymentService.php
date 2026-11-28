@@ -15,14 +15,15 @@ use App\Models\Employment\EmploymentTermsVersion;
 use App\Repositories\EmploymentRepository;
 use Closure;
 use DateTimeInterface;
+use Illuminate\Database\DeadlockException;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
-use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
+use PDOException;
 use SensitiveParameter;
 use Throwable;
 
@@ -138,8 +139,17 @@ final readonly class EmploymentService
             throw new TenantKeyMaintenanceException;
         } catch (ModelNotFoundException) {
             throw new ModelNotFoundException('Employment owner is unavailable.');
-        } catch (QueryException $failure) {
-            throw new EmploymentTermsWriteException((string) $failure->getCode());
+        } catch (PDOException $failure) {
+            $driver = $failure instanceof DeadlockException ? $failure->getPrevious() : $failure;
+            $state = (string) ($driver?->getCode() ?? $failure->getCode());
+            if ($state === '40001') {
+                throw new DeadlockException('The employment transaction must be retried.', 40001);
+            }
+            if ($state === '40P01' || $failure instanceof DeadlockException) {
+                throw new DeadlockException('Employment database deadlock detected.');
+            }
+
+            throw new EmploymentTermsWriteException($state);
         } catch (Throwable) {
             // The original trace can hold plaintext in nested callback captures.
             throw new EmploymentTermsWriteException;

@@ -8,6 +8,7 @@ declare(strict_types=1);
 use App\Exceptions\EmploymentTermsWriteException;
 use App\Models\Employee;
 use App\Models\EmployeeDocument;
+use App\Models\Employment\EmploymentTermsVersion;
 use App\Models\Tenant;
 use App\Models\TenantKey;
 use App\Models\User;
@@ -253,4 +254,49 @@ it('returns validation messages without retaining private terms in the validator
         expect($failure->errors())->toHaveKey('conditions.contract_type')
             ->and($failure->validator->getData())->toBe([]);
     }
+});
+
+it('reports the constraint state from a deferred commit failure without retaining its cause', function (): void {
+    $event = 'eloquent.creating: '.EmploymentTermsVersion::class;
+    $events = EmploymentTermsVersion::getEventDispatcher();
+    $events->listen($event, static fn (): bool => false);
+
+    try {
+        $this->employment->start($this->tenant->id, $this->employee->id, employmentTime('2027-01-01'), null,
+            $this->evidence->id, employmentConditions());
+        $this->fail('Committing a period without its first terms must fail.');
+    } catch (EmploymentTermsWriteException $failure) {
+        expect($failure->sqlState)->toBe('23503')->and($failure->getPrevious())->toBeNull();
+    } finally {
+        $events->forget($event);
+    }
+
+    expect(DB::table('employment_periods')->count())->toBe(0);
+});
+
+it('lets the caller transaction retry a stale PostgreSQL snapshot', function (): void {
+    $period = $this->employment->start($this->tenant->id, $this->employee->id, employmentTime('2027-01-01'), null,
+        $this->evidence->id, employmentConditions());
+    $observer = DB::build(config('database.connections.pgsql'));
+    $attempts = 0;
+
+    try {
+        $revision = DB::transaction(function () use ($period, $observer, &$attempts): EmploymentTermsVersion {
+            DB::statement('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ');
+            $attempts++;
+            if ($attempts === 1) {
+                DB::table('employment_periods')->where('id', $period->id)->sole();
+                $observer->table('employment_periods')->where('id', $period->id)->update(['valid_from' => DB::raw('valid_from')]);
+            }
+
+            return $this->employment->recordTerms($this->tenant->id, $period->id, employmentTime('2027-02-01'),
+                $this->evidence->id, employmentConditions());
+        }, attempts: 2);
+    } finally {
+        $observer->disconnect();
+    }
+
+    expect($attempts)->toBe(2)
+        ->and($revision->employment_period_id)->toBe($period->id)
+        ->and(DB::table('employment_terms_versions')->where('employment_period_id', $period->id)->count())->toBe(2);
 });
