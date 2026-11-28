@@ -313,7 +313,8 @@ jobs:
           if-no-files-found: error
           retention-days: 14
   attest:
-    if: needs.prepare.outputs.candidates != ''
+    if: >-
+      ${{ !cancelled() && needs.prepare.result == 'success' && needs.prepare.outputs.candidates != '' }}
     name: ${{ format('Attest candidate index platforms and Syft artifacts ({0})', matrix.component) }}
     strategy:
       fail-fast: false
@@ -398,6 +399,8 @@ jobs:
         if: always()
         run: python3 scripts/container-attestation-auth.py cleanup
   verify:
+    if: >-
+      ${{ !cancelled() && needs.prepare.result == 'success' && needs.attest.result == 'success' }}
     name: Published native runtime (${{ matrix.arch }})
     needs:
       - prepare
@@ -470,6 +473,8 @@ jobs:
           if-no-files-found: error
           retention-days: 14
   scan:
+    if: >-
+      ${{ !cancelled() && needs.prepare.result == 'success' && needs.attest.result == 'success' }}
     name: Verify authoritative SPDX and independent artifact scans
     needs:
       - prepare

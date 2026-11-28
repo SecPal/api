@@ -9,6 +9,7 @@ import http.server
 import importlib.util
 import json
 import os
+import re
 import shlex
 from pathlib import Path
 import unittest
@@ -473,6 +474,15 @@ class CandidateContinuation(unittest.TestCase):
         self.origin['path']+="@main"
         self.assertEqual(publisher.candidate_context(SHA,'42','2',api=self.api)['run_attempt'],'1')
 
+    def test_only_explicit_retained_mode_replaces_original_qualification_jobs(self):
+        for job in self.jobs['jobs']:
+            if (job['name'] == 'Repository Security / Accept API Repository Security'
+                    or job['name'].startswith('Build native API candidates / Native API (')):
+                job['conclusion'] = 'skipped'
+        with self.assertRaisesRegex(ValueError, 'original-execution-incomplete'):
+            publisher.candidate_context(SHA,'42','1',api=self.api)
+        self.assertEqual(publisher.candidate_context(SHA,'42','1',api=self.api,retained=True)['source_commit'],SHA)
+
     def test_runtime_pair_requires_explicit_event_and_both_component_attestation_jobs(self):
         self.origin['event']='push'
         with self.assertRaisesRegex(ValueError,'original-run-binding'):
@@ -525,6 +535,15 @@ class CandidateContinuation(unittest.TestCase):
             else:self.jobs['jobs'].append(copy.deepcopy(self.jobs['jobs'][0]))
             self.jobs['total_count']=len(self.jobs['jobs'])
             with self.assertRaises(ValueError):publisher.candidate_context(SHA,'42','2',api=self.api)
+
+    def test_retained_writer_checks_direct_jobs_after_skipped_producer_ancestors(self):
+        workflow = (ROOT/'.github/workflows/publish-container.yml').read_text()
+        for name in ('attest','verify','scan','accept'):
+            with self.subTest(job=name):
+                job = re.split(r'\n  [a-z][a-z-]+:\n', workflow.split(f'  {name}:\n',1)[1], maxsplit=1)[0]
+                self.assertIn("!cancelled() && needs.prepare.result == 'success'", job)
+                if name in ('verify','scan','accept'):
+                    self.assertIn("needs.attest.result == 'success'", job)
 
     def test_only_existing_acceptance_job_gains_continuation_and_discovery_is_last(self):
         workflow=(ROOT/'.github/workflows/publish-container.yml').read_text()

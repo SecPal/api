@@ -449,9 +449,9 @@ def candidate_context(commit, run_id, execution_attempt, *, api=github, retained
         raise ValueError('publisher-scan-attempt')
     expected={f'api-prepared-{run_id}-{attempt}',f'api-scans-{run_id}-{scan_attempt}',
               *(f'api-smoke-{a}-{run_id}-{attempt}' for a in ('amd64','arm64'))}
-    retained=[a for a in artifacts if a['name'] in expected]
-    if (len(retained)!=len(expected) or {a['name'] for a in retained}!=expected
-            or any(a['expired'] or not re.fullmatch(r'sha256:[a-f0-9]{64}',a['digest']) for a in retained)):
+    selected_artifacts=[a for a in artifacts if a['name'] in expected]
+    if (len(selected_artifacts)!=len(expected) or {a['name'] for a in selected_artifacts}!=expected
+            or any(a['expired'] or not re.fullmatch(r'sha256:[a-f0-9]{64}',a['digest']) for a in selected_artifacts)):
         raise ValueError('publisher-incomplete-candidate-artifacts')
     origin=api(f'{prefix}/actions/runs/{run_id}/attempts/{attempt}')
     if (origin['id']!=int(run_id) or origin['run_attempt']!=int(attempt)
