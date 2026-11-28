@@ -16,6 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Continue protected OCI publication of an exact, previously qualified PHP-FPM
   and Nginx pair through one explicit operator decision (refs #3061).
+  Monitor the current release and the predecessor still referenced by Deployment
+  on both native platforms.
 
 - Rewrap Tenant DEKs and index keys against an externally approved KEK
   generation in one PostgreSQL transaction. Startup validates the exact
