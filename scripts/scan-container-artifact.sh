@@ -10,7 +10,7 @@ case "$mode:${GITHUB_EVENT_NAME:?}" in
   local:push|local:workflow_dispatch)
     test "${GITHUB_REF:?}" = refs/heads/main
     test "${GITHUB_REF_PROTECTED:?}" = true ;;
-  published:workflow_dispatch)
+  published:workflow_dispatch|retained:workflow_dispatch)
     test "${GITHUB_REF:?}" = refs/heads/main ;;
   *) echo 'Artifact scan invocation rejected' >&2; exit 1 ;;
 esac
@@ -27,12 +27,13 @@ cleanup() {
   rmdir "$auth_root"
 }
 trap 'cleanup' EXIT
-if [ "$mode" = published ]; then
+if [ "$mode" != local ]; then
 printf '%s' "${GH_TOKEN:?}" | "$tools/oras" login ghcr.io --registry-config "$auth_root/config.json" \
   --username "${GITHUB_ACTOR:?}" --password-stdin
 chmod 0600 "$auth_root/config.json"
 fi
 cache=$(mktemp -d "$RUNNER_TEMP/secpal-api-scan-cache.XXXXXX")
+if [ "$mode" != retained ]; then
 printf '{}\n' > "$cache/config.yaml"
 export GRYPE_DB_CACHE_DIR="$cache/grype"
 export GRYPE_DB_AUTO_UPDATE=false
@@ -59,6 +60,7 @@ vex_arguments=()
       --trusted-commit "$vex_commit"
     vex_arguments+=(--reviewed-vex-manifest "$manifest")
   done < "$cache/vex-list"
+fi
 for component in php-fpm nginx; do
   prepared="$prepared_root/$component"
   scan_root="$repo_root/.context/scan/$component"
@@ -107,6 +109,14 @@ for arch in amd64 arm64; do
   python3 "$governance/scripts/secpal-vulnerability-reevaluation.py" verify-syft \
     --platform-digest "$manifest" --platform "linux/$arch" --spdx "$output/sbom/syft.spdx.json" \
     --association "$output/sbom/association.json" --output "$output/syft.json"
+  if [ "$mode" = retained ]; then
+    original="$prepared_root/retained-scan/$component/$arch"
+    cmp "$output/sbom/syft.spdx.json" "$original/sbom/syft.spdx.json"
+    cmp "$output/sbom/association.json" "$original/sbom/association.json"
+    cmp "$output/subject.json" "$original/subject.json" || jq -e --slurpfile original "$original/subject.json" '. == $original[0]' "$output/subject.json" >/dev/null
+    cp -a "$original"/. "$output/"
+    continue
+  fi
   python3 "$governance/scripts/secpal-vulnerability-reevaluation.py" database \
     --scanner trivy --database-status "$cache/trivy/db/metadata.json" --database-root "$cache/trivy/db" --output "$output/trivy-core-database.json"
   python3 "$governance/scripts/secpal-vulnerability-reevaluation.py" database \

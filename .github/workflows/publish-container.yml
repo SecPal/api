@@ -5,6 +5,19 @@
 name: Publish Container
 "on":
   workflow_dispatch:
+    inputs:
+      qualified-run:
+        description: Exact retained producer run ID
+        type: string
+        required: false
+      qualified-attempt:
+        description: Exact retained producer attempt
+        type: string
+        required: false
+      publish-retained:
+        description: Continue registry admission after the authorized comment
+        type: boolean
+        default: false
   push:
     branches: [main]
 permissions: {}
@@ -12,16 +25,19 @@ concurrency:
   group: publish-container-${{ github.repository }}-${{ github.sha }}
   cancel-in-progress: false
 env:
+  PUBLISH_RETAINED: ${{ inputs.publish-retained || false }}
   GHCR_HOST: ghcr.io
   GHCR_REPOSITORY_PATH: secpal/api
   CANONICAL_IMAGE: ghcr.io/secpal/api
 jobs:
   repository-security:
+    if: ${{ !inputs.qualified-run && !inputs.qualified-attempt && !inputs.publish-retained }}
     name: Repository Security
     permissions:
       contents: read
     uses: ./.github/workflows/reusable-repository-security.yml
   build:
+    if: ${{ !inputs.qualified-run && !inputs.qualified-attempt && !inputs.publish-retained }}
     name: Build native API candidates
     needs:
       - repository-security
@@ -72,7 +88,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: SecPal/.github
-          ref: 4892b3248faac245047fdb1dc93fc77fc3d08e02
+          ref: 20a48e188518f90f24e43d99e5e73a3f712e1b71
           path: publisher/.context/publisher-governance
           persist-credentials: false
       - name: Read current accepted VEX data for runtime replay
@@ -96,7 +112,7 @@ jobs:
           ' candidate/unpublished-runtime-pair.json >/dev/null
           python3 -m venv "$RUNNER_TEMP/secpal-policy"
           "$RUNNER_TEMP/secpal-policy/bin/pip" install \
-            --requirement publisher/.context/publisher-governance/requirements/vulnerability-policy.txt
+            --requirement publisher/.context/publisher-governance/requirements/requirements.txt
           (
             cd publisher
             "$RUNNER_TEMP/secpal-policy/bin/python" scripts/container-publisher.py source-security \
@@ -131,8 +147,72 @@ jobs:
           path: candidate
           if-no-files-found: error
           retention-days: 14
+  inspect-retained:
+    name: Inspect exact retained qualification without registry authority
+    if: >-
+      ${{ github.event_name == 'workflow_dispatch' && !inputs.publish-retained &&
+          (inputs.qualified-run || inputs.qualified-attempt) }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Checkout exact publisher source
+        # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Checkout accepted supply-chain implementation
+        # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: SecPal/.github
+          ref: 20a48e188518f90f24e43d99e5e73a3f712e1b71
+          path: .context/publisher-governance
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Install native registry observer
+        run: "sudo apt-get update
+
+          sudo apt-get install --yes --no-install-recommends skopeo"
+      - name: Install pinned publisher tools
+        run: scripts/container-tools.sh registry "$RUNNER_TEMP/secpal-publisher-tools"
+      - name: Read currently accepted VEX data for independent replay
+        # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: SecPal/.github
+          ref: main
+          path: .context/reviewed-vex
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Install locked central policy dependencies
+        run: 'python3 -m venv "$RUNNER_TEMP/secpal-policy"
+
+          "$RUNNER_TEMP/secpal-policy/bin/pip" install --requirement .context/publisher-governance/requirements/requirements.txt
+
+          printf ''%s\n'' "$RUNNER_TEMP/secpal-policy/bin" >> "$GITHUB_PATH"'
+      - name: Authenticate and describe retained evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+          QUALIFIED_RUN: ${{ inputs.qualified-run }}
+          QUALIFIED_ATTEMPT: ${{ inputs.qualified-attempt }}
+        run: scripts/publish-container.sh prepare
+      - name: Retain exact decision inputs
+        # v7.0.2
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: retained-admission-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .context/publisher/risk-evidence.json
+          if-no-files-found: error
+          retention-days: 14
   prepare:
-    if: github.event_name == 'workflow_dispatch'
+    if: >-
+      ${{ !cancelled() && github.event_name == 'workflow_dispatch' &&
+          ((needs.build.result == 'success' && needs.repository-security.result == 'success') ||
+           inputs.publish-retained) }}
     name: Prepare exact digest subjects
     needs:
       - build
@@ -142,6 +222,8 @@ jobs:
     permissions:
       contents: read
       packages: write
+      issues: read
+      actions: read
     outputs:
       candidates: ${{ steps.prepare.outputs.candidates }}
     steps:
@@ -156,7 +238,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: SecPal/.github
-          ref: 4892b3248faac245047fdb1dc93fc77fc3d08e02
+          ref: 20a48e188518f90f24e43d99e5e73a3f712e1b71
           path: .context/publisher-governance
           persist-credentials: false
           fetch-depth: 0
@@ -167,26 +249,31 @@ jobs:
       - name: Install pinned publisher tools
         run: scripts/container-tools.sh registry "$RUNNER_TEMP/secpal-publisher-tools"
       - name: Read same-run native artifacts
+        if: ${{ !inputs.qualified-run && !inputs.qualified-attempt && !inputs.publish-retained }}
         # v8.0.2
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
         with:
           pattern: api-native-*-${{ github.run_id }}-${{ github.run_attempt }}
           path: .context/native
       - name: Require exact source evidence identity
+        if: ${{ !inputs.qualified-run && !inputs.qualified-attempt && !inputs.publish-retained }}
         env:
           SOURCE_EVIDENCE_ARTIFACT: ${{ needs.repository-security.outputs.evidence-artifact }}
         run: test -n "$SOURCE_EVIDENCE_ARTIFACT"
       - name: Read exact source security evidence
+        if: ${{ !inputs.qualified-run && !inputs.qualified-attempt && !inputs.publish-retained }}
         # v8.0.2
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
         with:
           path: .context/repository-security
           name: ${{ needs.repository-security.outputs.evidence-artifact }}
       - name: Require successful pre-registry qualification
+        if: ${{ !inputs.qualified-run && !inputs.qualified-attempt && !inputs.publish-retained }}
         env:
           RELEASE_EVIDENCE_ID: ${{ needs.build.outputs.pre-registry-evidence-id }}
         run: '[[ "$RELEASE_EVIDENCE_ID" =~ ^[1-9][0-9]*$ ]]'
       - name: Read exact pre-registry evidence
+        if: ${{ !inputs.qualified-run && !inputs.qualified-attempt && !inputs.publish-retained }}
         # v8.0.2
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
         with:
@@ -204,13 +291,16 @@ jobs:
       - name: Install locked central policy dependencies
         run: 'python3 -m venv "$RUNNER_TEMP/secpal-policy"
 
-          "$RUNNER_TEMP/secpal-policy/bin/pip" install --requirement .context/publisher-governance/requirements/vulnerability-policy.txt
+          "$RUNNER_TEMP/secpal-policy/bin/pip" install --requirement .context/publisher-governance/requirements/requirements.txt
 
           printf ''%s\n'' "$RUNNER_TEMP/secpal-policy/bin" >> "$GITHUB_PATH"'
       - name: Publish and independently read exact subjects
         id: prepare
         env:
           GH_TOKEN: ${{ github.token }}
+          QUALIFIED_RUN: ${{ inputs.qualified-run }}
+          QUALIFIED_ATTEMPT: ${{ inputs.qualified-attempt }}
+          ARTIFACT_RISK_ACCEPTANCE_COMMENT_ID: ${{ vars.ARTIFACT_RISK_ACCEPTANCE_COMMENT_ID }}
         run: scripts/publish-container.sh prepare
       - name: Retain bounded publisher evidence
         if: always()
@@ -223,6 +313,8 @@ jobs:
           if-no-files-found: error
           retention-days: 14
   attest:
+    if: >-
+      ${{ !cancelled() && needs.prepare.result == 'success' && needs.prepare.outputs.candidates != '' }}
     name: ${{ format('Attest candidate index platforms and Syft artifacts ({0})', matrix.component) }}
     strategy:
       fail-fast: false
@@ -307,6 +399,8 @@ jobs:
         if: always()
         run: python3 scripts/container-attestation-auth.py cleanup
   verify:
+    if: >-
+      ${{ !cancelled() && needs.prepare.result == 'success' && needs.attest.result == 'success' }}
     name: Published native runtime (${{ matrix.arch }})
     needs:
       - prepare
@@ -337,7 +431,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: SecPal/.github
-          ref: 4892b3248faac245047fdb1dc93fc77fc3d08e02
+          ref: 20a48e188518f90f24e43d99e5e73a3f712e1b71
           path: .context/publisher-governance
           persist-credentials: false
           fetch-depth: 0
@@ -379,6 +473,8 @@ jobs:
           if-no-files-found: error
           retention-days: 14
   scan:
+    if: >-
+      ${{ !cancelled() && needs.prepare.result == 'success' && needs.attest.result == 'success' }}
     name: Verify authoritative SPDX and independent artifact scans
     needs:
       - prepare
@@ -397,15 +493,18 @@ jobs:
           ref: ${{ github.sha }}
           persist-credentials: false
       - name: Refresh exact source security without rebuilding
+        if: ${{ !inputs.publish-retained }}
         id: source-scan
         uses: SecPal/.github/.github/actions/trivy-repository-scan@2d02204e03a7d93132fcbcba45cdff1161017e11 # v1.1.0
       - name: Read refreshed source evidence
+        if: ${{ !inputs.publish-retained }}
         # v8.0.2
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
         with:
           name: ${{ steps.source-scan.outputs.evidence-artifact }}
           path: .context/scan/source
       - name: Require fresh CLEAN source evidence
+        if: ${{ !inputs.publish-retained }}
         env:
           GATE_STATE: ${{ steps.source-scan.outputs.gate-state }}
         run: test "$GATE_STATE" = CLEAN
@@ -414,7 +513,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: SecPal/.github
-          ref: 4892b3248faac245047fdb1dc93fc77fc3d08e02
+          ref: 20a48e188518f90f24e43d99e5e73a3f712e1b71
           path: .context/publisher-governance
           persist-credentials: false
           fetch-depth: 0
@@ -426,11 +525,14 @@ jobs:
           path: .context/publisher
           merge-multiple: true
       - name: Install pinned publisher tools
-        run: scripts/container-tools.sh publish "$RUNNER_TEMP/secpal-publisher-tools"
+        run: |
+          toolset=publish
+          if [[ "$PUBLISH_RETAINED" == true ]]; then toolset=registry; fi
+          scripts/container-tools.sh "$toolset" "$RUNNER_TEMP/secpal-publisher-tools"
       - name: Install locked central policy dependencies
         run: 'python3 -m venv "$RUNNER_TEMP/secpal-policy"
 
-          "$RUNNER_TEMP/secpal-policy/bin/pip" install --requirement .context/publisher-governance/requirements/vulnerability-policy.txt
+          "$RUNNER_TEMP/secpal-policy/bin/pip" install --requirement .context/publisher-governance/requirements/requirements.txt
 
           printf ''%s\n'' "$RUNNER_TEMP/secpal-policy/bin" >> "$GITHUB_PATH"'
       - name: Read accepted protected-main VEX data independently of build inputs
@@ -445,7 +547,10 @@ jobs:
       - name: Observe exact artifacts and apply accepted central policy
         env:
           GH_TOKEN: ${{ github.token }}
-        run: scripts/scan-container-artifact.sh published
+        run: |
+          mode=published
+          if [[ "$PUBLISH_RETAINED" == true ]]; then mode=retained; fi
+          scripts/scan-container-artifact.sh "$mode"
       - name: Retain bounded publisher evidence
         if: always()
         # v7.0.2
@@ -457,6 +562,10 @@ jobs:
           if-no-files-found: error
           retention-days: 14
   accept:
+    if: >-
+      ${{ !cancelled() && needs.prepare.result == 'success' && needs.attest.result == 'success' &&
+          needs.verify.result == 'success' && needs.scan.result == 'success' &&
+          (needs.repository-security.result == 'success' || inputs.publish-retained) }}
     name: Accept verified API publication
     needs:
       - prepare
@@ -470,6 +579,7 @@ jobs:
       contents: read
       actions: read
       packages: write
+      issues: read
       attestations: write
       id-token: write
     outputs:
@@ -489,7 +599,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: SecPal/.github
-          ref: 4892b3248faac245047fdb1dc93fc77fc3d08e02
+          ref: 20a48e188518f90f24e43d99e5e73a3f712e1b71
           path: .context/publisher-governance
           persist-credentials: false
           fetch-depth: 0
@@ -532,7 +642,7 @@ jobs:
       - name: Install locked central policy dependencies
         run: 'python3 -m venv "$RUNNER_TEMP/secpal-policy"
 
-          "$RUNNER_TEMP/secpal-policy/bin/pip" install --requirement .context/publisher-governance/requirements/vulnerability-policy.txt
+          "$RUNNER_TEMP/secpal-policy/bin/pip" install --requirement .context/publisher-governance/requirements/requirements.txt
 
           printf ''%s\n'' "$RUNNER_TEMP/secpal-policy/bin" >> "$GITHUB_PATH"'
       - name: Assemble complete builder-independent evidence
@@ -592,6 +702,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           EVIDENCE_DIGEST: ${{ steps.retain.outputs.evidence_digest }}
+          ARTIFACT_RISK_ACCEPTANCE_COMMENT_ID: ${{ vars.ARTIFACT_RISK_ACCEPTANCE_COMMENT_ID }}
         run: scripts/publish-container.sh accept "$EVIDENCE_DIGEST"
       - name: Retain bounded publisher evidence
         if: always()
