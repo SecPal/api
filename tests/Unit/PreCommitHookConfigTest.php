@@ -31,7 +31,6 @@ it('runs prettier through npm without pre-commit node environment installation',
 
     expect($hook)->toContain('entry: npx --yes prettier@4.0.0-alpha.8 --write')
         ->and($hook)->toContain('language: system')
-        ->and($hook)->toContain('CHANGELOG\\.md')
         ->and($hook)->not->toContain('additional_dependencies:');
 });
 

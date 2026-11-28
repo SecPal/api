@@ -56,7 +56,6 @@ for repo in "$@"; do
   set +e
   content_findings="$(
     cd "$repo_root" && rg --hidden --line-number "$pattern" . \
-      -g '!**/CHANGELOG.md' \
       -g '!**/.git/**' \
       -g '!**/.context/**' \
       -g '!**/vendor/**' \
@@ -75,7 +74,7 @@ for repo in "$@"; do
   path_candidates="$(
     cd "$repo_root" && find . \
       \( -type d \( -name .git -o -name .context -o -name vendor -o -name node_modules -o -path ./storage -o -path ./bootstrap/cache -o -name build -o -name dist -o -name coverage \) -prune \) -o \
-      \( -type f ! -name CHANGELOG.md ! -name package-lock.json ! -name composer.lock ! -name '*.tsbuildinfo' -print \) -o \
+      \( -type f ! -name package-lock.json ! -name composer.lock ! -name '*.tsbuildinfo' -print \) -o \
       \( -type l -print \) -o \
       \( -type d -print \)
   )"

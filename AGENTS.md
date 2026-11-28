@@ -12,7 +12,8 @@ aligned when their scoped rules change.
 ## Pull Requests And Review
 
 - Use GitHub pull requests, review threads, checks, and merge protections for
-  delivery. Keep each pull request focused on a coherent change.
+  delivery. Keep each pull request focused on a coherent change, name it in
+  the title, and describe the relevant API, user, operator, or security impact.
 - Open a draft while preparing the change; mark it ready when self-review and
   relevant validation are complete. Request review through GitHub. If more
   review is needed after a revision, request it directly on the existing pull
@@ -109,8 +110,9 @@ aligned when their scoped rules change.
   errors, serialization, and unnecessary memory scope.
 - Keep generated/current API contracts compatible with the owning delivery
   contract. Because the project is pre-1.0, remove insecure or obsolete
-  compatibility paths when the issue requires it and update evidence and the
-  changelog in the same delivery.
+  compatibility paths when the issue requires it and update evidence in the
+  same delivery. Explain breaking changes and required migrations in the
+  owning pull request.
 
 ## Standards Before Custom
 
@@ -137,8 +139,6 @@ on the first failed item:
 - run `vendor/bin/pint --dirty` after PHP changes;
 - run applicable static analysis, contract, Markdown, REUSE, preflight, and
   changed-file hook checks;
-- update `CHANGELOG.md` for actual product fixes, features, or breaking changes,
-  but not automatically for governance-only prose;
 - verify that changed observable behavior, security constraints, state
   lifecycle, and error handling have corresponding evidence;
 - `SECPAL_SIGNING_FORMAT: SSH`. Preserve existing SSH keys and signing

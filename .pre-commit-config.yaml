@@ -23,7 +23,7 @@ repos:
         language: system
         types_or: [markdown, yaml, json, javascript, ts]
         exclude: >-
-          package-lock\.json|composer\.lock|yarn\.lock|pnpm-lock\.yaml|boost\.json|CHANGELOG\.md|\.github/copilot-instructions\.md
+          package-lock\.json|composer\.lock|yarn\.lock|pnpm-lock\.yaml|boost\.json|\.github/copilot-instructions\.md
 
   # Markdown linting
   - repo: local

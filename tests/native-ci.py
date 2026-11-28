@@ -33,7 +33,7 @@ class ScopeTests(unittest.TestCase):
         self.git('config', 'user.email', 'fixture@example.test')
         self.git('config', 'commit.gpgsign', 'false')
         for name, data in {
-            '.containerignore': '.git\n.github\ntests\nCHANGELOG.md\n!docs/ADDRESS_DATA.md\n',
+            '.containerignore': '.git\n.github\ntests\n!docs/ADDRESS_DATA.md\n',
             'docker/php-fpm/Containerfile': 'FROM fixture\nCOPY app /app\n',
             'app/a.php': '<?php // original\n',
             'composer.lock': '{}\n',
@@ -147,14 +147,14 @@ class ScopeTests(unittest.TestCase):
             self.scope()
 
     def test_normalized_reinclusions_fail_closed(self):
-        for rule in ['!./tests/Unit/a.php', '!foo/../tests/Unit/a.php', '!foo/../.github/ci.py', '!foo/../CHANGELOG.md']:
+        for rule in ['!./tests/Unit/a.php', '!foo/../tests/Unit/a.php', '!foo/../.github/ci.py']:
             with self.subTest(rule=rule):
-                self.write('.containerignore', '.git\n.github\ntests\nCHANGELOG.md\n'+rule+'\n')
+                self.write('.containerignore', '.git\n.github\ntests\n'+rule+'\n')
                 self.git('add', '.')
                 self.git('commit', '-qm', 'independent reinclusion fixture')
                 with self.assertRaises(ValueError):
                     ci.excluded_context(self.root, self.git('rev-parse', 'HEAD'),
-                                        [dict(path=p) for p in ('tests/Unit/a.php', '.github/ci.py', 'CHANGELOG.md')])
+                                        [dict(path=p) for p in ('tests/Unit/a.php', '.github/ci.py')])
 
     def test_mismatched_parents_and_dirty_or_shallow_sources_fail_closed(self):
         self.write('tests/Unit/a.php', 'changed\n')
