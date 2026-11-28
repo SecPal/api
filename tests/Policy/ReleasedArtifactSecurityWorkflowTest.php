@@ -81,9 +81,13 @@ it('uses the pinned read-only scanner without issue delivery', function (): void
     }
 });
 
-it('selects all four reviewed native subjects daily and by manual exact digest', function (): void {
+it('selects both reviewed pairs daily and supports exact component digests', function (): void {
     $workflow = releasedArtifactWorkflow();
-    $release = json_decode($workflow['jobs']['subject']['env']['MONITORED_RELEASE'], true, 512, JSON_THROW_ON_ERROR);
+    $environment = $workflow['jobs']['subject']['env'];
+    expect($environment)->toHaveKeys(['MONITORED_RELEASE', 'RETAINED_CONSUMER_RELEASE']);
+    $current = json_decode($environment['MONITORED_RELEASE'], true, 512, JSON_THROW_ON_ERROR);
+    $retained = json_decode($environment['RETAINED_CONSUMER_RELEASE'], true, 512, JSON_THROW_ON_ERROR);
+    expect($current['pair-artifact'])->not->toBe($retained['pair-artifact']);
     $scheduled = [];
     $expected = [];
 
@@ -94,26 +98,29 @@ it('selects all four reviewed native subjects daily and by manual exact digest',
         $scheduled[] = $selected['platform-digest'];
     }
 
-    foreach ($release['components'] as $name => $component) {
-        foreach ($component['platforms'] as $platform => $subject) {
-            $expected[] = $subject['platform-digest'];
-            foreach (['', $component['index-digest']] as $index) {
-                [$exit, $selected] = selectReleasedArtifact($workflow, ['COMPONENT' => $name, 'PLATFORM' => $platform, 'INDEX_DIGEST' => $index]);
-                expect($exit)->toBe(0)
-                    ->and($selected)->toBe([
-                        'index-digest' => $component['index-digest'],
-                        'platform' => $platform,
-                        'platform-digest' => $subject['platform-digest'],
-                        'syft-spdx-artifact' => $subject['syft-spdx-artifact'],
-                        'publisher-workflow-sha' => $release['publisher-workflow-sha'],
-                    ]);
+    foreach ([$retained, $current] as $release) {
+        foreach ($release['components'] as $name => $component) {
+            foreach ($component['platforms'] as $platform => $subject) {
+                $expected[] = $subject['platform-digest'];
+                $indexes = $release === $current ? ['', $component['index-digest']] : [$component['index-digest']];
+                foreach ($indexes as $index) {
+                    [$exit, $selected] = selectReleasedArtifact($workflow, ['COMPONENT' => $name, 'PLATFORM' => $platform, 'INDEX_DIGEST' => $index]);
+                    expect($exit)->toBe(0)
+                        ->and($selected)->toBe([
+                            'index-digest' => $component['index-digest'],
+                            'platform' => $platform,
+                            'platform-digest' => $subject['platform-digest'],
+                            'syft-spdx-artifact' => $subject['syft-spdx-artifact'],
+                            'publisher-workflow-sha' => $release['publisher-workflow-sha'],
+                        ]);
+                }
+                $other = $release['components'][$name === 'php-fpm' ? 'nginx' : 'php-fpm'];
+                [$exit, $selected] = selectReleasedArtifact($workflow, ['COMPONENT' => $name, 'PLATFORM' => $platform, 'INDEX_DIGEST' => $other['index-digest']]);
+                expect($exit)->not->toBe(0)->and($selected)->toBe([]);
             }
-            $other = $release['components'][$name === 'php-fpm' ? 'nginx' : 'php-fpm'];
-            [$exit, $selected] = selectReleasedArtifact($workflow, ['COMPONENT' => $name, 'PLATFORM' => $platform, 'INDEX_DIGEST' => $other['index-digest']]);
-            expect($exit)->not->toBe(0)->and($selected)->toBe([]);
         }
     }
-    expect($scheduled)->toBe($expected)->toHaveCount(4);
+    expect($scheduled)->toBe($expected)->toHaveCount(8);
 });
 
 it('rejects candidates and unsupported monitoring contexts before scanning', function (array $request): void {

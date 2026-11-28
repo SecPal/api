@@ -272,20 +272,21 @@ policy protects the builder-independent evidence model and its immutable subject
 
 ## Released-artifact re-evaluation
 
-`.github/workflows/released-artifact-security.yml` re-evaluates the reviewed
-accepted PHP-FPM/Nginx runtime pair daily: FPM at 03:17 UTC (AMD64) and
-05:17 UTC (ARM64), Nginx at 03:37 UTC (AMD64) and 05:37 UTC (ARM64).
-Manual dispatch selects a component and platform, optionally asserting that
-component's exact index digest. The four native subjects retain separate index,
-SBOM and security identities within one attested release pair. Each invocation
-has its own run because shared evidence names are run-scoped. Other digests,
-swapped component indices and incomplete publisher candidates are rejected
-before scanning.
+`.github/workflows/released-artifact-security.yml` re-evaluates the current
+accepted PHP-FPM/Nginx pair and the predecessor still referenced by Deployment.
+The current pair runs at 07:17 and 09:17 UTC for FPM and 07:37 and 09:37 UTC
+for Nginx, in AMD64 then ARM64 order. The retained consumer pair keeps its
+03:17, 05:17, 03:37 and 05:37 UTC schedule.
 
-The workflow's `MONITORED_RELEASE` tuple is derived from accepted, attested
-build evidence. Updating it requires a reviewed released subject; the workflow
-does not automatically enroll newer candidates or discover arbitrary registry
-tags. Publisher repository/workflow identities are fixed in the caller.
+Manual dispatch selects the current pair by default. An exact component index
+digest selects that component of either reviewed pair. Each invocation evaluates
+one platform and preserves its own index, SBOM and security identities. It
+rejects swapped component indices, other digests and incomplete candidates.
+
+The workflow's `MONITORED_RELEASE` and `RETAINED_CONSUMER_RELEASE` tuples come
+from reviewed, attested build evidence. Publisher repository and workflow
+identities remain fixed in the caller. Deployment owns retirement of the
+retained consumer pair.
 
 The immutable shared workflow verifies publisher attestations and authoritative
 Syft association, then applies the existing policy to fresh Grype and Trivy
