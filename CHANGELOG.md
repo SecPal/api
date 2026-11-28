@@ -14,6 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- Update the Nginx runtime to 1.30.8 for CVE-2026-132779 (refs #3061).
+
 - Encrypt global User email and MFA material with the Global Identity key
   hierarchy. Use exact keyed lookup for sign-in and operation-bound mailbox
   proof for reset, verification and email changes (refs #3102).
